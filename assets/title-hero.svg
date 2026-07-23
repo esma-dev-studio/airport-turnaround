@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-label="そらみなと国際空港に駐機するあおぞら航空の飛行機">
+  <!-- 空 -->
+  <rect width="900" height="420" fill="#d4eaf7"/>
+  <circle cx="80" cy="70" r="34" fill="#ffd77a"/>
+  <g fill="#ffffff" opacity="0.92">
+    <g>
+      <rect x="210" y="70" width="110" height="26" rx="13"/>
+      <rect x="235" y="54" width="62" height="24" rx="12"/>
+    </g>
+    <g opacity="0.85">
+      <rect x="600" y="48" width="96" height="22" rx="11"/>
+      <rect x="620" y="34" width="54" height="20" rx="10"/>
+    </g>
+    <g opacity="0.7">
+      <rect x="770" y="110" width="84" height="20" rx="10"/>
+    </g>
+  </g>
+
+  <!-- 背景のターミナルと管制塔 -->
+  <rect x="30" y="206" width="390" height="94" fill="#c6d6e2"/>
+  <rect x="30" y="198" width="390" height="12" fill="#a9bfd0"/>
+  <g fill="#9db4c6">
+    <rect x="50" y="224" width="26" height="52"/><rect x="88" y="224" width="26" height="52"/>
+    <rect x="126" y="224" width="26" height="52"/><rect x="164" y="224" width="26" height="52"/>
+    <rect x="202" y="224" width="26" height="52"/><rect x="240" y="224" width="26" height="52"/>
+    <rect x="278" y="224" width="26" height="52"/><rect x="316" y="224" width="26" height="52"/>
+    <rect x="354" y="224" width="26" height="52"/>
+  </g>
+  <rect x="470" y="160" width="26" height="140" fill="#b6c8d6"/>
+  <rect x="450" y="128" width="66" height="40" rx="12" fill="#6f8598"/>
+  <rect x="458" y="138" width="50" height="14" rx="7" fill="#b7e0ef"/>
+  <rect x="481" y="112" width="4" height="18" fill="#6f8598"/>
+
+  <!-- 地面（エプロン） -->
+  <rect y="300" width="900" height="120" fill="#b8bfc7"/>
+  <g stroke="#e8c84a" stroke-width="5" stroke-dasharray="34 24">
+    <line x1="0" y1="392" x2="900" y2="392"/>
+  </g>
+
+  <!-- 機体の影 -->
+  <ellipse cx="470" cy="322" rx="310" ry="14" fill="rgba(40,50,60,0.16)"/>
+
+  <!-- 飛行機（横から見た姿・機首は右） -->
+  <!-- 水平尾翼 -->
+  <path d="M186 252 L112 284 L196 272 Z" fill="#e7ebef" stroke="#8d99a5" stroke-width="3"/>
+  <!-- 垂直尾翼 -->
+  <path d="M238 230 C220 186 216 162 226 144 L268 144 C270 172 280 202 296 230 Z" fill="#1793b8" stroke="#0e6f8c" stroke-width="3"/>
+  <path d="M236 170 Q252 158 272 166" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <!-- 胴体 -->
+  <path d="M212 224 L688 224 C724 224 748 238 758 250 C748 262 724 276 688 276 L212 276 C196 276 186 262 186 250 C186 238 196 224 212 224 Z"
+        fill="#f6f8fa" stroke="#8d99a5" stroke-width="3"/>
+  <!-- コックピット窓 -->
+  <path d="M718 234 C730 238 740 244 746 250 L716 250 Z" fill="#33414f"/>
+  <!-- 客室窓 -->
+  <g fill="#33414f">
+    <circle cx="300" cy="240" r="4.5"/><circle cx="330" cy="240" r="4.5"/><circle cx="360" cy="240" r="4.5"/>
+    <circle cx="390" cy="240" r="4.5"/><circle cx="420" cy="240" r="4.5"/><circle cx="450" cy="240" r="4.5"/>
+    <circle cx="480" cy="240" r="4.5"/><circle cx="510" cy="240" r="4.5"/><circle cx="540" cy="240" r="4.5"/>
+    <circle cx="570" cy="240" r="4.5"/><circle cx="600" cy="240" r="4.5"/><circle cx="660" cy="240" r="4.5"/>
+  </g>
+  <!-- ドア -->
+  <rect x="626" y="230" width="20" height="32" rx="5" fill="none" stroke="#9aa6b1" stroke-width="2.5"/>
+  <!-- 社名 -->
+  <text x="298" y="268" font-family="Segoe UI, Hiragino Sans, Meiryo, sans-serif" font-size="24" font-weight="700" fill="#0e6f8c" letter-spacing="4">AOZORA</text>
+  <!-- 主翼 -->
+  <path d="M436 262 L330 332 L424 332 L516 262 Z" fill="#dfe4e9" stroke="#8d99a5" stroke-width="3"/>
+  <!-- エンジン -->
+  <rect x="398" y="298" width="88" height="34" rx="17" fill="#c7ced5" stroke="#8d99a5" stroke-width="3"/>
+  <ellipse cx="484" cy="315" rx="7" ry="14" fill="#3d4854"/>
+  <rect x="420" y="298" width="14" height="6" fill="#1793b8"/>
+  <!-- 車輪 -->
+  <rect x="676" y="276" width="6" height="30" fill="#5b6570"/>
+  <circle cx="679" cy="312" r="10" fill="#2d343d"/><circle cx="679" cy="312" r="4" fill="#8d99a5"/>
+  <rect x="500" y="276" width="6" height="32" fill="#5b6570"/>
+  <circle cx="492" cy="313" r="11" fill="#2d343d"/><circle cx="492" cy="313" r="4.5" fill="#8d99a5"/>
+  <circle cx="514" cy="313" r="11" fill="#2d343d"/><circle cx="514" cy="313" r="4.5" fill="#8d99a5"/>
+
+  <!-- プッシュバック車両 -->
+  <g>
+    <rect x="766" y="330" width="76" height="28" rx="7" fill="#414b58" stroke="#2d343d" stroke-width="2.5"/>
+    <path d="M786 330 L800 330 L788 358 L774 358 Z" fill="#e8c84a"/>
+    <path d="M814 330 L828 330 L816 358 L802 358 Z" fill="#e8c84a"/>
+    <circle cx="782" cy="360" r="8" fill="#2d343d"/><circle cx="826" cy="360" r="8" fill="#2d343d"/>
+  </g>
+  <!-- 手荷物カート -->
+  <g>
+    <rect x="66" y="336" width="34" height="24" rx="5" fill="#7c6a4f"/>
+    <rect x="104" y="338" width="40" height="22" rx="4" fill="#94826a"/>
+    <rect x="110" y="343" width="9" height="12" fill="#c96f5c"/>
+    <rect x="122" y="343" width="9" height="12" fill="#5c88c9"/>
+    <rect x="134" y="343" width="8" height="12" fill="#6fae7c"/>
+    <circle cx="78" cy="362" r="7" fill="#2d343d"/><circle cx="124" cy="362" r="7" fill="#2d343d"/>
+  </g>
+</svg>
