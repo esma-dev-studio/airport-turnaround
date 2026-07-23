@@ -178,6 +178,7 @@
       if (n > 0) this.prevSpeed = n;
       this.speed = n;
       UI.setSpeedUI(n);
+      UI.setPausedIndicator(this.begun && n === 0 && !this.ending && Game.state && !Game.state.ended);
     },
 
     onStartTask(id) {
@@ -230,6 +231,7 @@
 
       /* ベスト更新はクリア時のみ記録 */
       let isBest = false;
+      const prevBest = this.save.best[result.stageId] ? this.save.best[result.stageId].score : null;
       if (result.cleared) {
         const prev = this.save.best[result.stageId];
         if (!prev || result.score > prev.score) {
@@ -243,7 +245,7 @@
       const nextId = result.cleared && window.STAGE_MAP[result.stageId + 1] ? result.stageId + 1 : null;
       setTimeout(() => {
         this.stopLoop();
-        UI.renderResult(result, isBest, nextId);
+        UI.renderResult(result, isBest, nextId, prevBest);
         UI.showScreen('result');
       }, result.departed ? 1600 : 800);
     },

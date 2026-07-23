@@ -91,6 +91,19 @@
   const PAX_COLORS = ['#e5867c', '#7ca3d8', '#d8c07c', '#8fc98f', '#b493cf', '#7cc2c9'];
   const PAX_TOTAL = 112;
 
+  /* 空港のまめ知識（スタート画面・結果画面にランダム表示） */
+  const TRIVIA = [
+    '飛行機は自分ではバックできません。だからプッシュバック車両が後ろへ押してあげるのです。',
+    '持ち主が搭乗していないスーツケースは、安全のため必ず飛行機から降ろすルールになっています。',
+    '給油中の機体のまわりは火気厳禁。ランプスタッフがしっかり見守っています。',
+    '短い路線では、到着から出発までの準備（ターンアラウンド）を30分ほどで終えることもあります。',
+    '預けた手荷物はバーコードで1個ずつ管理されていて、行き先をまちがえないようになっています。',
+    '雷が近づくと、駐機場の屋外作業は安全のためすぐに中断されます。',
+    '飛行機を手の合図で誘導する係は「マーシャラー」と呼ばれています。',
+    'ベルトローダーのベルトは動く坂道。重いスーツケースもスイスイ運べます。',
+  ];
+  const pickTrivia = () => TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
+
   const Scene = {
     canvas: null, ctx: null,
     cw: 0, ch: 0, dpr: 1,
@@ -302,14 +315,16 @@
       return rec;
     },
 
-    /* タップ判定: エンティティ → 作業スポットの順に探す */
-    hitTest(state, sceneP) {
+    /* タップ判定: エンティティ → 作業スポットの順に探す。
+     * 距離は「画面上のピクセル」で比べる（ズームアウト時やスマホでも押しやすい）。 */
+    hitTest(state, sx, sy) {
       let best = null, bestD = 1e9;
       state.entities.forEach((e) => {
         const rec = this.ent[e.id];
         if (!rec) return;
-        const r = e.kind === 'staff' ? 17 : 40;
-        const d = Math.hypot(rec.pos.x - sceneP.x, rec.pos.y - sceneP.y);
+        const sp = this.sceneToScreen(rec.pos.x, rec.pos.y);
+        const r = e.kind === 'staff' ? 22 : Math.max(34, 46 * this.scale() / 1.1);
+        const d = Math.hypot(sp.x - sx, sp.y - sy);
         if (d < r && d < bestD) { best = { type: 'entity', id: e.id }; bestD = d; }
       });
       if (best) return best;
@@ -318,8 +333,9 @@
         if (t.status !== 'ready' && t.status !== 'gathering' && t.status !== 'active') return;
         const a = this.anchorOf(t.id);
         if (!a) return;
-        const d = Math.hypot(a[0] - sceneP.x, a[1] - sceneP.y);
-        if (d < 34 && d < bestD) { spot = { type: 'spot', id: t.id }; bestD = d; }
+        const sp = this.sceneToScreen(a[0], a[1]);
+        const d = Math.hypot(sp.x - sx, sp.y - sy);
+        if (d < 36 && d < bestD) { spot = { type: 'spot', id: t.id }; bestD = d; }
       });
       return spot;
     },
@@ -912,6 +928,11 @@
         c.beginPath(); c.arc(x, y - 1 + bob * 0.3, 3, 0, TAU); c.fill();
         c.fillStyle = 'rgba(255,255,255,.85)';
         c.beginPath(); c.arc(x, y - 1 + bob * 0.3, 1.3, 0, TAU); c.fill();
+        /* 熟練度バッジ */
+        if (e.skill === 'vet' || e.skill === 'rookie') {
+          c.font = '8px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(e.skill === 'vet' ? '⭐' : '🔰', x, y - 11 + bob * 0.3);
+        }
       });
 
       /* 選択中エンティティのラベル */
@@ -920,7 +941,8 @@
         const rec = e && this.ent[e.id];
         if (e && rec) {
           const meta = e.kind === 'staff' ? window.RES_META.staff[e.type] : window.RES_META.vehicles[e.type];
-          const label = `${meta.icon}${e.label} — 行き先をタップ`;
+          const skillTxt = e.skill === 'vet' ? '⭐速い ' : e.skill === 'rookie' ? '🔰ゆっくり ' : '';
+          const label = `${meta.icon}${e.label} ${skillTxt}— 行き先をタップ`;
           c.font = 'bold 11px "Segoe UI", Meiryo, sans-serif';
           const w = c.measureText(label).width + 14;
           const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 26 : 42);
@@ -1178,8 +1200,7 @@
     handleTap(sx, sy) {
       const s = this.state;
       if (!s || s.ended) return;
-      const sceneP = Scene.screenToScene(sx, sy);
-      const hit = Scene.hitTest(s, sceneP);
+      const hit = Scene.hitTest(s, sx, sy);
 
       if (hit && hit.type === 'entity') {
         const e = s.entities.find((x) => x.id === hit.id);
@@ -1223,7 +1244,7 @@
         info = missing
           ? `あと <strong>${missing}</strong> が必要です。<br>待機所のスタッフ・車両をタップで送るか、おまかせで開始。`
           : 'メンバー集合中です。到着を待ちましょう。';
-        if (missing) btns.push({ label: '▶ おまかせで開始', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
+        if (missing) btns.push({ label: t.status === 'gathering' ? '▶ おまかせでそろえる' : '▶ おまかせで開始', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
         if (t.status === 'gathering') btns.push({ label: '中断', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
       } else if (t.status === 'active') {
         info = `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
@@ -1336,6 +1357,9 @@
       this.els['start-overlay'].classList.remove('hidden');
       this.els['start-overlay-title'].textContent = state.stage.name;
       this.els['start-overlay-text'].textContent = state.stage.intro;
+      document.getElementById('start-trivia').textContent = '💡 まめちしき: ' + pickTrivia();
+      document.getElementById('pause-chip').classList.add('hidden');
+      this.prevMetrics = { safety: 100, punct: 100, sat: 100, cost: 100 };
 
       const list = this.els['task-list'];
       list.innerHTML = '';
@@ -1388,7 +1412,10 @@
         const chip = document.createElement('span');
         chip.className = 'res-chip';
         chip.style.setProperty('--c', meta.color);
-        chip.innerHTML = `<span class="rc-ico">${meta.icon}</span><span class="rc-name">${e.label}</span><span class="rc-st"></span>`;
+        const skillMark = e.skill === 'vet' ? '⭐' : e.skill === 'rookie' ? '🔰' : '';
+        if (e.skill === 'vet') chip.title = 'ベテラン: 作業が15%速い';
+        if (e.skill === 'rookie') chip.title = '新人: 作業が15%ゆっくり';
+        chip.innerHTML = `<span class="rc-ico">${meta.icon}</span><span class="rc-name">${skillMark}${e.label}</span><span class="rc-st"></span>`;
         (e.kind === 'staff' ? sStrip : vStrip).appendChild(chip);
         this.chipEls[e.id] = chip;
       });
@@ -1525,10 +1552,25 @@
       const s = this.state;
       if (!s) return;
       const m = s.metrics;
+      if (!this.prevMetrics) this.prevMetrics = { safety: 100, punct: 100, sat: 100, cost: 100 };
       const upd = (key, val) => {
         const v = Math.round(val);
         const bar = this.els['bar-' + key];
         const num = this.els['val-' + key];
+        const prev = this.prevMetrics[key];
+        /* 2ポイント以上動いたら「±N」を浮かせる（定時性のじわじわ減少は除く） */
+        if (key !== 'punct' && Math.abs(v - prev) >= 2) {
+          const delta = v - prev;
+          const span = document.createElement('span');
+          span.className = 'metric-delta ' + (delta < 0 ? 'minus' : 'plus');
+          span.textContent = (delta > 0 ? '+' : '') + delta;
+          bar.parentElement.parentElement.appendChild(span);
+          setTimeout(() => span.remove(), 1500);
+          bar.classList.remove('hit');
+          void bar.offsetWidth;
+          bar.classList.add('hit');
+        }
+        if (Math.abs(v - prev) >= 1) this.prevMetrics[key] = v;
         if (num.textContent !== String(v)) num.textContent = String(v);
         bar.style.width = v + '%';
         bar.classList.toggle('low', v < 40);
@@ -1541,6 +1583,16 @@
       if (!s) return;
       const n = s.taskList.filter((t) => t.status !== 'done').length;
       this.els['unfinished-count'].textContent = String(n);
+      /* ドロワーのバッジ: いま開始できる作業の数 */
+      const ready = s.taskList.filter((t) => t.status === 'ready').length;
+      const badge = document.getElementById('drawer-badge');
+      badge.textContent = String(ready);
+      badge.classList.toggle('hidden', ready === 0);
+    },
+
+    /* 一時停止チップ */
+    setPausedIndicator(show) {
+      document.getElementById('pause-chip').classList.toggle('hidden', !show);
     },
 
     updateHint(force) {
@@ -1704,6 +1756,7 @@
           title: '🛠 作業のすすめ方（2つのやり方）',
           body: `<p><strong>① おまかせ：</strong>作業カードの「開始」を押すと、必要なメンバーが自動で移動します。</p>
                  <p><strong>② 自分で配置：</strong>駐機場の<strong>スタッフや車両をタップ</strong>して選び、<strong>緑に光る持ち場</strong>をタップして送りこみます。必要な人数がそろうと作業開始！</p>
+                 <p><strong>⭐ベテラン</strong>は作業が速く、<strong>🔰新人</strong>はゆっくり。だれを送るかも作戦のうち！</p>
                  <p>🔒がついた作業は順番の条件があります（例：清掃はお客さんが降りてから）。</p>`,
         },
         {
@@ -1795,7 +1848,7 @@
     },
 
     /* ---------------- 結果画面 ---------------- */
-    renderResult(res, isBest, nextStageId) {
+    renderResult(res, isBest, nextStageId, prevBest) {
       const nextBtn = document.getElementById('btn-next-stage');
       const retryBtn = document.getElementById('btn-retry');
       nextBtn.classList.toggle('hidden', !nextStageId);
@@ -1835,14 +1888,50 @@
       });
 
       const times = this.els['result-times'];
+      const bestNote = isBest ? '　★ 自己ベスト更新！' :
+        (prevBest != null ? `　（これまでのベスト ${prevBest}点）` : '');
       if (res.blockOff != null) {
         const d = Math.ceil(Math.max(0, res.blockOff - res.std));
         times.textContent = `出発予定 ${window.fmtClock(res.std)} → 実際の出発 ${window.fmtClock(res.blockOff)}` +
-          (d > 0 ? `（${d}分遅れ）` : '（定刻）') + (isBest ? '　★ 自己ベスト更新！' : '');
+          (d > 0 ? `（${d}分遅れ）` : '（定刻）') + bestNote;
       } else {
-        times.textContent = `出発予定 ${window.fmtClock(res.std)} → 出発できず` + (isBest ? '　★ 自己ベスト更新！' : '');
+        times.textContent = `出発予定 ${window.fmtClock(res.std)} → 出発できず` + bestNote;
       }
       this.els['result-advice'].textContent = res.advice;
+
+      /* 作業タイムライン（どれだけ並行できたか） */
+      const gantt = document.getElementById('result-gantt');
+      gantt.innerHTML = '';
+      if (res.timeline) {
+        const t0 = res.arrival;
+        const tEnd = Math.max(res.std + 4, t0 + 46, ...res.timeline.map((t) => t.doneAt || 0));
+        const span = tEnd - t0;
+        const pct = (m) => clamp(((m - t0) / span) * 100, 0, 100);
+        const stdPct = pct(res.std);
+        res.timeline.forEach((t) => {
+          const row = document.createElement('div');
+          row.className = 'gr';
+          const nm = t.name.length > 7 ? t.name.slice(0, 7) + '…' : t.name;
+          let bars = `<i class="gr-stdline" style="left:${stdPct}%"></i>`;
+          if (t.startedAt != null && t.activeAt != null) {
+            bars += `<i class="gr-gather" style="left:${pct(t.startedAt)}%;width:${Math.max(0.5, pct(t.activeAt) - pct(t.startedAt))}%"></i>`;
+          }
+          if (t.activeAt != null && t.doneAt != null) {
+            bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%"></i>`;
+          }
+          row.innerHTML = `<span class="gr-label" title="${t.name}">${t.icon}${nm}</span>` +
+            `<span class="gr-track">${t.startedAt == null ? '<span class="gr-none">着手できず</span>' : bars}</span>`;
+          gantt.appendChild(row);
+        });
+        const axis = document.createElement('div');
+        axis.className = 'gr-axis';
+        axis.innerHTML = `<span></span><span class="gr-axis-track">` +
+          `<span style="left:2%">${window.fmtClock(t0)} 到着</span>` +
+          `<span class="ax-std" style="left:${stdPct}%">出発予定 ${window.fmtClock(res.std)}</span>` +
+          `</span>`;
+        gantt.appendChild(axis);
+      }
+      document.getElementById('result-trivia').textContent = '💡 まめちしき: ' + pickTrivia();
     },
 
     /* ---------------- 毎フレーム ---------------- */
@@ -1908,6 +1997,7 @@
           this.selected = null;
           this.closeSpotPop();
           this.hideEventBanner();
+          this.setPausedIndicator(false);
           if (this.modalKind && this.modalKind !== 'tutorial') this.closeModal();
           break;
       }

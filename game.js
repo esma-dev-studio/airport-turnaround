@@ -8,6 +8,7 @@
   'use strict';
 
   const MOVE_DUR = { staff: 0.9, vehicle: 0.6 }; // 移動にかかるゲーム内分
+  const SKILL_FACTOR = { vet: 1.15, norm: 1, rookie: 0.85 }; // ⭐ベテラン/ふつう/🔰新人の作業速度
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   /* 分（絶対値: 600=10:00）→ "10:05" */
@@ -54,11 +55,13 @@
 
       const entities = [];
       let eid = 0;
+      const skillCfg = stage.resources.staffSkills || {};
       Object.entries(stage.resources.staff).forEach(([type, n]) => {
         for (let i = 0; i < n; i++) {
           entities.push({
             id: 'S' + (eid++), kind: 'staff', type, idx: i,
             label: window.RES_META.staff[type].short + String.fromCharCode(65 + i),
+            skill: (skillCfg[type] && skillCfg[type][i]) || 'norm',
             status: 'idle', moveProgress: 0, moveDur: MOVE_DUR.staff, taskId: null,
           });
         }
@@ -88,7 +91,7 @@
         resolvedEvents: [],
         log: [],
         flags: { critical: false, safetySkipped: false, safetyChoiceDone: false },
-        stats: { blockOff: null, delay: 0, firstStarts: {}, satNotes: [], rushCount: 0, carefulCount: 0 },
+        stats: { blockOff: null, delay: 0, firstStarts: {}, satNotes: [], rushCount: 0, carefulCount: 0, warned: [] },
         pendingSafety: false,
         ended: false,
         endResult: null,
@@ -200,6 +203,22 @@
         }
       }
 
+      /* --- 出発が近づいたら知らせる（遅れ気味のときだけ: 15/10/5分前） --- */
+      if (!s.stats.blockOff && s.tasks.doorclose.status !== 'done') {
+        const remain = s.stage.std - s.clock;
+        const NEED = { 15: 6, 10: 5, 5: 2 };  // のこり作業がこれ以上のときだけ警告
+        [15, 10, 5].forEach((th) => {
+          if (remain <= th && remain > 0 && !s.stats.warned.includes(th)) {
+            s.stats.warned.push(th);
+            const n = s.taskList.filter((t) => t.status !== 'done').length;
+            if (n < NEED[th]) return;  // 順調なら鳴らさない
+            this.log(`⏰ 出発予定まであと${th}分（のこりの作業 ${n}件）`, 'warn');
+            this.emit('toast', { msg: `⏰ 出発予定まであと${th}分！のこりの作業 ${n}件`, type: 'warn' });
+            this.emit('sfx', th === 5 ? 'warn' : 'event');
+          }
+        });
+      }
+
       /* --- 大幅遅延による強制終了 --- */
       if (!s.stats.blockOff && s.clock > s.stage.std + s.stage.maxOvertime) {
         this._endStage(false);
@@ -229,9 +248,9 @@
       return false;
     },
 
-    /* ペースを反映した実際の必要時間 */
+    /* ペースと担当スタッフの熟練度を反映した実際の必要時間 */
     effDur(t) {
-      return t.dur * (window.PACE[t.pace] ? window.PACE[t.pace].f : 1);
+      return t.dur * (window.PACE[t.pace] ? window.PACE[t.pace].f : 1) * (t.crewFactor || 1);
     },
 
     /* 必要リソースがすべて割り当て済みか */
@@ -463,6 +482,16 @@
         if (e) e.status = 'working';
       });
 
+      /* 担当スタッフの熟練度 → 作業速度（⭐ベテラン15%速い / 🔰新人15%ゆっくり） */
+      const crew = t.assigned.map((id) => this.entityById(id)).filter((e) => e && e.kind === 'staff');
+      if (crew.length) {
+        const mean = crew.reduce((sum, e) => sum + (SKILL_FACTOR[e.skill] || 1), 0) / crew.length;
+        t.crewFactor = 1 / mean;
+        if (crew.some((e) => e.skill === 'vet')) this.log(`⭐ベテランが「${t.def.name}」を担当。手ぎわがいい！`, 'info');
+      } else {
+        t.crewFactor = 1;
+      }
+
       if (t.id === 'deboard') {
         /* 降機開始が遅いと乗客満足度が下がる */
         const gap = s.clock - s.stage.arrival;
@@ -636,9 +665,15 @@
         critical: s.flags.critical,
         blockOff: s.stats.blockOff,
         std: s.stage.std,
+        arrival: s.stage.arrival,
         delay: s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null,
         advice: this._buildAdvice(departed),
         stageId: s.stage.id,
+        /* 結果画面のタイムライン表示用 */
+        timeline: s.taskList.map((t) => ({
+          id: t.id, name: t.def.name, icon: t.def.icon,
+          startedAt: t.startedAt, activeAt: t.activeAt, doneAt: t.doneAt,
+        })),
       };
       this.emit('stage-end', s.endResult);
       this.emit('sfx', cleared ? 'clear' : 'fail');

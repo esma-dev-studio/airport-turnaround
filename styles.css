@@ -152,7 +152,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 #hud-std { opacity: 0.85; }
 #hud-remain.soon { color: #ffd77a; }
-#hud-remain.late { color: #ff9c9c; }
+#hud-remain.late { color: #ff9c9c; animation: pulse-soft 1.2s infinite; }
 .hud-right { display: flex; align-items: center; gap: 8px; }
 .speed-ctrl { display: flex; border-radius: 10px; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.35); }
 .speed-btn {
@@ -197,6 +197,18 @@ ruby rt, .tc-ruby { font-weight: normal; }
   box-shadow: var(--shadow);
 }
 .drawer-tab-txt { font-size: 0.62rem; writing-mode: vertical-rl; letter-spacing: 2px; }
+.drawer-badge {
+  position: absolute;
+  top: -7px; right: -7px;
+  min-width: 20px; height: 20px;
+  border-radius: 999px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #fff;
+}
 .hint-banner {
   position: absolute;
   top: 10px; left: 50%; transform: translateX(-50%);
@@ -290,8 +302,33 @@ ruby rt, .tc-ruby { font-weight: normal; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-#apron { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#apron {
+  width: 100%; height: 100%; display: block;
+  touch-action: none; cursor: grab;
+  user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
 #apron.dragging { cursor: grabbing; }
+
+/* 一時停止中の表示 */
+.pause-chip {
+  position: absolute;
+  top: 52px; left: 50%; transform: translateX(-50%);
+  z-index: 4;
+  background: rgba(30, 58, 95, 0.92);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: pulse-soft 1.6s infinite;
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
 
 /* ズームボタン */
 #zoom-ctrl {
@@ -413,10 +450,30 @@ ruby rt, .tc-ruby { font-weight: normal; }
 #panel-status:not(.log-open) #game-log { display: none; }
 .panel-title { font-size: 0.82rem; color: var(--navy); }
 .panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: 0.68rem; }
-.metric { margin-bottom: 2px; }
+.metric { margin-bottom: 2px; position: relative; }
 .metric-head {
   display: flex; justify-content: space-between; align-items: baseline;
   font-size: 0.78rem; font-weight: 600; margin-bottom: 3px;
+}
+/* 指標が動いたときの「−3」フロート */
+.metric-delta {
+  position: absolute;
+  right: 2px; top: -4px;
+  font-size: 0.78rem; font-weight: 800;
+  pointer-events: none;
+  animation: delta-rise 1.4s ease-out forwards;
+}
+.metric-delta.minus { color: var(--bad); }
+.metric-delta.plus { color: var(--ok); }
+@keyframes delta-rise {
+  0% { opacity: 0; transform: translateY(4px); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+.bar-fill.hit { animation: bar-flash 0.7s; }
+@keyframes bar-flash {
+  0%, 100% { filter: none; }
+  40% { filter: brightness(1.6) saturate(1.6); }
 }
 .metric-head small { font-weight: 400; color: var(--ink-2); font-size: 0.85em; }
 .bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
@@ -583,6 +640,45 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .result-advice-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 6px; }
 .result-advice-box p { font-size: 0.86rem; line-height: 1.85; }
 .result-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* ---------------- スタート画面・結果画面のまめ知識 ---------------- */
+.start-trivia, .result-trivia {
+  background: var(--chip);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--ink-2);
+  text-align: left;
+  margin-bottom: 14px;
+}
+.result-trivia { margin: 0 0 16px; }
+
+/* ---------------- 結果画面の作業タイムライン ---------------- */
+.result-gantt-box { margin-bottom: 16px; text-align: left; }
+.result-gantt-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 8px; }
+.rg-sub { font-weight: 400; color: var(--ink-2); font-size: 0.72rem; }
+.result-gantt { display: flex; flex-direction: column; gap: 3px; }
+.gr { display: grid; grid-template-columns: 7.6em 1fr; align-items: center; gap: 8px; }
+.gr-label {
+  font-size: 0.68rem; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gr-track {
+  position: relative;
+  height: 12px;
+  background: #edf2f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gr-gather { position: absolute; top: 0; bottom: 0; background: #f0cf8e; border-radius: 3px; }
+.gr-work { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
+.gr-none { font-size: 0.66rem; color: var(--ink-2); padding-left: 4px; }
+.gr-stdline { position: absolute; top: -1px; bottom: -1px; width: 2px; background: rgba(214, 69, 69, 0.75); }
+.gr-axis { display: grid; grid-template-columns: 7.6em 1fr; gap: 8px; margin-top: 2px; }
+.gr-axis-track { position: relative; height: 14px; font-size: 0.62rem; color: var(--ink-2); }
+.gr-axis-track span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.gr-axis-track .ax-std { color: #b34a4a; font-weight: 700; }
 
 /* ---------------- 采配レバー（ていねい/ふつう/急ぐ） ---------------- */
 .pace-ctrl {

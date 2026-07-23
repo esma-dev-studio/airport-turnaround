@@ -83,10 +83,12 @@
           <button id="btn-zoom-reset" class="zoom-btn" title="ぜんたいを見る">⛶</button>
         </div>
         <div id="spot-pop" class="spot-pop hidden"></div>
+        <div id="pause-chip" class="pause-chip hidden">⏸ 一時停止中 — ▶で再開（作戦タイム！）</div>
         <div id="start-overlay" class="start-overlay">
           <div class="start-card">
             <h3 id="start-overlay-title">ステージ1</h3>
             <p id="start-overlay-text"></p>
+            <p id="start-trivia" class="start-trivia"></p>
             <button id="btn-begin" class="btn btn-primary btn-big">▶ スタート</button>
           </div>
         </div>
@@ -94,7 +96,7 @@
 
       <!-- 左ドロワー：作業カード -->
       <aside id="panel-tasks">
-        <button id="btn-drawer-tasks" class="drawer-tab" title="作業カードをひらく/とじる">📋<span class="drawer-tab-txt">作業</span></button>
+        <button id="btn-drawer-tasks" class="drawer-tab" title="作業カードをひらく/とじる">📋<span class="drawer-tab-txt">作業</span><span id="drawer-badge" class="drawer-badge hidden">0</span></button>
         <div id="task-list"></div>
       </aside>
 
@@ -153,6 +155,11 @@
         <h3>ふりかえり</h3>
         <p id="result-advice"></p>
       </div>
+      <div class="result-gantt-box">
+        <h3>⏱ 作業タイムライン<span class="rg-sub">（ならんでいるほど同時に進められた印）</span></h3>
+        <div id="result-gantt" class="result-gantt"></div>
+      </div>
+      <p id="result-trivia" class="result-trivia"></p>
       <div class="result-btns">
         <button id="btn-next-stage" class="btn btn-primary hidden">▶ 次のステージへ</button>
         <button id="btn-retry" class="btn btn-primary">もう一度あそぶ</button>

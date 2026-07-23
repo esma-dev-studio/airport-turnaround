@@ -23,6 +23,8 @@ const STAGES = [
     resources: {
       staff:    { gate: 2, baggage: 3, cleaning: 2, ramp: 2, maintenance: 1 },
       vehicles: { beltloader: 1, cart: 2, fuel: 1, catering: 1, pushback: 1 },
+      /* ⭐vet=15%速い / 🔰rookie=15%ゆっくり（並び順はA,B,C…） */
+      staffSkills: { gate: ['vet'] },
     },
     /* 発生イベント: atは到着からの経過分 */
     events: [
@@ -45,6 +47,7 @@ const STAGES = [
     resources: {
       staff:    { gate: 1, baggage: 2, cleaning: 2, ramp: 1, maintenance: 1 },
       vehicles: { beltloader: 1, cart: 1, fuel: 1, catering: 1, pushback: 1 },
+      staffSkills: { baggage: ['vet'], cleaning: ['norm', 'rookie'] },
     },
     events: [
       { id: 'cleaning_delay', at: 5 },
@@ -67,6 +70,7 @@ const STAGES = [
     resources: {
       staff:    { gate: 2, baggage: 2, cleaning: 2, ramp: 2, maintenance: 1 },
       vehicles: { beltloader: 1, cart: 1, fuel: 1, catering: 1, pushback: 1 },
+      staffSkills: { ramp: ['vet'], baggage: ['norm', 'rookie'], cleaning: ['vet'] },
     },
     events: [
       { id: 'weather', at: 7 },
