@@ -162,6 +162,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .speed-btn + .speed-btn { border-left: 1.5px solid rgba(255,255,255,0.35); }
 .speed-btn.active { background: var(--accent); }
 #btn-settings { color: #fff; border-color: rgba(255,255,255,0.35); }
+.btn-flow { color: #fff; border-color: rgba(255,255,255,0.35); font-size: 0.82rem; white-space: nowrap; }
 
 /* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ */
 #game-main {
@@ -640,6 +641,61 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .result-advice-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 6px; }
 .result-advice-box p { font-size: 0.86rem; line-height: 1.85; }
 .result-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* ---------------- ながれマップ ---------------- */
+.flow-map { display: flex; flex-direction: column; gap: 4px; }
+.flow-note { font-size: 0.74rem; color: var(--ink-2); margin-top: 7px; line-height: 1.5; }
+.flow-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.flow-chip {
+  font-size: 0.78rem;
+  background: var(--chip);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  color: var(--navy);
+  font-weight: 600;
+}
+.flow-chip.fc-done { background: #e6f6ec; border-color: #7cc99a; color: #22703f; }
+.flow-chip.fc-active { background: #e1f2f8; border-color: var(--accent); color: var(--accent-d); animation: pulse-soft 1.4s infinite; }
+.flow-chip.fc-ready { background: #fff; border-color: var(--accent); }
+.flow-chip.fc-locked { opacity: 0.5; }
+.flow-legend { display: flex; gap: 7px; margin-top: 12px; font-size: 0.68rem; flex-wrap: wrap; color: var(--ink-2); }
+.flow-legend span { border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.flow-legend .fc-done { background: #e6f6ec; }
+.flow-legend .fc-active { background: #e1f2f8; }
+.flow-legend .fc-ready { border-color: var(--accent); }
+.flow-legend .fc-locked { opacity: 0.55; }
+
+/* ---------------- ずかん ---------------- */
+.zk-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.zk-tab {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.zk-tab.on { background: var(--navy-2); border-color: var(--navy-2); color: #fff; font-weight: 700; }
+.zk-list { display: flex; flex-direction: column; gap: 8px; }
+.zk-cat { font-size: 0.82rem; color: var(--navy); margin-top: 4px; }
+.zk-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
+.zk-item p { font-size: 0.78rem; margin: 3px 0; line-height: 1.65; }
+.zk-head { font-weight: 700; color: var(--navy); font-size: 0.86rem; }
+.zk-head small { color: var(--ink-2); font-weight: 400; font-size: 0.72rem; }
+.zk-why { color: #7a5b12; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: 0.76rem; }
+.zk-note { color: var(--ink-2); font-size: 0.72rem; }
+
+/* ---------------- コーチのふきだし ---------------- */
+.toast-coach {
+  background: #ffffff;
+  color: var(--ink);
+  border: 2px solid var(--accent);
+  font-weight: 600;
+  line-height: 1.7;
+}
 
 /* ---------------- スタート画面・結果画面のまめ知識 ---------------- */
 .start-trivia, .result-trivia {

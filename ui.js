@@ -50,6 +50,7 @@
         case 'event':  this.tone(587, 0.12, 0, 'triangle'); this.tone(494, 0.12, 0.14, 'triangle'); this.tone(587, 0.12, 0.28, 'triangle'); break;
         case 'clear':  [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.16, i * 0.13, 'triangle', 0.1)); break;
         case 'fail':   [392, 330, 262].forEach((f, i) => this.tone(f, 0.2, i * 0.16, 'triangle', 0.08)); break;
+        case 'arrive': this.tone(196, 0.9, 0, 'sawtooth', 0.035); this.tone(147, 1.1, 0.5, 'sawtooth', 0.03); break;
       }
     },
   };
@@ -104,6 +105,18 @@
   ];
   const pickTrivia = () => TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
 
+  /* 👨‍✈️コーチのふきだし（初級=ステージ1のみ・節目で流れを実況） */
+  const COACH_RULES = [
+    { id: 'afterDeboard', when: (s) => s.tasks.deboard.status === 'done',
+      msg: '👨‍✈️ お客さんが降りたよ！つぎは『機内清掃』🧹と『機内食』🍱が始められる！' },
+    { id: 'afterClean', when: (s) => s.tasks.clean.status === 'done',
+      msg: '👨‍✈️ 機内がピカピカ！『乗客の搭乗』を始めよう。給油や積み込みは同時に続けてOK！' },
+    { id: 'beforeMatch', when: (s) => s.tasks.board.status === 'done' && s.tasks.load.status === 'done' && s.tasks.bagmatch.status !== 'done',
+      msg: '👨‍✈️ 仕上げの『手荷物照合』✅！乗っていない人の荷物がないか確認しよう。' },
+    { id: 'afterDoor', when: (s) => s.tasks.doorclose.status === 'done',
+      msg: '👨‍✈️ ドアクローズ完了🚪！点検が済んでいれば『プッシュバック』🚜で出発だ！' },
+  ];
+
   const Scene = {
     canvas: null, ctx: null,
     cw: 0, ch: 0, dpr: 1,
@@ -114,6 +127,9 @@
     lastPaxSpawn: 0,
     bridge: 1,        // 1=装着 0=格納
     fx: { parts: [], floats: [] },
+    arrivalT: null,   // 到着シネマティックの進行(0..1)。null=なし
+    arrivalCb: null,
+    planeParked: true,
 
     init(canvas) {
       this.canvas = canvas;
@@ -127,6 +143,30 @@
       this.time = 0;
       this.fx = { parts: [], floats: [] };
       this.cam = { zoom: 1, cx: 600, cy: 330 };
+      this.arrivalT = null;
+      this.arrivalCb = null;
+      this.planeParked = true;
+    },
+
+    /* 到着シネマティック: 誘導路からスポットへ入ってくる */
+    playArrival(cb) {
+      this.arrivalT = 0;
+      this.arrivalCb = cb || null;
+      this.planeParked = false;
+      this.bridge = 0;
+      Sfx.play('arrive');
+    },
+    stepArrival(dtReal) {
+      if (this.arrivalT == null) return;
+      this.arrivalT += dtReal / 3.0;
+      if (this.arrivalT >= 1) {
+        this.arrivalT = null;
+        this.planeParked = true;
+        const cb = this.arrivalCb;
+        this.arrivalCb = null;
+        this.float(615, 250, '✈ とうちゃく！ 出発準備スタート！', '#0e6f8c');
+        if (cb) cb();
+      }
     },
 
     resize() {
@@ -422,6 +462,8 @@
       c.fillStyle = '#8f99a3';
       c.fillRect(0, 0, this.cw, this.ch);
 
+      this.stepArrival(dtReal);
+
       c.save();
       c.translate(this.cw / 2, this.ch / 2);
       const S = this.scale();
@@ -554,6 +596,19 @@
       const G = window.Game;
       let x = 0, y = 0, rot = 0, alpha = 1;
       const ease = (t) => t * t * (3 - 2 * t);
+      /* 到着シネマティック（出発経路の逆再生でスポットイン） */
+      if (this.arrivalT != null) {
+        const a = ease(clamp(this.arrivalT, 0, 1));
+        if (a < 0.72) {
+          const p = 1 - a / 0.72;
+          x = p * 470; y = 85 + p * 210; rot = rad(16) + p * rad(30);
+        } else {
+          const p = 1 - (a - 0.72) / 0.28;
+          y = p * 85; rot = p * rad(16);
+        }
+        alpha = this.arrivalT < 0.05 ? this.arrivalT / 0.05 : 1;
+        return { x, y, rot, alpha };
+      }
       if (push.status === 'active' || push.status === 'done') {
         const p = push.status === 'done' ? 1 : ease(clamp(push.progress / G.effDur(push), 0, 1));
         y = p * 85; rot = p * rad(16);
@@ -668,7 +723,7 @@
 
     updateBridge(state, dtReal) {
       const closed = state.tasks.doorclose.status === 'done';
-      const target = closed ? 0 : 1;
+      const target = (closed || !this.planeParked) ? 0 : 1;
       if (this.bridge !== target) {
         const dir = target > this.bridge ? 1 : -1;
         this.bridge = clamp(this.bridge + dir * dtReal * 0.55, 0, 1);
@@ -1103,6 +1158,8 @@
 
       $('#btn-title-start').addEventListener('click', () => { Sfx.play('select'); cb.onGotoSelect(); });
       $('#btn-title-howto').addEventListener('click', () => { Sfx.play('click'); this.openTutorial(null); });
+      $('#btn-title-zukan').addEventListener('click', () => { Sfx.play('click'); this.openZukan('flow'); });
+      $('#btn-flowmap').addEventListener('click', () => { Sfx.play('click'); cb.onFlowMap(); });
       $('#btn-title-settings').addEventListener('click', () => { Sfx.play('click'); cb.onSettings(); });
       $('#btn-select-back').addEventListener('click', () => { Sfx.play('click'); cb.onGotoTitle(); });
       $('#btn-retry').addEventListener('click', () => { Sfx.play('select'); cb.onRetry(); });
@@ -1151,6 +1208,8 @@
       };
 
       cv.addEventListener('pointerdown', (ev) => {
+        /* 到着シネマティック中のタップはスキップ扱い */
+        if (Scene.arrivalT != null) { Scene.arrivalT = 1; return; }
         try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* すでに離れたポインタ等は無視 */ }
         pointers.set(ev.pointerId, pos(ev));
         dragMoved = false;
@@ -1340,6 +1399,7 @@
       this.lastRemainText = '';
       this.selected = null;
       this.issueTask = null;
+      this.coachShown = new Set();
       this.closeSpotPop();
 
       this.els['hud-stage-name'].textContent = state.stage.shortName;
@@ -1508,6 +1568,7 @@
         title: `${t.def.icon} ${t.def.name}`,
         body: `
           <p>${t.def.desc}</p>
+          ${t.def.why ? `<p class="zk-why">💡 <strong>なぜ必要？</strong> — ${t.def.why}</p>` : ''}
           <p class="modal-kv"><strong>必要時間:</strong> 約${Math.ceil(t.def.dur)}分　<strong>必要リソース:</strong> ${reqs}</p>
           <p class="modal-kv"><strong>開始条件:</strong> ${t.def.depNote}</p>
           ${t.def.note ? `<p class="modal-note">🦺 <strong>安全メモ:</strong> ${t.def.note}</p>` : ''}`,
@@ -1624,8 +1685,9 @@
       div.className = 'toast toast-' + (type || 'info');
       div.textContent = msg;
       this.els['toast-area'].appendChild(div);
-      setTimeout(() => { div.classList.add('out'); }, 3400);
-      setTimeout(() => { div.remove(); }, 3900);
+      const life = type === 'coach' ? 7200 : 3400;
+      setTimeout(() => { div.classList.add('out'); }, life);
+      setTimeout(() => { div.remove(); }, life + 500);
     },
 
     /* ---------------- 時計まわり ---------------- */
@@ -1736,6 +1798,91 @@
       if (this.cb.onModalClosed) this.cb.onModalClosed(k);
     },
 
+    /* ---------------- ながれマップ・ずかん・コーチ ---------------- */
+    buildFlowHtml(live) {
+      const s = live ? this.state : null;
+      const chip = (id) => {
+        const def = window.TASK_MAP[id];
+        let cls = '';
+        if (s) {
+          const st = s.tasks[id].status;
+          cls = st === 'done' ? ' fc-done' : st === 'active' ? ' fc-active'
+            : (st === 'ready' || st === 'gathering') ? ' fc-ready' : ' fc-locked';
+        }
+        return `<span class="flow-chip${cls}">${def.icon} ${def.name}</span>`;
+      };
+      return '<div class="flow-map">' + window.FLOW_ROWS.map((r) =>
+        `<div class="flow-note">${r.note}</div><div class="flow-row">${r.tasks.map(chip).join('')}</div>`).join('') +
+        (s ? '<div class="flow-legend"><span class="fc-done">✓ 完了</span><span class="fc-active">作業中</span><span class="fc-ready">開始できる</span><span class="fc-locked">まだ</span></div>' : '') +
+        '</div>';
+    },
+
+    openFlowMap() {
+      const live = !!this.state && $('#screen-game').classList.contains('active');
+      this.openModal({
+        kind: 'flow',
+        title: '🗺 出発準備のながれ',
+        body: this.buildFlowHtml(live) +
+          '<p class="modal-note" style="margin-top:10px;">じゅんばんを守りながら、同時にできる作業をどれだけ重ねられるかがコツ！</p>',
+        buttons: [{ label: 'とじる', cls: 'btn-primary' }],
+        dismissible: true,
+      });
+    },
+
+    openZukan(tab) {
+      tab = tab || 'flow';
+      const tabs = [['flow', '🗺 ながれ'], ['tasks', '🛠 おしごと'], ['crew', '🧑‍✈️ なかまたち']];
+      const tabBtns = '<div class="zk-tabs">' + tabs.map(([k, l]) =>
+        `<button class="zk-tab ${k === tab ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('') + '</div>';
+      let body = '';
+      if (tab === 'flow') {
+        body = this.buildFlowHtml(false);
+      } else if (tab === 'tasks') {
+        body = '<div class="zk-list">' + window.TASK_DEFS.map((d) => `
+          <div class="zk-item">
+            <div class="zk-head">${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
+            <p>${d.desc}</p>
+            <p class="zk-why">💡 なぜ必要？ — ${d.why}</p>
+            ${d.note ? `<p class="zk-note">🦺 ${d.note}</p>` : ''}
+          </div>`).join('') + '</div>';
+      } else {
+        body = '<div class="zk-list"><h4 class="zk-cat">スタッフ</h4>' +
+          Object.values(window.RES_META.staff).map((m) =>
+            `<div class="zk-item"><div class="zk-head">${m.icon} ${m.label}</div><p>${m.desc}</p></div>`).join('') +
+          '<h4 class="zk-cat">はたらく車（GSE）</h4>' +
+          Object.values(window.RES_META.vehicles).map((m) =>
+            `<div class="zk-item"><div class="zk-head">${m.icon} ${m.label}</div><p>${m.desc}</p></div>`).join('') + '</div>';
+      }
+      this.openModal({
+        kind: 'zukan',
+        title: '📖 空港ずかん',
+        body: tabBtns + body,
+        buttons: [{ label: 'とじる', cls: 'btn-primary' }],
+        dismissible: true,
+      });
+      this.els['modal'].querySelectorAll('.zk-tab').forEach((b) => {
+        b.addEventListener('click', () => { Sfx.play('click'); this.openZukan(b.dataset.tab); });
+      });
+    },
+
+    coach(msg) { this.toast(msg, 'coach'); },
+    coachBegin() {
+      if (this.state && this.state.stage.hints === true) {
+        this.coach('👨‍✈️ リーダー、到着だ！まずは『降機』🚶と『取り降ろし』📤。『給油』⛽と『点検』🔍も同時に始めよう！');
+      }
+    },
+    checkCoach() {
+      const s = this.state;
+      if (!s || s.ended || s.stage.hints !== true) return;
+      for (const r of COACH_RULES) {
+        if (!this.coachShown.has(r.id) && r.when(s)) {
+          this.coachShown.add(r.id);
+          this.coach(r.msg);
+          break;
+        }
+      }
+    },
+
     /* ---------------- チュートリアル ---------------- */
     openTutorial(onDone) {
       const steps = [
@@ -1743,6 +1890,12 @@
           title: '✈ ようこそ、地上作業リーダー！',
           body: `<p>飛行機が空港に着いてから次に出発するまでの作業を<strong>ターンアラウンド</strong>といいます。</p>
                  <p>あなたの仕事は、たくさんの作業をスタッフと車両にわりあてて、<strong>45分後の出発</strong>に間に合わせること！</p>`,
+        },
+        {
+          title: '🗺 出発準備のながれ',
+          body: `<p>作業には<strong>じゅんばん</strong>があるよ。同時にできるものは、どんどん同時に進めよう！</p>` +
+            this.buildFlowHtml(false) +
+            `<p style="margin-top:8px;">ゲーム中も右上の<strong>🗺ボタン</strong>でいつでも見られるよ。</p>`,
         },
         {
           title: '🗺 画面の見方',
@@ -1967,6 +2120,7 @@
           this.updateCard(payload.id);
           this.updateUnfinished();
           this.updateHint(true);
+          this.checkCoach();
           if (this.spotPopTask === payload.id) {
             const t = this.state.tasks[payload.id];
             if (!t || t.status === 'done' || t.status === 'active') this.closeSpotPop();

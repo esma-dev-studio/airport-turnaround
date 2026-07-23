@@ -57,9 +57,11 @@
         },
         onAssignEntity: (entityId, taskId) => {
           if (!this.begun) { UI.toast('まずは「▶ スタート」を押してはじめよう', 'info'); return; }
+          if (this.cinematic) { UI.toast('✈ とうちゃく中… 駐機したら作業スタート！', 'info'); return; }
           const r = Game.assignEntity(entityId, taskId);
           if (!r.ok) UI.toast(r.reason, 'warn');
         },
+        onFlowMap: () => this.openFlowMap(),
         onSetPace: (taskId, pace) => {
           Game.setPace(taskId, pace);
         },
@@ -82,8 +84,8 @@
           UI.toast('セーブデータを初期化しました', 'info');
         },
         onModalClosed: (kind) => {
-          /* 設定を閉じたら速度を元にもどす（ゲーム中のみ） */
-          if (kind === 'settings' && this.inGame() && this.begun && !this.ending && !Game.state.ended) {
+          /* 設定・ながれマップを閉じたら速度を元にもどす（ゲーム中のみ） */
+          if ((kind === 'settings' || kind === 'flow') && this.inGame() && this.begun && !this.ending && !Game.state.ended) {
             this.setSpeed(this.prevSpeed || 1);
           }
         },
@@ -149,6 +151,7 @@
       this.currentStageId = id;
       this.begun = false;
       this.ending = false;
+      this.cinematic = false;
       this.speed = 0;
       this.prevSpeed = 1;
       Game.newRun(id);
@@ -168,11 +171,23 @@
       if (this.begun) return;
       this.begun = true;
       UI.hideStartOverlay();
-      this.setSpeed(1);
+      if (this.debug) {
+        /* デバッグ時は到着シネマティックを省略（自動テストを決定的にする） */
+        this.setSpeed(1);
+        UI.coachBegin();
+        return;
+      }
+      this.cinematic = true;
+      UI.scene.playArrival(() => {
+        this.cinematic = false;
+        this.setSpeed(1);
+        UI.coachBegin();
+      });
     },
 
     setSpeed(n) {
       if (!this.inGame()) return;
+      if (this.cinematic) return;
       if (Game.state && Game.state.ended) n = 0;
       if (!this.begun && n > 0) { this.begin(); return; }
       if (n > 0) this.prevSpeed = n;
@@ -184,6 +199,10 @@
     onStartTask(id) {
       if (!this.begun) {
         UI.toast('まずは「▶ スタート」を押してはじめよう', 'info');
+        return;
+      }
+      if (this.cinematic) {
+        UI.toast('✈ とうちゃく中… 駐機したら作業スタート！', 'info');
         return;
       }
       const r = Game.startTask(id);
@@ -200,6 +219,14 @@
         this.setSpeed(0);
       }
       UI.openSettings({ sound: this.save.sound, inGame: this.inGame() && !this.ending });
+    },
+
+    openFlowMap() {
+      if (this.inGame() && this.begun && !this.ending && !this.cinematic) {
+        this.prevSpeed = this.speed > 0 ? this.speed : this.prevSpeed;
+        this.setSpeed(0);
+      }
+      UI.openFlowMap();
     },
 
     /* ---------------- ループ ---------------- */

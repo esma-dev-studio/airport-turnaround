@@ -34,6 +34,7 @@ const TASK_DEFS = [
     id: 'deboard', order: 1, icon: '🚶',
     name: '乗客の降機', ruby: 'こうき',
     desc: '到着した乗客に飛行機から降りてもらいます。搭乗橋（ボーディングブリッジ）を通ってターミナルへ。',
+    why: '到着したお客さんに降りてもらわないと、清掃も次の搭乗も始められないから。',
     dur: 8, staff: { gate: 1 }, vehicles: {}, deps: [],
     depNote: '到着したらすぐに始められます。',
     note: '通路では走らないよう、ゆっくり安全に案内します。',
@@ -43,6 +44,7 @@ const TASK_DEFS = [
     id: 'unload', order: 2, icon: '📤',
     name: '到着手荷物の取り降ろし', ruby: 'とりおろし',
     desc: '貨物室から到着した乗客の手荷物を降ろし、ターミナルへ運びます。降機と同時に進められます。',
+    why: '到着したお客さんの荷物を、早く受取所（ターンテーブル）へ届けるため。',
     dur: 10, staff: { baggage: 2 }, vehicles: { beltloader: 1, cart: 1 }, deps: [],
     depNote: '到着したらすぐに始められます。',
     note: '荷物の下敷きにならないよう、ベルトローダーのそばでは立ち位置に注意。',
@@ -52,6 +54,7 @@ const TASK_DEFS = [
     id: 'clean', order: 3, icon: '🧹',
     name: '機内清掃', ruby: 'きないせいそう',
     desc: '座席・テーブル・トイレをきれいにして、次の乗客をむかえる準備をします。',
+    why: '次のお客さんが気持ちよく過ごせるように。わすれ物のチェックも兼ねている。',
     dur: 10, staff: { cleaning: 2 }, vehicles: {},
     deps: ['deboard'],
     depNote: '乗客が全員降りてから（＝降機の完了後）始められます。',
@@ -62,6 +65,7 @@ const TASK_DEFS = [
     id: 'catering', order: 4, icon: '🍱',
     name: '機内食・飲料の積み込み', ruby: 'きないしょく',
     desc: 'ケータリング車の荷台を持ち上げて、機内食や飲み物を後方ドアから積みこみます。',
+    why: '次のフライトで出す食事と飲み物を積んでおくため。',
     dur: 8, staff: { ramp: 1 }, vehicles: { catering: 1 },
     deps: ['deboard'],
     depNote: '乗客の降機が完了すると始められます。',
@@ -72,6 +76,7 @@ const TASK_DEFS = [
     id: 'refuel', order: 5, icon: '⛽',
     name: '給油', ruby: 'きゅうゆ',
     desc: '給油車のホースを翼の下につないで、次のフライトに必要な燃料を入れます。',
+    why: '次の目的地まで飛ぶための燃料を入れるため。',
     dur: 12, staff: { ramp: 1 }, vehicles: { fuel: 1 }, deps: [],
     depNote: '到着したらすぐに始められます。',
     note: '給油中は機体のまわりで火気厳禁。ランプスタッフが必ず見守ります。',
@@ -81,6 +86,7 @@ const TASK_DEFS = [
     id: 'inspect', order: 6, icon: '🔍',
     name: '機体点検', ruby: 'きたいてんけん',
     desc: '整備スタッフが機体のまわりを歩いて、タイヤや翼にキズや異常がないか点検します。',
+    why: '飛行機が安全に飛べる状態か、出発前に必ず確かめるため。いちばん大事な仕事。',
     dur: 10, staff: { maintenance: 1 }, vehicles: {}, deps: [],
     depNote: '到着したらすぐに始められます。',
     note: '点検が終わらないと飛行機は出発できません。とても大事な作業です。',
@@ -90,6 +96,7 @@ const TASK_DEFS = [
     id: 'load', order: 7, icon: '📥',
     name: '出発手荷物の積み込み', ruby: 'つみこみ',
     desc: 'これから乗る乗客の手荷物を貨物室に積みこみます。',
+    why: '次に乗るお客さんの荷物を、目的地までいっしょに運ぶため。',
     dur: 10, staff: { baggage: 2 }, vehicles: { beltloader: 1, cart: 1 },
     deps: ['unload'],
     depNote: '貨物室が空いてから（＝取り降ろしの完了後）始められます。',
@@ -100,6 +107,7 @@ const TASK_DEFS = [
     id: 'board', order: 8, icon: '🧑‍🤝‍🧑',
     name: '乗客の搭乗', ruby: 'とうじょう',
     desc: '新しい乗客に飛行機へ乗ってもらいます。機内がきれいになってから案内します。',
+    why: '準備がととのった機内へ、お客さんに乗ってもらうため。',
     dur: 10, staff: { gate: 1 }, vehicles: {},
     deps: ['clean'],
     depNote: '機内清掃が完了すると始められます。',
@@ -110,6 +118,7 @@ const TASK_DEFS = [
     id: 'bagmatch', order: 9, icon: '✅',
     name: '手荷物照合', ruby: 'しょうごう',
     desc: '積んだ手荷物の数と乗った乗客をつきあわせて、乗らない人の荷物がないか確認します。',
+    why: '乗っていない人の荷物を運ばないようにして、安全を守るため。',
     dur: 3, staff: { baggage: 1 }, vehicles: {},
     deps: ['load', 'board'],
     depNote: '手荷物の積み込みと乗客の搭乗が完了すると始められます。',
@@ -120,6 +129,7 @@ const TASK_DEFS = [
     id: 'doorclose', order: 10, icon: '🚪',
     name: 'ドアクローズ', ruby: '',
     desc: '全員の搭乗と荷物の確認が終わったらドアを閉め、搭乗橋を外します。',
+    why: '出発の準備がぜんぶ終わったしるし。ここからは機内と無線で連絡する。',
     dur: 2, staff: { gate: 1 }, vehicles: {},
     deps: ['board', 'bagmatch', 'catering', 'refuel'],
     depNote: '搭乗・手荷物照合・機内食・給油がすべて完了すると閉められます。',
@@ -130,6 +140,7 @@ const TASK_DEFS = [
     id: 'pushback', order: 11, icon: '🚜',
     name: 'プッシュバック', ruby: '',
     desc: '専用車両で飛行機を後ろへ押し出します。飛行機は自分ではバックできません。',
+    why: '飛行機は自分ではバックできないので、車で押して動き出させるため。',
     dur: 3, staff: { ramp: 1 }, vehicles: { pushback: 1 },
     deps: ['doorclose', 'inspect'],
     depNote: 'ドアクローズと機体点検が完了すると始められます。開始前に周辺の安全確認を行います。',
@@ -141,6 +152,7 @@ const TASK_DEFS = [
     id: 'depart', order: 12, icon: '🛫',
     name: '出発', ruby: 'しゅっぱつ',
     desc: 'プッシュバックが終わると、飛行機は自分のエンジンで滑走路へ向かいます。いってらっしゃい！',
+    why: 'お客さんと荷物を、時間どおりに目的地へ届けるため。',
     dur: 2, staff: {}, vehicles: {},
     deps: ['pushback'],
     depNote: 'プッシュバックが完了すると自動で出発します。',
@@ -187,8 +199,20 @@ function taskReqList(def) {
   return list;
 }
 
+/* ---- 「出発準備のながれ」マップの行構成（上から時間の流れ） ---- */
+const FLOW_ROWS = [
+  { note: '✈ とうちゃく！ この4つは すぐ・同時に始められる', tasks: ['deboard', 'unload', 'refuel', 'inspect'] },
+  { note: '👇 お客さんが降りたら', tasks: ['clean', 'catering'] },
+  { note: '👇 貨物室が空いたら（取り降ろしのあと）', tasks: ['load'] },
+  { note: '👇 機内がきれいになったら', tasks: ['board'] },
+  { note: '👇 積み込みと搭乗が終わったら', tasks: ['bagmatch'] },
+  { note: '👇 搭乗・照合・機内食・給油が ぜんぶ終わったら', tasks: ['doorclose'] },
+  { note: '👇 機体点検もOKなら、いよいよ出発！', tasks: ['pushback', 'depart'] },
+];
+
 window.RES_META = RES_META;
 window.TASK_DEFS = TASK_DEFS;
+window.FLOW_ROWS = FLOW_ROWS;
 window.TASK_MAP = TASK_MAP;
 window.taskReqList = taskReqList;
 window.PACE = PACE;
