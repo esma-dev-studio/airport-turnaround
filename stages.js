@@ -13,7 +13,7 @@ const STAGES = [
     shortName: 'ステージ1',
     subtitle: '晴天・大きなトラブルなし。基本操作をおぼえよう。',
     difficulty: '初級',
-    weather: { icon: '☀', label: '晴れ' },
+    weather: { icon: '☀', label: 'はれ' },
     comingSoon: false,
     /* 時刻はゲーム内の分（10:00 = 600分） */
     arrival: 600,        // 到着 10:00
@@ -62,7 +62,7 @@ const STAGES = [
     shortName: 'ステージ3',
     subtitle: '積み込む手荷物が1個足りない！？捜索と出発判断。',
     difficulty: '中級',
-    weather: { icon: '🌦', label: 'はれ・雷雲接近中' },
+    weather: { icon: '🌦', label: 'はれ→かみなりくるかも' },
     arrival: 600,
     std: 645,
     maxOvertime: 25,

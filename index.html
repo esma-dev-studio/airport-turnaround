@@ -15,19 +15,19 @@
   <section id="screen-title" class="screen active">
     <div class="title-inner">
       <img class="title-hero" src="assets/title-hero.svg" alt="そらみなと国際空港に駐機するあおぞら航空の飛行機">
-      <h1 class="title-logo">出発準備<span class="title-num">45</span>分！</h1>
-      <p class="title-sub">Airport Turnaround（ターンアラウンド＝到着から出発までの準備作業）</p>
+      <h1 class="title-logo"><ruby>出発準備<rt>しゅっぱつじゅんび</rt></ruby><span class="title-num">45</span><ruby>分<rt>ふん</rt></ruby>！</h1>
+      <p class="title-sub">Airport Turnaround（ターンアラウンド ＝ とうちゃくから しゅっぱつまでの じゅんび）</p>
       <p class="title-desc">
-        あなたは空港の<ruby>地上作業<rt>ちじょうさぎょう</rt></ruby>リーダー。<br>
-        スタッフと車両をうまく動かして、飛行機を<strong>安全に・時間どおり</strong>に出発させよう！
+        きみは<ruby>空港<rt>くうこう</rt></ruby>の<ruby>地上作業<rt>ちじょうさぎょう</rt></ruby>リーダー。<br>
+        スタッフと はたらく<ruby>車<rt>くるま</rt></ruby>をうまくうごかして、<ruby>飛行機<rt>ひこうき</rt></ruby>を<strong><ruby>安全<rt>あんぜん</rt></ruby>に・<ruby>時間<rt>じかん</rt></ruby>どおり</strong>に<ruby>出発<rt>しゅっぱつ</rt></ruby>させよう！
       </p>
       <div class="title-btns">
         <button id="btn-title-start" class="btn btn-primary btn-big">▶ はじめる</button>
         <button id="btn-title-howto" class="btn btn-ghost">🎮 あそびかた</button>
         <button id="btn-title-zukan" class="btn btn-ghost">📖 ずかん</button>
-        <button id="btn-title-settings" class="btn btn-ghost">⚙ 設定</button>
+        <button id="btn-title-settings" class="btn btn-ghost">⚙ せってい</button>
       </div>
-      <p class="title-foot">架空の航空会社「あおぞら航空」と架空の「そらみなと国際空港」が舞台のゲームです。</p>
+      <p class="title-foot">この<ruby>空港<rt>くうこう</rt></ruby>と「あおぞら<ruby>航空<rt>こうくう</rt></ruby>」は、ゲームのための<ruby>空想<rt>くうそう</rt></ruby>の<ruby>会社<rt>かいしゃ</rt></ruby>です。</p>
     </div>
   </section>
 
@@ -49,15 +49,15 @@
       </div>
       <div class="hud-center">
         <div class="hud-clock-box">
-          <span class="hud-label">現在時刻</span>
+          <span class="hud-label">いまの時こく</span>
           <span id="hud-clock">10:00</span>
         </div>
         <div class="hud-clock-box">
-          <span class="hud-label">出発予定</span>
+          <span class="hud-label">しゅっぱつよてい</span>
           <span id="hud-std">10:45</span>
         </div>
         <div class="hud-clock-box">
-          <span class="hud-label">のこり時間</span>
+          <span class="hud-label">のこり</span>
           <span id="hud-remain">45分</span>
         </div>
       </div>
@@ -85,7 +85,7 @@
           <button id="btn-zoom-reset" class="zoom-btn" title="ぜんたいを見る">⛶</button>
         </div>
         <div id="spot-pop" class="spot-pop hidden"></div>
-        <div id="pause-chip" class="pause-chip hidden">⏸ 一時停止中 — ▶で再開（作戦タイム！）</div>
+        <div id="pause-chip" class="pause-chip hidden">⏸ ストップ中 — ▶でうごきだすよ（さくせんタイム！）</div>
         <div id="start-overlay" class="start-overlay">
           <div class="start-card">
             <h3 id="start-overlay-title">ステージ1</h3>
@@ -104,24 +104,24 @@
 
       <!-- 右上：管理指標（コンパクト） -->
       <aside id="panel-status">
-        <h3 class="panel-title">管理指標<span class="panel-title-sub">（スコアのもと）</span></h3>
+        <h3 class="panel-title">スコアのもと<span class="panel-title-sub">（だいじな4つ）</span></h3>
         <div class="metric">
-          <div class="metric-head"><span>🛡 安全性</span><span id="val-safety">100</span></div>
+          <div class="metric-head"><span>🛡 <ruby>安全<rt>あんぜん</rt></ruby></span><span id="val-safety">100</span></div>
           <div class="bar"><div id="bar-safety" class="bar-fill fill-safety" style="width:100%"></div></div>
         </div>
         <div class="metric">
-          <div class="metric-head"><span>⏱ 定時性<small>（時間どおりか）</small></span><span id="val-punct">100</span></div>
+          <div class="metric-head"><span>⏱ <ruby>時間<rt>じかん</rt></ruby>どおり</span><span id="val-punct">100</span></div>
           <div class="bar"><div id="bar-punct" class="bar-fill fill-punct" style="width:100%"></div></div>
         </div>
         <div class="metric">
-          <div class="metric-head"><span>😊 乗客満足度</span><span id="val-sat">100</span></div>
+          <div class="metric-head"><span>😊 お<ruby>客<rt>きゃく</rt></ruby>さんのまんぞく</span><span id="val-sat">100</span></div>
           <div class="bar"><div id="bar-sat" class="bar-fill fill-sat" style="width:100%"></div></div>
         </div>
         <div class="metric">
-          <div class="metric-head"><span>💰 コスト効率</span><span id="val-cost">100</span></div>
+          <div class="metric-head"><span>💰 コスト（おかね）</span><span id="val-cost">100</span></div>
           <div class="bar"><div id="bar-cost" class="bar-fill fill-cost" style="width:100%"></div></div>
         </div>
-        <div class="unfinished-box">のこりの作業 <strong id="unfinished-count">12</strong> 件</div>
+        <div class="unfinished-box">のこりのおしごと <strong id="unfinished-count">12</strong> こ</div>
         <button id="btn-log-toggle" class="log-toggle">📜 記録を見る ▾</button>
         <ul id="game-log" class="game-log"></ul>
       </aside>
@@ -133,7 +133,7 @@
           <div id="staff-strip" class="res-strip"></div>
         </div>
         <div class="res-group">
-          <span class="res-group-label">車両</span>
+          <span class="res-group-label">はたらく<ruby>車<rt>くるま</rt></ruby></span>
           <div id="vehicle-strip" class="res-strip"></div>
         </div>
       </footer>
@@ -158,14 +158,14 @@
         <p id="result-advice"></p>
       </div>
       <div class="result-gantt-box">
-        <h3>⏱ 作業タイムライン<span class="rg-sub">（ならんでいるほど同時に進められた印）</span></h3>
+        <h3>⏱ おしごとタイムライン<span class="rg-sub">（よこにならんでいるほど、<ruby>同時<rt>どうじ</rt></ruby>にできたしるし）</span></h3>
         <div id="result-gantt" class="result-gantt"></div>
       </div>
       <p id="result-trivia" class="result-trivia"></p>
       <div class="result-btns">
-        <button id="btn-next-stage" class="btn btn-primary hidden">▶ 次のステージへ</button>
-        <button id="btn-retry" class="btn btn-primary">もう一度あそぶ</button>
-        <button id="btn-result-select" class="btn btn-ghost">ステージ選択へ</button>
+        <button id="btn-next-stage" class="btn btn-primary hidden">▶ つぎのステージへ</button>
+        <button id="btn-retry" class="btn btn-primary">もういちど あそぶ</button>
+        <button id="btn-result-select" class="btn btn-ghost">ステージえらびへ</button>
       </div>
     </div>
   </section>

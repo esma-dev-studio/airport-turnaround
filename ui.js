@@ -164,7 +164,7 @@
         this.planeParked = true;
         const cb = this.arrivalCb;
         this.arrivalCb = null;
-        this.float(615, 250, '✈ とうちゃく！ 出発準備スタート！', '#0e6f8c');
+        this.float(615, 250, '✈ とうちゃく！ じゅんびスタート！', '#0e6f8c');
         if (cb) cb();
       }
     },
@@ -410,7 +410,7 @@
       if (!a) a = [615, 320];
       this.burst(a[0], a[1] - 14, 14, colors);
       const def = window.TASK_MAP[taskId];
-      this.float(a[0], a[1] - 30, `${def.icon} 完了!`, '#2e9e5b');
+      this.float(a[0], a[1] - 30, `${def.icon} できた！`, '#2e9e5b');
     },
     drawFx(dtReal) {
       const c = this.ctx;
@@ -569,11 +569,11 @@
       c.fillStyle = '#616d78';
       c.font = '11px "Segoe UI", Meiryo, sans-serif';
       c.textAlign = 'left';
-      c.fillText('スタッフ待機所', 256, 478);
+      c.fillText('スタッフのまちあい', 256, 478);
 
       /* 車両置き場 */
       c.fillStyle = '#616d78';
-      c.fillText('車両置き場（GSE）', 452, 478);
+      c.fillText('はたらく車のおきば', 452, 478);
       c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
       [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
         c.beginPath(); c.moveTo(x, 486); c.lineTo(x, 548); c.stroke();
@@ -816,9 +816,9 @@
         c.beginPath(); c.arc(a[0], a[1], 11, 0, TAU); c.fill();
         c.fillStyle = '#1e3a5f';
         c.fillText(t.def.icon, a[0], a[1] + 0.5);
-        /* あと何人・何台 */
+        /* あと何人・何台（かなが振れないのでアイコンで） */
         if (t.status === 'gathering') {
-          const missing = G.missingSummary(t.id);
+          const missing = G.missingIcons(t.id);
           if (missing) {
             c.font = 'bold 10px "Segoe UI", Meiryo, sans-serif';
             const w = c.measureText('あと ' + missing).width + 10;
@@ -888,7 +888,7 @@
           c.fillStyle = '#55606a';
           c.font = 'bold 9px "Segoe UI", Meiryo, sans-serif';
           c.textAlign = 'center'; c.textBaseline = 'middle';
-          c.fillText('燃料', 11, -7);
+          c.fillText('ねんりょう', 11, -7);
           break;
         }
         case 'catering': {
@@ -996,8 +996,8 @@
         const rec = e && this.ent[e.id];
         if (e && rec) {
           const meta = e.kind === 'staff' ? window.RES_META.staff[e.type] : window.RES_META.vehicles[e.type];
-          const skillTxt = e.skill === 'vet' ? '⭐速い ' : e.skill === 'rookie' ? '🔰ゆっくり ' : '';
-          const label = `${meta.icon}${e.label} ${skillTxt}— 行き先をタップ`;
+          const skillTxt = e.skill === 'vet' ? '⭐はやい ' : e.skill === 'rookie' ? '🔰ゆっくり ' : '';
+          const label = `${meta.icon}${e.label} ${skillTxt}— いきさきをタップ！`;
           c.font = 'bold 11px "Segoe UI", Meiryo, sans-serif';
           const w = c.measureText(label).width + 14;
           const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 26 : 42);
@@ -1052,10 +1052,10 @@
       let text = null;
       if (deb.status === 'active') {
         const n = PAX_TOTAL - Math.floor(clamp(deb.progress / G.effDur(deb), 0, 1) * PAX_TOTAL);
-        text = `🚶 降機中 のこり${n}人`;
+        text = `🚶 おりる人 のこり${n}人`;
       } else if (brd.status === 'active') {
         const n = Math.floor(clamp(brd.progress / G.effDur(brd), 0, 1) * PAX_TOTAL);
-        text = `🧑‍🤝‍🧑 搭乗中 ${n}/${PAX_TOTAL}人`;
+        text = `🧑‍🤝‍🧑 のる人 ${n}/${PAX_TOTAL}人`;
       }
       if (!text) return;
       c.font = 'bold 12px "Segoe UI", Meiryo, sans-serif';
@@ -1176,7 +1176,7 @@
       });
       this.els['btn-log-toggle'].addEventListener('click', () => {
         const open = this.els['panel-status'].classList.toggle('log-open');
-        this.els['btn-log-toggle'].textContent = open ? '📜 記録をとじる ▴' : '📜 記録を見る ▾';
+        this.els['btn-log-toggle'].textContent = open ? '📜 きろくをとじる ▴' : '📜 きろくを見る ▾';
       });
 
       /* ズーム */
@@ -1269,7 +1269,7 @@
           Sfx.play('click');
         } else {
           const task = e.taskId ? s.tasks[e.taskId] : null;
-          this.toast(`${e.label}は${task ? `「${task.def.name}」の担当中` : 'いま手が離せません'}`, 'info');
+          this.toast(`${e.label}はいま${task ? `「${task.def.name}」のおしごと中` : 'いそがしいみたい'}`, 'info');
         }
         return;
       }
@@ -1296,30 +1296,31 @@
       const pop = this.els['spot-pop'];
       const G = window.Game;
 
+      const rubi = window.rubi;
       let info = '';
       const btns = [];
       if (t.status === 'ready' || t.status === 'gathering') {
         const missing = G.missingSummary(t.id);
         info = missing
-          ? `あと <strong>${missing}</strong> が必要です。<br>待機所のスタッフ・車両をタップで送るか、おまかせで開始。`
-          : 'メンバー集合中です。到着を待ちましょう。';
-        if (missing) btns.push({ label: t.status === 'gathering' ? '▶ おまかせでそろえる' : '▶ おまかせで開始', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
-        if (t.status === 'gathering') btns.push({ label: '中断', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
+          ? `あと <strong>${rubi(missing)}</strong> がひつよう。<br>スタッフや車をタップでおくるか、おまかせでOK！`
+          : rubi('メンバーがあつまっています。到着を待ちましょう。');
+        if (missing) btns.push({ label: t.status === 'gathering' ? '▶ おまかせでそろえる' : '▶ おまかせではじめる', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
+        if (t.status === 'gathering') btns.push({ label: 'ストップ', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
       } else if (t.status === 'active') {
-        info = `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
+        info = rubi(`のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`);
         if (t.id !== 'pushback' && t.id !== 'depart') {
-          btns.push({ label: '中断', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
+          btns.push({ label: 'ストップ', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
         }
       }
       btns.push({ label: 'くわしく', cls: 'btn-ghost btn-sm', act: () => this.openTaskDetail(t.id) });
 
       const paceHtml = window.PACE_ALLOWED.has(t.id) && t.status !== 'done'
         ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
-            `<button class="pace-btn pace-${p} ${t.pace === p ? 'on' : ''}" data-pace="${p}">${window.PACE[p].icon}${window.PACE[p].label}</button>`).join('')}</div>`
+            `<button class="pace-btn pace-${p} ${t.pace === p ? 'on' : ''}" data-pace="${p}">${window.PACE[p].icon}${rubi(window.PACE[p].label)}</button>`).join('')}</div>`
         : '';
 
       pop.innerHTML = `
-        <div class="sp-title">${t.def.icon} ${t.def.name}</div>
+        <div class="sp-title">${t.def.icon} ${rubi(t.def.name)}</div>
         <div class="sp-info">${info}</div>
         ${paceHtml}
         <div class="sp-btns" style="margin-top:6px;"></div>`;
@@ -1327,7 +1328,7 @@
       btns.forEach((b) => {
         const el = document.createElement('button');
         el.className = 'btn ' + b.cls;
-        el.textContent = b.label;
+        el.innerHTML = b.label;
         el.addEventListener('click', () => { Sfx.play('click'); this.closeSpotPop(); b.act(); });
         btnWrap.appendChild(el);
       });
@@ -1370,15 +1371,15 @@
         card.className = 'stage-card' + (unlocked ? '' : ' locked');
         card.innerHTML = `
           <div class="sc-row1">
-            <span class="sc-name">${st.name}</span>
-            <span class="sc-diff">${st.difficulty}</span>
+            <span class="sc-name">${window.rubi(st.name)}</span>
+            <span class="sc-diff">${window.rubi(st.difficulty)}</span>
           </div>
-          <div class="sc-sub">${st.subtitle}</div>
+          <div class="sc-sub">${window.rubi(st.subtitle)}</div>
           <div class="sc-row2">
-            <span>${st.weather.icon} ${st.weather.label}</span>
+            <span>${st.weather.icon} ${window.rubi(st.weather.label)}</span>
             ${!unlocked
-              ? `<span class="sc-soon">🔒 ステージ${st.id - 1}をクリアすると遊べます</span>`
-              : (best ? `<span class="sc-best">★ ベスト ${best.score}点（${best.rank}）</span>` : '<span class="sc-best sc-best-none">未クリア</span>')}
+              ? `<span class="sc-soon">🔒 ステージ${st.id - 1}をクリアするとあそべるよ</span>`
+              : (best ? `<span class="sc-best">★ ベスト ${best.score}点（${best.rank}）</span>` : '<span class="sc-best sc-best-none">まだクリアしていない</span>')}
           </div>`;
         if (unlocked) {
           card.addEventListener('click', () => { Sfx.play('select'); this.cb.onSelectStage(st.id); });
@@ -1412,12 +1413,13 @@
       /* ドロワーの初期状態: 広い画面ではひらく */
       this.els['panel-tasks'].classList.toggle('closed', window.innerWidth < 1100);
       this.els['panel-status'].classList.remove('log-open');
-      this.els['btn-log-toggle'].textContent = '📜 記録を見る ▾';
+      this.els['btn-log-toggle'].textContent = '📜 きろくを見る ▾';
 
+      const rubi = window.rubi;
       this.els['start-overlay'].classList.remove('hidden');
-      this.els['start-overlay-title'].textContent = state.stage.name;
-      this.els['start-overlay-text'].textContent = state.stage.intro;
-      document.getElementById('start-trivia').textContent = '💡 まめちしき: ' + pickTrivia();
+      this.els['start-overlay-title'].innerHTML = rubi(state.stage.name);
+      this.els['start-overlay-text'].innerHTML = rubi(state.stage.intro).replace(/\n/g, '<br>');
+      document.getElementById('start-trivia').innerHTML = '💡 まめちしき: ' + rubi(pickTrivia());
       document.getElementById('pause-chip').classList.add('hidden');
       this.prevMetrics = { safety: 100, punct: 100, sat: 100, cost: 100 };
 
@@ -1428,30 +1430,30 @@
         card.className = 'task-card';
         card.id = 'card-' + t.id;
         const reqs = window.taskReqList(t.def).map((r) =>
-          `<span class="req-chip" style="--c:${r.color}">${r.icon}${r.label}×${r.n}</span>`).join('');
+          `<span class="req-chip" style="--c:${r.color}">${r.icon}${rubi(r.label)}×${r.n}</span>`).join('');
         const paceHtml = window.PACE_ALLOWED.has(t.id)
           ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
-              `<button class="pace-btn pace-${p}" data-pace="${p}" title="${p === 'rush' ? '速いが満足度(安全)が下がる' : p === 'careful' ? 'ゆっくりだが満足度が上がる' : '標準の速さ'}">${window.PACE[p].icon}${window.PACE[p].label}</button>`).join('')}</div>`
+              `<button class="pace-btn pace-${p}" data-pace="${p}" title="${p === 'rush' ? 'はやいが、まんぞく度(安全)が下がる' : p === 'careful' ? 'ゆっくりだが、まんぞく度が上がる' : 'ふつうのはやさ'}">${window.PACE[p].icon}${rubi(window.PACE[p].label)}</button>`).join('')}</div>`
           : '';
         card.innerHTML = `
           <div class="tc-head">
             <span class="tc-icon">${t.def.icon}</span>
-            <span class="tc-name">${t.def.name}${t.def.ruby ? `<small class="tc-ruby">（${t.def.ruby}）</small>` : ''}</span>
+            <span class="tc-name">${rubi(t.def.name)}</span>
             <span class="tc-state"></span>
           </div>
-          <div class="tc-reqs">${reqs || '<span class="req-chip req-none">リソース不要</span>'}</div>
+          <div class="tc-reqs">${reqs || '<span class="req-chip req-none">だれもいらない</span>'}</div>
           <div class="tc-bar"><div class="tc-fill"></div></div>
           <div class="tc-foot">
             <span class="tc-time"></span>
             <span class="tc-extra"></span>
-            <span class="tc-prio ${t.def.priority === 'high' ? 'prio-high' : ''}">優先度${t.def.priority === 'high' ? '高' : '中'}</span>
+            <span class="tc-prio ${t.def.priority === 'high' ? 'prio-high' : ''}">${t.def.priority === 'high' ? 'だいじ！' : 'ふつう'}</span>
           </div>
           ${paceHtml}
           <div class="tc-lockmsg"></div>
           <div class="tc-btns">
-            <button class="btn btn-sm btn-primary tc-start">開始</button>
+            <button class="btn btn-sm btn-primary tc-start">はじめる</button>
             <button class="btn btn-sm btn-ghost tc-info">くわしく</button>
-            <button class="btn btn-sm btn-warnghost tc-cancel hidden">中断</button>
+            <button class="btn btn-sm btn-warnghost tc-cancel hidden">ストップ</button>
           </div>`;
         card.querySelector('.tc-start').addEventListener('click', () => this.cb.onStartTask(t.id));
         card.querySelector('.tc-info').addEventListener('click', () => { Sfx.play('click'); this.openTaskDetail(t.id); });
@@ -1473,9 +1475,9 @@
         chip.className = 'res-chip';
         chip.style.setProperty('--c', meta.color);
         const skillMark = e.skill === 'vet' ? '⭐' : e.skill === 'rookie' ? '🔰' : '';
-        if (e.skill === 'vet') chip.title = 'ベテラン: 作業が15%速い';
-        if (e.skill === 'rookie') chip.title = '新人: 作業が15%ゆっくり';
-        chip.innerHTML = `<span class="rc-ico">${meta.icon}</span><span class="rc-name">${skillMark}${e.label}</span><span class="rc-st"></span>`;
+        if (e.skill === 'vet') chip.title = 'ベテラン: おしごとが15%はやい';
+        if (e.skill === 'rookie') chip.title = 'ルーキー: おしごとが15%ゆっくり';
+        chip.innerHTML = `<span class="rc-ico">${meta.icon}</span><span class="rc-name">${skillMark}${window.rubi(e.label)}</span><span class="rc-st"></span>`;
         (e.kind === 'staff' ? sStrip : vStrip).appendChild(chip);
         this.chipEls[e.id] = chip;
       });
@@ -1504,33 +1506,36 @@
       const issue = this.issueTask === id && t.status !== 'done';
       if (paused) card.classList.add('st-paused');
       if (issue) card.classList.add('st-issue');
+      const rubi = window.rubi;
       const stEl = card.querySelector('.tc-state');
       const stMap = {
-        locked: '🔒 未開始', ready: '未開始（開始できます）', gathering: '🚶 集合中',
-        active: '⚙ 作業中', done: '✅ 完了',
+        locked: '🔒 まだ', ready: 'はじめられるよ！', gathering: '🚶 あつまり中',
+        active: '⚙ おしごと中', done: '✅ かんりょう！',
       };
-      stEl.textContent = issue ? '⚠ 問題発生' : (paused ? '⏸ 停止中（天候）' : (stMap[t.status] || t.status));
+      stEl.textContent = issue ? '⚠ トラブル！' : (paused ? '⏸ ストップ中（天気）' : (stMap[t.status] || t.status));
 
       const G = window.Game;
       const timeEl = card.querySelector('.tc-time');
       if (t.status === 'done') {
-        timeEl.textContent = `完了 ${window.fmtClock(t.doneAt)}`;
+        timeEl.textContent = `かんりょう ${window.fmtClock(t.doneAt)}`;
       } else if (t.status === 'active') {
-        timeEl.textContent = (paused ? '⏸ ' : '') + `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
+        timeEl.textContent = (paused ? '⏸ ' : '') + `のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
       } else if (t.status === 'gathering') {
         const missing = G.missingSummary(id);
-        timeEl.textContent = paused ? '⏸ 天候の回復待ち…' : (missing ? `あと ${missing}` : 'メンバー移動中…');
+        if (paused) timeEl.textContent = '⏸ 天気がよくなるまで待ってね…';
+        else if (missing) timeEl.innerHTML = 'あと ' + rubi(missing);
+        else timeEl.textContent = 'メンバーがむかっています…';
       } else {
-        timeEl.textContent = `必要時間 約${Math.ceil(G.effDur(t) - t.progress)}分`;
+        timeEl.textContent = `かかる時間 約${Math.ceil(G.effDur(t) - t.progress)}分`;
       }
-      card.querySelector('.tc-extra').textContent = t.extra || '';
+      card.querySelector('.tc-extra').innerHTML = rubi(t.extra || '');
 
       const fill = card.querySelector('.tc-fill');
       fill.style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
 
       const lockEl = card.querySelector('.tc-lockmsg');
       if (t.status === 'locked') {
-        lockEl.textContent = '🔒 ' + window.Game.lockReason(id);
+        lockEl.innerHTML = '🔒 ' + rubi(window.Game.lockReason(id));
         lockEl.classList.add('show');
       } else {
         lockEl.textContent = '';
@@ -1546,7 +1551,7 @@
       const btnCancel = card.querySelector('.tc-cancel');
       const gatherFilled = t.status === 'gathering' && !G.missingSummary(id);
       btnStart.classList.toggle('hidden', t.status === 'active' || t.status === 'done' || gatherFilled);
-      btnStart.textContent = t.status === 'gathering' ? 'おまかせでそろえる' : '開始';
+      btnStart.textContent = t.status === 'gathering' ? 'おまかせでそろえる' : 'はじめる';
       btnStart.disabled = false;
       const cancellable = (t.status === 'active' || t.status === 'gathering') && id !== 'pushback' && id !== 'depart';
       btnCancel.classList.toggle('hidden', !cancellable);
@@ -1561,17 +1566,18 @@
     },
 
     openTaskDetail(id) {
+      const rubi = window.rubi;
       const t = this.state.tasks[id];
       const reqs = window.taskReqList(t.def).map((r) =>
-        `<span class="req-chip" style="--c:${r.color}">${r.icon}${r.label}×${r.n}</span>`).join('') || 'なし';
+        `<span class="req-chip" style="--c:${r.color}">${r.icon}${rubi(r.label)}×${r.n}</span>`).join('') || 'なし';
       this.openModal({
-        title: `${t.def.icon} ${t.def.name}`,
+        title: `${t.def.icon} ${rubi(t.def.name)}`,
         body: `
-          <p>${t.def.desc}</p>
-          ${t.def.why ? `<p class="zk-why">💡 <strong>なぜ必要？</strong> — ${t.def.why}</p>` : ''}
-          <p class="modal-kv"><strong>必要時間:</strong> 約${Math.ceil(t.def.dur)}分　<strong>必要リソース:</strong> ${reqs}</p>
-          <p class="modal-kv"><strong>開始条件:</strong> ${t.def.depNote}</p>
-          ${t.def.note ? `<p class="modal-note">🦺 <strong>安全メモ:</strong> ${t.def.note}</p>` : ''}`,
+          <p>${rubi(t.def.desc)}</p>
+          ${t.def.why ? `<p class="zk-why">💡 <strong>なぜやるの？</strong> — ${rubi(t.def.why)}</p>` : ''}
+          <p class="modal-kv"><strong>かかる${rubi('時間')}:</strong> ${rubi(`約${Math.ceil(t.def.dur)}分`)}　<strong>ひつような人と車:</strong> ${reqs}</p>
+          <p class="modal-kv"><strong>はじめられるのは:</strong> ${rubi(t.def.depNote)}</p>
+          ${t.def.note ? `<p class="modal-note">🦺 <strong>${rubi('安全')}メモ:</strong> ${rubi(t.def.note)}</p>` : ''}`,
         buttons: [{ label: 'とじる', cls: 'btn-ghost' }],
         dismissible: true,
       });
@@ -1588,7 +1594,7 @@
     updateResources() {
       const s = this.state;
       if (!s) return;
-      const stMap = { idle: '待機中', moving: '移動中', working: '作業中', returning: 'もどり中' };
+      const stMap = { idle: 'スタンバイ', moving: 'いどう中', working: 'おしごと中', returning: 'もどり中' };
       s.entities.forEach((e) => {
         const chip = this.chipEls[e.id];
         if (!chip) return;
@@ -1664,9 +1670,13 @@
       const el = this.els['hint-banner'];
       const hint = window.Game.getHint();
       if (hint) {
-        if (el.textContent !== '💡 ' + hint) el.textContent = '💡 ' + hint;
+        if (this._lastHint !== hint) {
+          this._lastHint = hint;
+          el.innerHTML = '💡 ' + window.rubi(hint);
+        }
         el.classList.remove('hidden');
       } else {
+        this._lastHint = null;
         el.classList.add('hidden');
       }
     },
@@ -1674,7 +1684,7 @@
     addLog(entry) {
       const li = document.createElement('li');
       li.className = 'lg-' + entry.cls;
-      li.innerHTML = `<span class="lg-t">${window.fmtClock(entry.t)}</span>${entry.msg}`;
+      li.innerHTML = `<span class="lg-t">${window.fmtClock(entry.t)}</span>${window.rubi(entry.msg)}`;
       const ul = this.els['game-log'];
       ul.prepend(li);
       while (ul.children.length > 40) ul.removeChild(ul.lastChild);
@@ -1683,7 +1693,7 @@
     toast(msg, type) {
       const div = document.createElement('div');
       div.className = 'toast toast-' + (type || 'info');
-      div.textContent = msg;
+      div.innerHTML = window.rubi(msg);
       this.els['toast-area'].appendChild(div);
       const life = type === 'coach' ? 7200 : 3400;
       setTimeout(() => { div.classList.add('out'); }, life);
@@ -1701,7 +1711,7 @@
       }
       let remainText, late = false;
       if (s.stats.blockOff != null) {
-        remainText = '出発済み';
+        remainText = 'しゅっぱつ！';
       } else {
         const rem = s.stage.std - s.clock;
         if (rem >= 0) remainText = `${Math.ceil(rem)}分`;
@@ -1726,7 +1736,7 @@
     /* ---------------- イベントUI ---------------- */
     showEventBanner(def) {
       const b = this.els['event-banner'];
-      b.innerHTML = `${def.icon} <strong>${def.title}</strong> — タップして対応を選ぶ`;
+      b.innerHTML = `${def.icon} <strong>${window.rubi(def.title)}</strong> — タップしてえらぶ！`;
       b.classList.remove('hidden');
     },
     hideEventBanner() {
@@ -1736,19 +1746,20 @@
     openEventModal() {
       const s = this.state;
       if (!s || !s.activeEvent) return;
+      const rubi = window.rubi;
       const def = s.activeEvent.def;
       const choicesHtml = def.choices.map((ch, i) => `
         <button class="event-choice" data-i="${i}">
-          <span class="ec-label">${ch.label}</span>
-          <span class="ec-hint">${ch.hint}</span>
-          <span class="ec-tags">${(ch.tags || []).map((t) => `<em>${t}</em>`).join('')}</span>
+          <span class="ec-label">${rubi(ch.label)}</span>
+          <span class="ec-hint">${rubi(ch.hint)}</span>
+          <span class="ec-tags">${(ch.tags || []).map((t) => `<em>${rubi(t)}</em>`).join('')}</span>
         </button>`).join('');
       this.openModal({
         kind: 'event',
-        title: `${def.icon} ${def.title}`,
-        body: `<p>${def.desc}</p><div class="event-choices">${choicesHtml}</div>
-               <p class="modal-note">⏳ ${def.deadlineHint}</p>`,
-        buttons: [{ label: 'あとで決める', cls: 'btn-ghost' }],
+        title: `${def.icon} ${rubi(def.title)}`,
+        body: `<p>${rubi(def.desc)}</p><div class="event-choices">${choicesHtml}</div>
+               <p class="modal-note">⏳ ${rubi(def.deadlineHint)}</p>`,
+        buttons: [{ label: 'あとできめる', cls: 'btn-ghost' }],
         dismissible: true,
       });
       this.els['modal'].querySelectorAll('.event-choice').forEach((btn) => {
@@ -1760,13 +1771,14 @@
     },
 
     openSafetyModal() {
+      const rubi = window.rubi;
       this.openModal({
         kind: 'safety',
-        title: '🦺 プッシュバック前の安全確認',
-        body: `<p>トーイングカーが機首に到着しました。飛行機を動かす前に、機体のまわりに<strong>人・車両・置きわすれた機材</strong>が残っていないか確認します。どうしますか？</p>`,
+        title: '🦺 ' + rubi('プッシュバック前の安全確認'),
+        body: `<p>${rubi('押す車が飛行機の前に着きました。動かす前に、まわりに')}<strong>${rubi('人・車・置きわすれた道具')}</strong>${rubi('がのこっていないかたしかめます。どうする？')}</p>`,
         buttons: [
-          { label: '✅ しっかり確認する（+1分）', cls: 'btn-primary', onClick: () => this.cb.onSafetyChoice(true) },
-          { label: '⚠ 確認を省略して急ぐ（大きなペナルティ）', cls: 'btn-danger', onClick: () => this.cb.onSafetyChoice(false) },
+          { label: '✅ ' + rubi('しっかり確認する（+1分）'), cls: 'btn-primary', onClick: () => this.cb.onSafetyChoice(true) },
+          { label: '⚠ ' + rubi('確認をとばして急ぐ（大きなペナルティ）'), cls: 'btn-danger', onClick: () => this.cb.onSafetyChoice(false) },
         ],
         dismissible: false,
       });
@@ -1774,13 +1786,14 @@
 
     /* ---------------- モーダル共通 ---------------- */
     openModal({ kind, title, body, buttons, dismissible }) {
+      const rubi = window.rubi;
       this.modalKind = kind || 'generic';
       this.modalDismissible = dismissible !== false;
       const btns = (buttons || []).map((b, i) =>
-        `<button class="btn ${b.cls || 'btn-ghost'}" data-mb="${i}">${b.label}</button>`).join('');
+        `<button class="btn ${b.cls || 'btn-ghost'}" data-mb="${i}">${rubi(b.label)}</button>`).join('');
       this.els['modal'].innerHTML = `
-        <div class="modal-title">${title}</div>
-        <div class="modal-body">${body}</div>
+        <div class="modal-title">${rubi(title)}</div>
+        <div class="modal-body">${rubi(body)}</div>
         <div class="modal-btns">${btns}</div>`;
       (buttons || []).forEach((b, i) => {
         this.els['modal'].querySelector(`[data-mb="${i}"]`).addEventListener('click', () => {
@@ -2009,18 +2022,19 @@
       retryBtn.classList.toggle('btn-primary', !nextStageId);
       retryBtn.classList.toggle('btn-ghost', !!nextStageId);
 
+      const rubi = window.rubi;
       const flag = this.els['result-flag'];
       if (!res.departed) {
-        flag.textContent = '⏰ 時間内に出発できませんでした…';
+        flag.innerHTML = rubi('⏰ 時間内に出発できなかった…');
         flag.className = 'result-flag bad';
       } else if (res.critical) {
-        flag.textContent = '⚠ 出発はしましたが、安全上の重大な問題がありクリアになりません';
+        flag.innerHTML = rubi('⚠ 出発はできたけど、安全のもんだいがあってクリアならず…');
         flag.className = 'result-flag bad';
       } else if (res.delay != null && res.delay > 0.5) {
-        flag.textContent = `✈ 出発しました（${Math.ceil(res.delay)}分遅れ）— クリア！`;
+        flag.innerHTML = rubi(`✈ 出発しました（${Math.ceil(res.delay)}分遅れ）— クリア！`);
         flag.className = 'result-flag ok';
       } else {
-        flag.textContent = '🎉 定刻出発、おみごと！— クリア！';
+        flag.innerHTML = rubi('🎉 時間ぴったりに出発！おみごと！— クリア！');
         flag.className = 'result-flag great';
       }
 
@@ -2034,23 +2048,23 @@
       Object.values(res.breakdown).forEach((b) => {
         const li = document.createElement('li');
         const pct = (b.got / b.max) * 100;
-        li.innerHTML = `<span class="rb-label">${b.label}</span>
+        li.innerHTML = `<span class="rb-label">${rubi(b.label)}</span>
           <span class="rb-bar"><span class="rb-fill" style="width:${pct}%"></span></span>
           <span class="rb-num">${b.got} / ${b.max}点</span>`;
         bd.appendChild(li);
       });
 
       const times = this.els['result-times'];
-      const bestNote = isBest ? '　★ 自己ベスト更新！' :
+      const bestNote = isBest ? '　★ じぶんのさいこうきろく！' :
         (prevBest != null ? `　（これまでのベスト ${prevBest}点）` : '');
       if (res.blockOff != null) {
         const d = Math.ceil(Math.max(0, res.blockOff - res.std));
-        times.textContent = `出発予定 ${window.fmtClock(res.std)} → 実際の出発 ${window.fmtClock(res.blockOff)}` +
-          (d > 0 ? `（${d}分遅れ）` : '（定刻）') + bestNote;
+        times.innerHTML = rubi(`出発予定 ${window.fmtClock(res.std)} → ほんとうの出発 ${window.fmtClock(res.blockOff)}` +
+          (d > 0 ? `（${d}分遅れ）` : `（時間ぴったり）`) + bestNote);
       } else {
-        times.textContent = `出発予定 ${window.fmtClock(res.std)} → 出発できず` + bestNote;
+        times.innerHTML = rubi(`出発予定 ${window.fmtClock(res.std)} → 出発できず` + bestNote);
       }
-      this.els['result-advice'].textContent = res.advice;
+      this.els['result-advice'].innerHTML = rubi(res.advice);
 
       /* 作業タイムライン（どれだけ並行できたか） */
       const gantt = document.getElementById('result-gantt');
@@ -2072,19 +2086,19 @@
           if (t.activeAt != null && t.doneAt != null) {
             bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%"></i>`;
           }
-          row.innerHTML = `<span class="gr-label" title="${t.name}">${t.icon}${nm}</span>` +
-            `<span class="gr-track">${t.startedAt == null ? '<span class="gr-none">着手できず</span>' : bars}</span>`;
+          row.innerHTML = `<span class="gr-label" title="${t.name}">${t.icon}${rubi(nm)}</span>` +
+            `<span class="gr-track">${t.startedAt == null ? '<span class="gr-none">できなかった…</span>' : bars}</span>`;
           gantt.appendChild(row);
         });
         const axis = document.createElement('div');
         axis.className = 'gr-axis';
         axis.innerHTML = `<span></span><span class="gr-axis-track">` +
-          `<span style="left:2%">${window.fmtClock(t0)} 到着</span>` +
-          `<span class="ax-std" style="left:${stdPct}%">出発予定 ${window.fmtClock(res.std)}</span>` +
+          `<span style="left:2%">${window.fmtClock(t0)} ${rubi('到着')}</span>` +
+          `<span class="ax-std" style="left:${stdPct}%">${rubi('出発予定')} ${window.fmtClock(res.std)}</span>` +
           `</span>`;
         gantt.appendChild(axis);
       }
-      document.getElementById('result-trivia').textContent = '💡 まめちしき: ' + pickTrivia();
+      document.getElementById('result-trivia').innerHTML = '💡 まめちしき: ' + rubi(pickTrivia());
     },
 
     /* ---------------- 毎フレーム ---------------- */
@@ -2105,7 +2119,7 @@
             card.querySelector('.tc-fill').style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
             const timeEl = card.querySelector('.tc-time');
             const txt = (outPaused && t.def.outdoor ? '⏸ ' : '') +
-              `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
+              `のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
             if (timeEl.textContent !== txt) timeEl.textContent = txt;
           }
         });

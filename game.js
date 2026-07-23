@@ -172,7 +172,7 @@
           if (def) {
             s.activeEvent = { def, firedAt: s.clock };
             if (def.id === 'weather') {
-              s.weatherNow = { icon: '⛈', label: '雷雨' };
+              s.weatherNow = { icon: '⛈', label: 'かみなり！' };
               this.emit('weather');
             }
             this.log(`⚠ ${def.title}が発生！対応を選んでください`, 'warn');
@@ -285,6 +285,28 @@
         if (rest > 0) out.push(`${window.RES_META.vehicles[type].icon}${window.RES_META.vehicles[type].short}×${rest}`);
       });
       return out.join('・');
+    },
+
+    /* あと何が足りないか（アイコンだけ・Canvasバッジ用。ルビが振れないため） */
+    missingIcons(taskId) {
+      const s = this.state;
+      const t = s.tasks[taskId];
+      if (!t) return '';
+      const counts = {};
+      t.assigned.forEach((id) => {
+        const e = this.entityById(id);
+        if (e) counts[e.kind + ':' + e.type] = (counts[e.kind + ':' + e.type] || 0) + 1;
+      });
+      const out = [];
+      Object.entries(t.def.staff || {}).forEach(([type, n]) => {
+        const rest = n - (counts['staff:' + type] || 0);
+        if (rest > 0) out.push(`${window.RES_META.staff[type].icon}×${rest}`);
+      });
+      Object.entries(t.def.vehicles || {}).forEach(([type, n]) => {
+        const rest = n - (counts['vehicle:' + type] || 0);
+        if (rest > 0) out.push(`${window.RES_META.vehicles[type].icon}×${rest}`);
+      });
+      return out.join(' ');
     },
 
     /* このエンティティを受け入れられる作業か（タップ配置のハイライト用） */
@@ -646,10 +668,10 @@
 
       const m = s.metrics;
       const breakdown = {
-        safety: { label: '🛡 安全性', got: Math.round(m.safety * 0.4), max: 40 },
-        punct:  { label: '⏱ 定時性', got: Math.round(m.punct * 0.3), max: 30 },
-        sat:    { label: '😊 乗客満足度', got: Math.round(m.sat * 0.2), max: 20 },
-        cost:   { label: '💰 コスト効率', got: Math.round(m.cost * 0.1), max: 10 },
+        safety: { label: '🛡 安全', got: Math.round(m.safety * 0.4), max: 40 },
+        punct:  { label: '⏱ 時間どおり', got: Math.round(m.punct * 0.3), max: 30 },
+        sat:    { label: '😊 お客さんのまんぞく', got: Math.round(m.sat * 0.2), max: 20 },
+        cost:   { label: '💰 コスト（おかね）', got: Math.round(m.cost * 0.1), max: 10 },
       };
       const score = breakdown.safety.got + breakdown.punct.got + breakdown.sat.got + breakdown.cost.got;
       const cleared = departed && !s.flags.critical;

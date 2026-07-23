@@ -23,6 +23,15 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ふりがな（ルビ） */
+rt {
+  font-size: 0.5em;
+  font-weight: 400;
+  opacity: 0.78;
+  letter-spacing: 0;
+}
+.btn rt, .flow-chip rt, .req-chip rt, .zk-tab rt, .pace-btn rt, .sc-diff rt { font-size: 0.46em; }
 html, body { height: 100%; }
 body {
   font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, system-ui, sans-serif;
@@ -254,7 +263,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 
 .tc-head { display: flex; align-items: center; gap: 6px; }
 .tc-icon { font-size: 1.05rem; }
-.tc-name { font-weight: 700; font-size: 0.9rem; color: var(--navy); flex: 1; line-height: 1.3; }
+.tc-name { font-weight: 700; font-size: 0.95rem; color: var(--navy); flex: 1; line-height: 1.35; }
 .tc-ruby { color: var(--ink-2); font-size: 0.68rem; font-weight: 400; }
 .tc-state { font-size: 0.68rem; color: var(--ink-2); white-space: nowrap; }
 .st-active .tc-state { color: var(--accent-d); font-weight: 700; }
@@ -289,7 +298,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .tc-prio { border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
 .tc-prio.prio-high { border-color: #eab6b6; color: #b34a4a; }
 
-.tc-lockmsg { display: none; font-size: 0.72rem; color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; margin-top: 6px; line-height: 1.45; }
+.tc-lockmsg { display: none; font-size: 0.78rem; color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.6; }
 .tc-lockmsg.show { display: block; }
 
 .tc-btns { display: flex; gap: 6px; margin-top: 7px; }
@@ -396,8 +405,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
   color: #fff;
   border-radius: 10px;
   padding: 9px 16px;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  line-height: 1.6;
   max-width: 100%;
   box-shadow: var(--shadow);
   animation: rise 0.25s ease-out;
@@ -442,13 +451,20 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border: 1.5px solid var(--line);
   background: transparent;
   border-radius: 8px;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--ink-2);
-  padding: 5px 8px;
+  padding: 6px 9px;
   cursor: pointer;
   text-align: left;
 }
 #panel-status:not(.log-open) #game-log { display: none; }
+/* きろくを開いたときは、しっかり高さをとって読みやすく */
+#panel-status.log-open { max-height: calc(100% - 116px); }
+#panel-status.log-open #game-log {
+  display: flex;
+  flex: 1;
+  min-height: 260px;
+}
 .panel-title { font-size: 0.82rem; color: var(--navy); }
 .panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: 0.68rem; }
 .metric { margin-bottom: 2px; position: relative; }
@@ -491,13 +507,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .unfinished-box strong { color: var(--navy); font-size: 1rem; }
 .game-log {
   list-style: none;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  display: flex; flex-direction: column; gap: 5px;
   overflow-y: auto;
   min-height: 60px;
 }
-.game-log li { padding: 3px 6px; border-radius: 6px; background: #f5f8fa; }
+.game-log li { padding: 5px 8px; border-radius: 6px; background: #f5f8fa; }
 .game-log .lg-t { color: var(--ink-2); margin-right: 6px; font-variant-numeric: tabular-nums; }
 .game-log .lg-ok { background: #eef8f1; }
 .game-log .lg-warn { background: #fdf6dd; }
@@ -776,6 +792,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
   #game-main { display: flex; flex-direction: column; gap: 8px; min-height: unset; }
   #apron-wrap { position: relative; inset: auto; order: 1; height: 58vw; min-height: 240px; }
   #panel-status { position: static; width: auto; max-height: none; order: 2; }
+  #panel-status.log-open { max-height: none; }
+  #panel-status.log-open #game-log { min-height: 0; max-height: 260px; }
   #panel-tasks { position: static; width: auto; transform: none !important; order: 3; overflow: visible; bottom: auto; }
   #panel-tasks .drawer-tab { display: none; }
   #task-list { overflow-y: visible; }
