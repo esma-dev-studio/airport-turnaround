@@ -139,6 +139,11 @@
     },
     clampCam() {
       const c = this.cam;
+      /* キャンバス未サイズ時や不正値からの復帰 */
+      if (!isFinite(c.zoom)) c.zoom = 1;
+      if (!isFinite(c.cx)) c.cx = 600;
+      if (!isFinite(c.cy)) c.cy = 330;
+      if (!this.cw || !this.ch) return;
       c.zoom = clamp(c.zoom, this.minZoom(), 2.6);
       const S = this.scale();
       const visW = this.cw / S, visH = this.ch / S;
@@ -154,6 +159,7 @@
       return { x: (x - this.cw / 2) / S + this.cam.cx, y: (y - this.ch / 2) / S + this.cam.cy };
     },
     zoomAt(factor, px, py) {
+      if (!this.cw || !this.ch) return;   // キャンバスがまだ表示されていない
       const pivot = (px != null) ? { x: px, y: py } : { x: this.cw / 2, y: this.ch / 2 };
       const before = this.screenToScene(pivot.x, pivot.y);
       this.cam.zoom = clamp(this.cam.zoom * factor, this.minZoom(), 2.6);
@@ -163,6 +169,7 @@
       this.clampCam();
     },
     panBy(dxScreen, dyScreen) {
+      if (!this.cw || !this.ch) return;
       const S = this.scale();
       this.cam.cx -= dxScreen / S;
       this.cam.cy -= dyScreen / S;
