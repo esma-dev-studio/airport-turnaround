@@ -71,17 +71,18 @@
     </header>
 
     <div id="game-main">
-      <!-- 左：作業カード -->
-      <aside id="panel-tasks">
-        <div id="hint-banner" class="hint-banner hidden"></div>
-        <div id="task-list"></div>
-      </aside>
-
-      <!-- 中央：駐機場ビュー -->
+      <!-- 駐機場ビュー（全画面） -->
       <section id="apron-wrap">
         <canvas id="apron" aria-label="駐機場の様子"></canvas>
         <button id="event-banner" class="event-banner hidden"></button>
+        <div id="hint-banner" class="hint-banner hidden"></div>
         <div id="toast-area"></div>
+        <div id="zoom-ctrl">
+          <button id="btn-zoom-in" class="zoom-btn" title="ズームイン">＋</button>
+          <button id="btn-zoom-out" class="zoom-btn" title="ズームアウト">−</button>
+          <button id="btn-zoom-reset" class="zoom-btn" title="ぜんたいを見る">⛶</button>
+        </div>
+        <div id="spot-pop" class="spot-pop hidden"></div>
         <div id="start-overlay" class="start-overlay">
           <div class="start-card">
             <h3 id="start-overlay-title">ステージ1</h3>
@@ -91,7 +92,13 @@
         </div>
       </section>
 
-      <!-- 右：管理指標 -->
+      <!-- 左ドロワー：作業カード -->
+      <aside id="panel-tasks">
+        <button id="btn-drawer-tasks" class="drawer-tab" title="作業カードをひらく/とじる">📋<span class="drawer-tab-txt">作業</span></button>
+        <div id="task-list"></div>
+      </aside>
+
+      <!-- 右上：管理指標（コンパクト） -->
       <aside id="panel-status">
         <h3 class="panel-title">管理指標<span class="panel-title-sub">（スコアのもと）</span></h3>
         <div class="metric">
@@ -111,22 +118,22 @@
           <div class="bar"><div id="bar-cost" class="bar-fill fill-cost" style="width:100%"></div></div>
         </div>
         <div class="unfinished-box">のこりの作業 <strong id="unfinished-count">12</strong> 件</div>
-        <h3 class="panel-title">記録</h3>
+        <button id="btn-log-toggle" class="log-toggle">📜 記録を見る ▾</button>
         <ul id="game-log" class="game-log"></ul>
       </aside>
-    </div>
 
-    <!-- 下：スタッフ・車両 -->
-    <footer id="panel-resources">
-      <div class="res-group">
-        <span class="res-group-label">スタッフ</span>
-        <div id="staff-strip" class="res-strip"></div>
-      </div>
-      <div class="res-group">
-        <span class="res-group-label">車両</span>
-        <div id="vehicle-strip" class="res-strip"></div>
-      </div>
-    </footer>
+      <!-- 下：スタッフ・車両 -->
+      <footer id="panel-resources">
+        <div class="res-group">
+          <span class="res-group-label">スタッフ</span>
+          <div id="staff-strip" class="res-strip"></div>
+        </div>
+        <div class="res-group">
+          <span class="res-group-label">車両</span>
+          <div id="vehicle-strip" class="res-strip"></div>
+        </div>
+      </footer>
+    </div>
   </section>
 
   <!-- ============ 結果画面 ============ -->

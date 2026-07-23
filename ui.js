@@ -2,6 +2,7 @@
  * ui.js — 画面表示（DOM）と駐機場ビュー（Canvas）と効果音
  * ゲームの判断ロジックは持たない。Game の状態を描画し、
  * 操作は main.js から渡されたコールバックへ渡すだけ。
+ * 駐機場ビューはカメラ（ズーム/パン）とタップ操作を持つ。
  * ========================================================= */
 
 (function () {
@@ -55,9 +56,9 @@
 
   /* ============================================================
    * 駐機場シーン（Canvas 2.5D風）
-   * 論理座標 1200x680 で描き、実サイズへ拡縮する
+   * 論理座標 1200x640。カメラで拡大・移動して描く。
    * ============================================================ */
-  const SCENE_W = 1200, SCENE_H = 680;
+  const SCENE_W = 1200, SCENE_H = 640;
 
   /* 作業ごとの持ち場（x, y, [車両の向きdeg]） */
   const SLOTS = {
@@ -80,24 +81,26 @@
     [958, 342], [860, 374], [600, 392], [320, 374],
   ];
   const VEHICLE_HOME = {
-    beltloader: [[540, 585, 0]],
-    cart: [[648, 585, 0], [734, 585, 0]],
-    fuel: [[838, 585, 0]],
-    catering: [[940, 585, 0]],
-    pushback: [[1044, 585, 0]],
+    beltloader: [[500, 516, 0]],
+    cart: [[600, 516, 0], [688, 516, 0]],
+    fuel: [[790, 516, 0]],
+    catering: [[892, 516, 0]],
+    pushback: [[996, 516, 0]],
   };
-  const BRIDGE_PATH = [[402, 284], [347, 207], [340, 158]];
+  const BRIDGE_PATH = [[402, 284], [347, 207], [340, 150]];
   const PAX_COLORS = ['#e5867c', '#7ca3d8', '#d8c07c', '#8fc98f', '#b493cf', '#7cc2c9'];
+  const PAX_TOTAL = 112;
 
   const Scene = {
     canvas: null, ctx: null,
-    cw: 0, ch: 0, scale: 1, ox: 0, oy: 0,
+    cw: 0, ch: 0, dpr: 1,
+    cam: { zoom: 1, cx: 600, cy: 330 },
     time: 0,
     ent: {},          // entityId -> {pos, path, len, lastStatus, angle}
     paxDots: [],
     lastPaxSpawn: 0,
     bridge: 1,        // 1=装着 0=格納
-    sparkT: 0,
+    fx: { parts: [], floats: [] },
 
     init(canvas) {
       this.canvas = canvas;
@@ -109,6 +112,8 @@
       this.lastPaxSpawn = 0;
       this.bridge = 1;
       this.time = 0;
+      this.fx = { parts: [], floats: [] };
+      this.cam = { zoom: 1, cx: 600, cy: 330 };
     },
 
     resize() {
@@ -121,19 +126,63 @@
         this.canvas.height = Math.round(h * dpr);
       }
       this.cw = w; this.ch = h; this.dpr = dpr;
-      this.scale = Math.min(w / SCENE_W, h / SCENE_H);
-      this.ox = (w - SCENE_W * this.scale) / 2;
-      this.oy = (h - SCENE_H * this.scale) / 2;
+      this.clampCam();
     },
 
+    /* ---- カメラ ---- */
+    baseScale() { return this.cw / SCENE_W; },
+    scale() { return this.baseScale() * this.cam.zoom; },
+    minZoom() {
+      /* 縦もぜんぶ入るところまで引ける（最低0.55倍） */
+      const fitH = (this.ch / SCENE_H) / this.baseScale();
+      return Math.max(0.55, Math.min(1, fitH));
+    },
+    clampCam() {
+      const c = this.cam;
+      c.zoom = clamp(c.zoom, this.minZoom(), 2.6);
+      const S = this.scale();
+      const visW = this.cw / S, visH = this.ch / S;
+      c.cx = visW >= SCENE_W ? SCENE_W / 2 : clamp(c.cx, visW / 2, SCENE_W - visW / 2);
+      c.cy = visH >= SCENE_H ? SCENE_H / 2 : clamp(c.cy, visH / 2, SCENE_H - visH / 2);
+    },
+    sceneToScreen(x, y) {
+      const S = this.scale();
+      return { x: (x - this.cam.cx) * S + this.cw / 2, y: (y - this.cam.cy) * S + this.ch / 2 };
+    },
+    screenToScene(x, y) {
+      const S = this.scale();
+      return { x: (x - this.cw / 2) / S + this.cam.cx, y: (y - this.ch / 2) / S + this.cam.cy };
+    },
+    zoomAt(factor, px, py) {
+      const pivot = (px != null) ? { x: px, y: py } : { x: this.cw / 2, y: this.ch / 2 };
+      const before = this.screenToScene(pivot.x, pivot.y);
+      this.cam.zoom = clamp(this.cam.zoom * factor, this.minZoom(), 2.6);
+      const S = this.scale();
+      this.cam.cx = before.x - (pivot.x - this.cw / 2) / S;
+      this.cam.cy = before.y - (pivot.y - this.ch / 2) / S;
+      this.clampCam();
+    },
+    panBy(dxScreen, dyScreen) {
+      const S = this.scale();
+      this.cam.cx -= dxScreen / S;
+      this.cam.cy -= dyScreen / S;
+      this.clampCam();
+    },
+    resetCam() {
+      this.cam.zoom = this.minZoom() < 1 ? this.minZoom() : 1;
+      this.cam.cx = 600; this.cam.cy = 330;
+      this.clampCam();
+    },
+
+    /* ---- ホーム位置（待機所は左ドロワーに隠れない位置に置く） ---- */
     staffHome(state, entity) {
       const staff = state.entities.filter((e) => e.kind === 'staff');
       const i = staff.indexOf(entity);
-      return [88 + (i % 5) * 32, 566 + Math.floor(i / 5) * 27];
+      return [272 + (i % 5) * 30, 498 + Math.floor(i / 5) * 26];
     },
     homeOf(state, e) {
       if (e.kind === 'staff') return this.staffHome(state, e);
-      const arr = VEHICLE_HOME[e.type] || [[1100, 585, 0]];
+      const arr = VEHICLE_HOME[e.type] || [[1100, 516, 0]];
       return arr[Math.min(e.idx, arr.length - 1)];
     },
     slotOf(state, e) {
@@ -153,11 +202,21 @@
       const arr = (slots.vehicles && slots.vehicles[e.type]) || [[600, 470, 0]];
       return arr[Math.min(Math.max(i, 0), arr.length - 1)];
     },
+    /* 作業スポットの代表点（リング・バッジ・タップ判定に使う） */
+    anchorOf(taskId) {
+      const slots = SLOTS[taskId] || {};
+      if (slots.staff && slots.staff[0]) return slots.staff[0];
+      if (slots.vehicles) {
+        const first = Object.values(slots.vehicles)[0];
+        if (first && first[0]) return first[0];
+      }
+      return null;
+    },
 
     /* 機体エリアを避けるL字経路をつくる */
     route(from, to) {
       const pts = [from.slice(0, 2)];
-      const CORR = 515;      // 横移動用の通路
+      const CORR = 472;      // 横移動用の通路
       const SIDE = 207;      // 機首を回りこむ縦通路
       const topSide = (p) => p[1] < 300;
       const a = from, b = to;
@@ -171,7 +230,6 @@
         pts.push([a[0], CORR], [b[0], CORR]);
       }
       pts.push(b.slice(0, 2));
-      /* 長さ計算 */
       let len = 0;
       for (let i = 1; i < pts.length; i++) {
         len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
@@ -237,6 +295,86 @@
       return rec;
     },
 
+    /* タップ判定: エンティティ → 作業スポットの順に探す */
+    hitTest(state, sceneP) {
+      let best = null, bestD = 1e9;
+      state.entities.forEach((e) => {
+        const rec = this.ent[e.id];
+        if (!rec) return;
+        const r = e.kind === 'staff' ? 17 : 40;
+        const d = Math.hypot(rec.pos.x - sceneP.x, rec.pos.y - sceneP.y);
+        if (d < r && d < bestD) { best = { type: 'entity', id: e.id }; bestD = d; }
+      });
+      if (best) return best;
+      let spot = null; bestD = 1e9;
+      state.taskList.forEach((t) => {
+        if (t.status !== 'ready' && t.status !== 'gathering' && t.status !== 'active') return;
+        const a = this.anchorOf(t.id);
+        if (!a) return;
+        const d = Math.hypot(a[0] - sceneP.x, a[1] - sceneP.y);
+        if (d < 34 && d < bestD) { spot = { type: 'spot', id: t.id }; bestD = d; }
+      });
+      return spot;
+    },
+
+    /* ---------- 演出（パーティクル・浮き文字） ---------- */
+    burst(x, y, n, colors) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * TAU;
+        const sp = 40 + Math.random() * 90;
+        this.fx.parts.push({
+          x, y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 50,
+          life: 0.9 + Math.random() * 0.5,
+          age: 0,
+          size: 2.5 + Math.random() * 3,
+          color: colors[i % colors.length],
+        });
+      }
+    },
+    float(x, y, text, color) {
+      this.fx.floats.push({ x, y, text, color: color || '#1e3a5f', life: 1.6, age: 0 });
+    },
+    celebrate(state, taskId) {
+      const colors = ['#ffd166', '#57c98a', '#3bb0f2', '#f2544a', '#b07fe6'];
+      if (taskId === 'depart') {
+        for (let i = 0; i < 5; i++) this.burst(350 + i * 130, 320, 12, colors);
+        this.float(615, 250, '✈ いってらっしゃい！', '#0e6f8c');
+        return;
+      }
+      let a = this.anchorOf(taskId);
+      if (taskId === 'pushback') a = [280, 300];
+      if (!a) a = [615, 320];
+      this.burst(a[0], a[1] - 14, 14, colors);
+      const def = window.TASK_MAP[taskId];
+      this.float(a[0], a[1] - 30, `${def.icon} 完了!`, '#2e9e5b');
+    },
+    drawFx(dtReal) {
+      const c = this.ctx;
+      this.fx.parts = this.fx.parts.filter((p) => (p.age += dtReal) < p.life);
+      this.fx.parts.forEach((p) => {
+        p.x += p.vx * dtReal;
+        p.y += p.vy * dtReal;
+        p.vy += 160 * dtReal;
+        c.globalAlpha = clamp(1 - p.age / p.life, 0, 1);
+        c.fillStyle = p.color;
+        c.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      });
+      c.globalAlpha = 1;
+      this.fx.floats = this.fx.floats.filter((f) => (f.age += dtReal) < f.life);
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      this.fx.floats.forEach((f) => {
+        const k = f.age / f.life;
+        c.globalAlpha = clamp(1 - k * k, 0, 1);
+        c.font = 'bold 17px "Segoe UI", "Hiragino Sans", Meiryo, sans-serif';
+        c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 4;
+        c.strokeText(f.text, f.x, f.y - k * 30);
+        c.fillStyle = f.color;
+        c.fillText(f.text, f.x, f.y - k * 30);
+      });
+      c.globalAlpha = 1;
+    },
+
     /* ---------- 描画ヘルパー ---------- */
     rr(x, y, w, h, r) {
       const c = this.ctx;
@@ -249,7 +387,7 @@
       c.closePath();
     },
 
-    draw(state, dtReal) {
+    draw(state, dtReal, ui) {
       if (!this.ctx) return;
       this.resize();
       const c = this.ctx;
@@ -260,8 +398,12 @@
       c.clearRect(0, 0, this.cw, this.ch);
       c.fillStyle = '#8f99a3';
       c.fillRect(0, 0, this.cw, this.ch);
-      c.translate(this.ox, this.oy);
-      c.scale(this.scale, this.scale);
+
+      c.save();
+      c.translate(this.cw / 2, this.ch / 2);
+      const S = this.scale();
+      c.scale(S, S);
+      c.translate(-this.cam.cx, -this.cam.cy);
 
       this.drawBackground(state);
       if (state) {
@@ -269,102 +411,85 @@
         this.drawPlane(state);
         this.drawBridge(state);
         this.drawEffectsUnder(state, gt);
-        this.drawEntities(state, gt);
+        this.drawSpots(state, ui);
+        this.drawEntities(state, gt, ui);
         this.drawPax(state, gt);
         this.drawRings(state);
+        this.drawPaxCounter(state);
+        this.drawFx(dtReal);
         this.drawRain(state);
       }
-    },
-
-    /* 天候イベント中の雨（屋外作業停止の間だけ降る） */
-    drawRain(state) {
-      if (!(state.outdoorPauseUntil != null && state.clock < state.outdoorPauseUntil)) return;
-      const c = this.ctx;
-      c.fillStyle = 'rgba(45, 62, 88, 0.13)';
-      c.fillRect(0, 0, SCENE_W, SCENE_H);
-      c.strokeStyle = 'rgba(210, 228, 246, 0.75)';
-      c.lineWidth = 2.2;
-      c.lineCap = 'round';
-      c.beginPath();
-      for (let i = 0; i < 80; i++) {
-        const x = ((i * 149 + this.time * 340) % (SCENE_W + 120)) - 60;
-        const y = (i * 97 + this.time * 700) % SCENE_H;
-        c.moveTo(x, y);
-        c.lineTo(x - 7, y + 20);
-      }
-      c.stroke();
-      c.lineCap = 'butt';
+      c.restore();
     },
 
     drawBackground(state) {
       const c = this.ctx;
       /* 空 */
       c.fillStyle = '#cde5f4';
-      c.fillRect(0, 0, SCENE_W, 38);
+      c.fillRect(0, 0, SCENE_W, 30);
       c.fillStyle = '#ffd77a';
-      c.beginPath(); c.arc(72, 16, 11, 0, TAU); c.fill();
+      c.beginPath(); c.arc(66, 13, 9, 0, TAU); c.fill();
       c.fillStyle = 'rgba(255,255,255,.85)';
-      const cl = (x, y, s) => { this.rr(x, y, 54 * s, 12 * s, 6 * s); c.fill(); this.rr(x + 12 * s, y - 7 * s, 30 * s, 10 * s, 5 * s); c.fill(); };
-      cl(200 + Math.sin(this.time * 0.08) * 24, 12, 1);
-      cl(720 + Math.cos(this.time * 0.06) * 30, 15, 0.8);
+      const cl = (x, y, s) => { this.rr(x, y, 54 * s, 11 * s, 5.5 * s); c.fill(); this.rr(x + 12 * s, y - 6 * s, 30 * s, 9 * s, 4.5 * s); c.fill(); };
+      cl(220 + Math.sin(this.time * 0.08) * 24, 9, 0.9);
+      cl(760 + Math.cos(this.time * 0.06) * 30, 11, 0.75);
 
       /* ターミナルビル */
-      c.fillStyle = '#e3e9f0';
-      c.fillRect(0, 38, SCENE_W, 112);
       c.fillStyle = '#c3d0dd';
-      c.fillRect(0, 38, SCENE_W, 8);
+      c.fillRect(0, 30, SCENE_W, 8);
+      c.fillStyle = '#e3e9f0';
+      c.fillRect(0, 38, SCENE_W, 88);
       for (let x = 48; x < SCENE_W - 60; x += 46) {
         c.fillStyle = (x / 46) % 2 ? '#b6c8d8' : '#aabfd1';
-        c.fillRect(x, 60, 28, 62);
+        c.fillRect(x, 52, 28, 54);
       }
       c.fillStyle = '#cbd5e0';
-      c.fillRect(0, 138, SCENE_W, 12);
+      c.fillRect(0, 126, SCENE_W, 12);
       c.fillStyle = '#51667e';
       c.font = 'bold 15px "Segoe UI", "Hiragino Sans", Meiryo, sans-serif';
       c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText('そらみなと国際空港', 16, 51);
+      c.fillText('そらみなと国際空港', 16, 45);
       /* ゲート表示 */
       c.fillStyle = '#27496d';
-      this.rr(292, 118, 92, 24, 6); c.fill();
+      this.rr(292, 104, 92, 24, 6); c.fill();
       c.fillStyle = '#fff';
       c.font = 'bold 13px "Segoe UI", Meiryo, sans-serif';
       c.textAlign = 'center';
-      c.fillText('GATE 7', 338, 131);
+      c.fillText('GATE 7', 338, 117);
       /* 管制塔 */
-      c.fillStyle = '#d6dee6'; c.fillRect(1082, 58, 24, 80);
-      c.fillStyle = '#6f8598'; this.rr(1068, 40, 52, 26, 8); c.fill();
-      c.fillStyle = '#b7e0ef'; this.rr(1073, 46, 42, 10, 4); c.fill();
+      c.fillStyle = '#d6dee6'; c.fillRect(1082, 48, 24, 78);
+      c.fillStyle = '#6f8598'; this.rr(1068, 30, 52, 26, 8); c.fill();
+      c.fillStyle = '#b7e0ef'; this.rr(1073, 36, 42, 10, 4); c.fill();
       c.strokeStyle = '#6f8598'; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(1094, 40); c.lineTo(1094, 26); c.stroke();
+      c.beginPath(); c.moveTo(1094, 30); c.lineTo(1094, 18); c.stroke();
 
       /* エプロン（駐機場） */
       c.fillStyle = '#b8bfc7';
-      c.fillRect(0, 150, SCENE_W, SCENE_H - 150);
+      c.fillRect(0, 138, SCENE_W, SCENE_H - 138);
       c.strokeStyle = 'rgba(255,255,255,.16)';
       c.lineWidth = 1.5;
       for (let x = 120; x < SCENE_W; x += 150) {
-        c.beginPath(); c.moveTo(x, 150); c.lineTo(x, SCENE_H); c.stroke();
+        c.beginPath(); c.moveTo(x, 138); c.lineTo(x, SCENE_H); c.stroke();
       }
-      for (let y = 240; y < SCENE_H; y += 130) {
+      for (let y = 230; y < SCENE_H; y += 130) {
         c.beginPath(); c.moveTo(0, y); c.lineTo(SCENE_W, y); c.stroke();
       }
 
       /* 誘導路（タキシーウェイ） */
       c.fillStyle = '#9aa2ab';
-      c.fillRect(0, 622, SCENE_W, 50);
+      c.fillRect(0, 574, SCENE_W, 56);
       c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
       c.setLineDash([26, 18]);
-      c.beginPath(); c.moveTo(0, 647); c.lineTo(SCENE_W, 647); c.stroke();
+      c.beginPath(); c.moveTo(0, 602); c.lineTo(SCENE_W, 602); c.stroke();
       c.setLineDash([]);
 
       /* スタンド導入線とスポット番号 */
       c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(615, 622); c.lineTo(615, 344); c.stroke();
-      c.beginPath(); c.moveTo(615, 344); c.lineTo(615, 330); c.stroke();
+      c.beginPath(); c.moveTo(615, 574); c.lineTo(615, 330); c.stroke();
       c.fillStyle = '#7c858e';
-      c.font = 'bold 22px "Segoe UI", Meiryo, sans-serif';
+      c.font = 'bold 20px "Segoe UI", Meiryo, sans-serif';
       c.textAlign = 'center';
-      c.fillText('S7', 590, 610);
+      c.fillText('S7', 592, 566);
 
       /* 制限区域ライン（赤の点線） */
       c.strokeStyle = 'rgba(214,69,69,.5)'; c.lineWidth = 2.5;
@@ -374,23 +499,23 @@
 
       /* スタッフ待機所 */
       c.fillStyle = '#a9b3ba';
-      this.rr(56, 548, 208, 62, 8); c.fill();
-      c.strokeStyle = '#8b959c'; c.lineWidth = 2; this.rr(56, 548, 208, 62, 8); c.stroke();
+      this.rr(250, 484, 172, 58, 8); c.fill();
+      c.strokeStyle = '#8b959c'; c.lineWidth = 2; this.rr(250, 484, 172, 58, 8); c.stroke();
       c.fillStyle = '#616d78';
       c.font = '11px "Segoe UI", Meiryo, sans-serif';
       c.textAlign = 'left';
-      c.fillText('スタッフ待機所', 62, 542);
+      c.fillText('スタッフ待機所', 256, 478);
 
       /* 車両置き場 */
       c.fillStyle = '#616d78';
-      c.fillText('車両置き場（GSE）', 500, 542);
+      c.fillText('車両置き場（GSE）', 452, 478);
       c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
-      [497, 592, 690, 788, 890, 992, 1096].forEach((x) => {
-        c.beginPath(); c.moveTo(x, 552); c.lineTo(x, 616); c.stroke();
+      [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
+        c.beginPath(); c.moveTo(x, 486); c.lineTo(x, 548); c.stroke();
       });
 
       /* 吹き流し */
-      const wx = 1128, wy = 196;
+      const wx = 1128, wy = 188;
       c.strokeStyle = '#7c858e'; c.lineWidth = 3;
       c.beginPath(); c.moveTo(wx, wy); c.lineTo(wx, wy - 34); c.stroke();
       const flap = Math.sin(this.time * 2.2) * 4;
@@ -403,14 +528,15 @@
     planeTransform(state) {
       const push = state.tasks.pushback;
       const dep = state.tasks.depart;
+      const G = window.Game;
       let x = 0, y = 0, rot = 0, alpha = 1;
       const ease = (t) => t * t * (3 - 2 * t);
       if (push.status === 'active' || push.status === 'done') {
-        const p = push.status === 'done' ? 1 : ease(clamp(push.progress / push.dur, 0, 1));
+        const p = push.status === 'done' ? 1 : ease(clamp(push.progress / G.effDur(push), 0, 1));
         y = p * 85; rot = p * rad(16);
       }
       if (dep.status === 'active' || dep.status === 'done') {
-        const p = dep.status === 'done' ? 1 : ease(clamp(dep.progress / dep.dur, 0, 1));
+        const p = dep.status === 'done' ? 1 : ease(clamp(dep.progress / G.effDur(dep), 0, 1));
         x = p * 470; y = 85 + p * 210; rot = rad(16) + p * rad(30);
         alpha = p > 0.75 ? clamp(1 - (p - 0.75) / 0.22, 0, 1) : 1;
       }
@@ -470,7 +596,6 @@
       c.quadraticCurveTo(283, 344, 271, 320);
       c.quadraticCurveTo(283, 296, 340, 292);
       c.closePath(); c.fill(); c.stroke();
-      /* 胴体の中心ハイライト */
       c.fillStyle = 'rgba(255,255,255,.65)';
       c.beginPath();
       c.moveTo(340, 310); c.lineTo(900, 310); c.lineTo(900, 316); c.lineTo(340, 316);
@@ -491,7 +616,6 @@
       c.moveTo(890, 317); c.lineTo(980, 312); c.lineTo(996, 320); c.lineTo(980, 328); c.lineTo(890, 323);
       c.closePath(); c.fill();
       c.strokeStyle = ACC_D; c.lineWidth = 1.5; c.stroke();
-      /* 尾翼のロゴ（鳥） */
       c.strokeStyle = '#fff'; c.lineWidth = 2.5;
       c.beginPath(); c.moveTo(950, 320); c.quadraticCurveTo(960, 314, 972, 318); c.stroke();
 
@@ -499,16 +623,16 @@
       const t = state.tasks;
       const doorOpen = this.bridge > 0.9;
       c.fillStyle = doorOpen ? '#33414f' : '#c3ccd4';
-      this.rr(394, 290, 20, 7, 2); c.fill();          // 前方左ドア（搭乗橋）
+      this.rr(394, 290, 20, 7, 2); c.fill();
       const fwdOpen = t.unload.status === 'active';
       const aftOpen = t.load.status === 'active';
       c.fillStyle = fwdOpen ? '#33414f' : '#c3ccd4';
-      this.rr(486, 342, 30, 7, 2); c.fill();          // 前方貨物
+      this.rr(486, 342, 30, 7, 2); c.fill();
       c.fillStyle = aftOpen ? '#33414f' : '#c3ccd4';
-      this.rr(738, 342, 30, 7, 2); c.fill();          // 後方貨物
+      this.rr(738, 342, 30, 7, 2); c.fill();
       const catOpen = t.catering.status === 'active';
       c.fillStyle = catOpen ? '#33414f' : '#c3ccd4';
-      this.rr(846, 342, 18, 7, 2); c.fill();          // 後方右ドア（ケータリング）
+      this.rr(846, 342, 18, 7, 2); c.fill();
 
       /* 機体名 */
       c.fillStyle = ACC_D;
@@ -533,22 +657,18 @@
       const k = this.bridge;
       const rot = [347, 205];
       const end = [352 + (402 - 352) * k, 216 + (284 - 216) * k];
-      /* 固定部 */
       c.strokeStyle = '#8fa3b5'; c.lineWidth = 26; c.lineCap = 'round';
-      c.beginPath(); c.moveTo(347, 158); c.lineTo(rot[0], rot[1]); c.stroke();
+      c.beginPath(); c.moveTo(347, 146); c.lineTo(rot[0], rot[1]); c.stroke();
       c.strokeStyle = '#b9c9d8'; c.lineWidth = 18;
-      c.beginPath(); c.moveTo(347, 158); c.lineTo(rot[0], rot[1]); c.stroke();
-      /* 可動トンネル */
+      c.beginPath(); c.moveTo(347, 146); c.lineTo(rot[0], rot[1]); c.stroke();
       c.strokeStyle = '#8fa3b5'; c.lineWidth = 24;
       c.beginPath(); c.moveTo(rot[0], rot[1]); c.lineTo(end[0], end[1]); c.stroke();
       c.strokeStyle = '#cddae5'; c.lineWidth = 16;
       c.beginPath(); c.moveTo(rot[0], rot[1]); c.lineTo(end[0], end[1]); c.stroke();
-      /* ロタンダ（回転部） */
       c.fillStyle = '#7d92a6';
       c.beginPath(); c.arc(rot[0], rot[1], 13, 0, TAU); c.fill();
       c.fillStyle = '#a5b8c9';
       c.beginPath(); c.arc(rot[0], rot[1], 8, 0, TAU); c.fill();
-      /* 支持脚 */
       c.strokeStyle = '#6d8093'; c.lineWidth = 4; c.lineCap = 'butt';
       c.beginPath(); c.moveTo(end[0] - 6, end[1] + 10); c.lineTo(end[0] - 6, end[1] + 24); c.stroke();
       c.fillStyle = '#4b5866';
@@ -558,7 +678,6 @@
     drawEffectsUnder(state, gt) {
       const c = this.ctx;
       const t = state.tasks;
-      /* 給油ホースと安全コーン */
       if (t.refuel.status === 'active') {
         c.strokeStyle = '#414b58'; c.lineWidth = 3.5;
         c.beginPath();
@@ -566,11 +685,10 @@
         c.quadraticCurveTo(648, 436, 664, 424);
         c.stroke();
         c.fillStyle = '#e2711d';
-        [[600, 484], [692, 484], [646, 496]].forEach(([x, y]) => {
+        [[600, 452], [692, 452]].forEach(([x, y]) => {
           c.beginPath(); c.moveTo(x, y); c.lineTo(x - 5, y + 9); c.lineTo(x + 5, y + 9); c.closePath(); c.fill();
         });
       }
-      /* 清掃キラキラ */
       if (t.clean.status === 'active') {
         c.save();
         c.font = '14px sans-serif'; c.textAlign = 'center';
@@ -582,7 +700,59 @@
         }
         c.restore();
       }
-      /* 点検中の整備スタッフの経路は drawEntities で処理 */
+    },
+
+    /* 作業スポットのバッジ（未開始=点線サークル、選択中は受け入れ可能スポットが光る） */
+    drawSpots(state, ui) {
+      const c = this.ctx;
+      const G = window.Game;
+      const selected = ui ? ui.selected : null;
+      state.taskList.forEach((t) => {
+        if (t.status !== 'ready' && t.status !== 'gathering') return;
+        const a = this.anchorOf(t.id);
+        if (!a) return;
+        const acceptable = selected && G.canAccept(t.id, selected);
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * (acceptable ? 9 : 3.5));
+        const r = 22 + pulse * 3;
+        c.save();
+        if (acceptable) {
+          c.strokeStyle = `rgba(46, 158, 91, ${0.65 + pulse * 0.3})`;
+          c.fillStyle = 'rgba(46, 158, 91, 0.16)';
+          c.lineWidth = 3.5;
+        } else if (selected) {
+          c.strokeStyle = 'rgba(120, 130, 140, 0.4)';
+          c.fillStyle = 'rgba(120, 130, 140, 0.08)';
+          c.lineWidth = 2;
+        } else {
+          c.strokeStyle = t.status === 'gathering' ? 'rgba(226, 164, 0, 0.8)' : 'rgba(15, 143, 176, 0.7)';
+          c.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          c.lineWidth = 2.5;
+        }
+        c.setLineDash([7, 5]);
+        c.beginPath(); c.arc(a[0], a[1], r, 0, TAU);
+        c.fill(); c.stroke();
+        c.setLineDash([]);
+        c.font = '15px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.globalAlpha = 0.95;
+        c.fillStyle = '#fff';
+        c.beginPath(); c.arc(a[0], a[1], 11, 0, TAU); c.fill();
+        c.fillStyle = '#1e3a5f';
+        c.fillText(t.def.icon, a[0], a[1] + 0.5);
+        /* あと何人・何台 */
+        if (t.status === 'gathering') {
+          const missing = G.missingSummary(t.id);
+          if (missing) {
+            c.font = 'bold 10px "Segoe UI", Meiryo, sans-serif';
+            const w = c.measureText('あと ' + missing).width + 10;
+            c.fillStyle = 'rgba(255, 253, 244, 0.95)';
+            this.rr(a[0] - w / 2, a[1] + 26, w, 15, 7); c.fill();
+            c.strokeStyle = '#e2a400'; c.lineWidth = 1; this.rr(a[0] - w / 2, a[1] + 26, w, 15, 7); c.stroke();
+            c.fillStyle = '#7a5b12';
+            c.fillText('あと ' + missing, a[0], a[1] + 34);
+          }
+        }
+        c.restore();
+      });
     },
 
     vehicleBody(type, active, gt, reverse) {
@@ -668,16 +838,16 @@
       }
     },
 
-    drawEntities(state, gt) {
+    drawEntities(state, gt, ui) {
       const c = this.ctx;
       const push = state.tasks.pushback;
       const tr = this.planeTransform(state);
+      const selected = ui ? ui.selected : null;
 
       /* 車両 */
       state.entities.filter((e) => e.kind === 'vehicle').forEach((e) => {
         const rec = this.resolveEntity(state, e);
         let x = rec.pos.x, y = rec.pos.y, ang = rec.angle;
-        /* プッシュバック車両は作業中、機首に張り付いて一緒に動く */
         if (e.type === 'pushback' && e.status === 'working' && (push.status === 'active' || push.status === 'done')) {
           const nose = this.transformPoint(233, 321, tr);
           x = nose.x; y = nose.y; ang = tr.rot;
@@ -686,7 +856,12 @@
         const reverse = e.taskId === 'unload';
         c.save();
         c.translate(x, y);
-        /* 影 */
+        if (e.id === selected) {
+          c.strokeStyle = '#fff'; c.lineWidth = 3.5;
+          c.beginPath(); c.arc(0, 0, 56, 0, TAU); c.stroke();
+          c.strokeStyle = '#0f8fb0'; c.lineWidth = 2;
+          c.beginPath(); c.arc(0, 0, 60 + Math.sin(this.time * 6) * 3, 0, TAU); c.stroke();
+        }
         c.save();
         c.rotate(ang);
         c.fillStyle = 'rgba(40,50,60,.16)';
@@ -701,11 +876,10 @@
       state.entities.filter((e) => e.kind === 'staff').forEach((e) => {
         const rec = this.resolveEntity(state, e);
         let { x, y } = rec.pos;
-        /* 点検スタッフは機体のまわりを歩く */
         if (e.status === 'working' && e.taskId === 'inspect') {
           const t = state.tasks.inspect;
           const total = INSPECT_LOOP.length;
-          const p = (t.progress / t.dur) * 1.6 % 1;
+          const p = (t.progress / window.Game.effDur(t)) * 1.6 % 1;
           const fi = p * total;
           const i0 = Math.floor(fi) % total, i1 = (i0 + 1) % total;
           const k = fi - Math.floor(fi);
@@ -716,6 +890,12 @@
         const moving = e.status === 'moving' || e.status === 'returning' ||
           (e.status === 'working' && e.taskId === 'inspect');
         const bob = moving ? Math.sin(gt * 40 + x) * 1.3 : 0;
+        if (e.id === selected) {
+          c.strokeStyle = '#fff'; c.lineWidth = 3;
+          c.beginPath(); c.arc(x, y, 13, 0, TAU); c.stroke();
+          c.strokeStyle = '#0f8fb0'; c.lineWidth = 2;
+          c.beginPath(); c.arc(x, y, 16 + Math.sin(this.time * 6) * 2, 0, TAU); c.stroke();
+        }
         c.fillStyle = 'rgba(40,50,60,.2)';
         c.beginPath(); c.ellipse(x, y + 4, 6, 2.6, 0, 0, TAU); c.fill();
         c.fillStyle = meta.color;
@@ -726,10 +906,26 @@
         c.fillStyle = 'rgba(255,255,255,.85)';
         c.beginPath(); c.arc(x, y - 1 + bob * 0.3, 1.3, 0, TAU); c.fill();
       });
+
+      /* 選択中エンティティのラベル */
+      if (selected) {
+        const e = state.entities.find((x) => x.id === selected);
+        const rec = e && this.ent[e.id];
+        if (e && rec) {
+          const meta = e.kind === 'staff' ? window.RES_META.staff[e.type] : window.RES_META.vehicles[e.type];
+          const label = `${meta.icon}${e.label} — 行き先をタップ`;
+          c.font = 'bold 11px "Segoe UI", Meiryo, sans-serif';
+          const w = c.measureText(label).width + 14;
+          const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 26 : 42);
+          c.fillStyle = 'rgba(30,58,95,0.92)';
+          this.rr(lx - w / 2, ly - 10, w, 20, 10); c.fill();
+          c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(label, lx, ly + 0.5);
+        }
+      }
     },
 
     transformPoint(px, py, tr) {
-      /* 機体ローカル(615,320)中心の回転・平行移動を点に適用 */
       const cx = 615, cy = 320;
       const dx = px - cx, dy = py - cy;
       const cos = Math.cos(tr.rot), sin = Math.sin(tr.rot);
@@ -764,13 +960,35 @@
       });
     },
 
+    /* 降機・搭乗の人数カウンター */
+    drawPaxCounter(state) {
+      const c = this.ctx;
+      const G = window.Game;
+      const deb = state.tasks.deboard, brd = state.tasks.board;
+      let text = null;
+      if (deb.status === 'active') {
+        const n = PAX_TOTAL - Math.floor(clamp(deb.progress / G.effDur(deb), 0, 1) * PAX_TOTAL);
+        text = `🚶 降機中 のこり${n}人`;
+      } else if (brd.status === 'active') {
+        const n = Math.floor(clamp(brd.progress / G.effDur(brd), 0, 1) * PAX_TOTAL);
+        text = `🧑‍🤝‍🧑 搭乗中 ${n}/${PAX_TOTAL}人`;
+      }
+      if (!text) return;
+      c.font = 'bold 12px "Segoe UI", Meiryo, sans-serif';
+      const w = c.measureText(text).width + 16;
+      c.fillStyle = 'rgba(255,255,255,0.92)';
+      this.rr(402 - w / 2, 158, w, 22, 11); c.fill();
+      c.strokeStyle = '#b9c9d8'; c.lineWidth = 1.5; this.rr(402 - w / 2, 158, w, 22, 11); c.stroke();
+      c.fillStyle = '#27496d'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(text, 402, 169.5);
+    },
+
     drawRings(state) {
       const c = this.ctx;
+      const G = window.Game;
       state.taskList.forEach((t) => {
         if (t.status !== 'active' || t.id === 'depart') return;
-        const slots = SLOTS[t.id] || {};
-        let anchor = (slots.staff && slots.staff[0]) ||
-          (slots.vehicles && Object.values(slots.vehicles)[0] && Object.values(slots.vehicles)[0][0]);
+        let anchor = this.anchorOf(t.id);
         if (!anchor) return;
         let [x, y] = anchor;
         if (t.id === 'pushback') {
@@ -778,7 +996,7 @@
           x = p.x; y = p.y;
         }
         y -= 26;
-        const pct = clamp(t.progress / t.dur, 0, 1);
+        const pct = clamp(t.progress / G.effDur(t), 0, 1);
         c.fillStyle = 'rgba(255,255,255,.92)';
         c.beginPath(); c.arc(x, y, 12, 0, TAU); c.fill();
         c.strokeStyle = '#d5dbe1'; c.lineWidth = 2;
@@ -788,6 +1006,26 @@
         c.font = '11px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.fillText(t.def.icon, x, y + 0.5);
       });
+    },
+
+    /* 天候イベント中の雨（屋外作業停止の間だけ降る） */
+    drawRain(state) {
+      if (!(state.outdoorPauseUntil != null && state.clock < state.outdoorPauseUntil)) return;
+      const c = this.ctx;
+      c.fillStyle = 'rgba(45, 62, 88, 0.13)';
+      c.fillRect(0, 0, SCENE_W, SCENE_H);
+      c.strokeStyle = 'rgba(210, 228, 246, 0.75)';
+      c.lineWidth = 2.2;
+      c.lineCap = 'round';
+      c.beginPath();
+      for (let i = 0; i < 80; i++) {
+        const x = ((i * 149 + this.time * 340) % (SCENE_W + 120)) - 60;
+        const y = (i * 97 + this.time * 700) % SCENE_H;
+        c.moveTo(x, y);
+        c.lineTo(x - 7, y + 20);
+      }
+      c.stroke();
+      c.lineCap = 'butt';
     },
   };
 
@@ -806,6 +1044,9 @@
     hintThrottle: 0,
     sfx: Sfx,
     scene: Scene,
+    selected: null,       // タップ選択中のエンティティid
+    spotPopTask: null,    // ポップオーバー表示中の作業id
+    issueTask: null,
 
     init(cb) {
       this.cb = cb;
@@ -816,13 +1057,14 @@
         'val-safety', 'val-punct', 'val-sat', 'val-cost',
         'bar-safety', 'bar-punct', 'bar-sat', 'bar-cost',
         'unfinished-count', 'game-log', 'staff-strip', 'vehicle-strip',
-        'stage-list', 'modal-backdrop', 'modal',
+        'stage-list', 'modal-backdrop', 'modal', 'panel-tasks', 'panel-status',
+        'btn-drawer-tasks', 'btn-log-toggle', 'spot-pop', 'apron-wrap',
+        'btn-zoom-in', 'btn-zoom-out', 'btn-zoom-reset',
         'result-flag', 'result-rank', 'result-score', 'result-breakdown', 'result-times', 'result-advice'];
       ids.forEach((id) => { this.els[id] = document.getElementById(id); });
 
       Scene.init(this.els['apron']);
 
-      /* 速度ボタン */
       document.querySelectorAll('.speed-btn').forEach((b) => {
         b.addEventListener('click', () => { Sfx.play('click'); cb.onSpeed(Number(b.dataset.speed)); });
       });
@@ -841,14 +1083,188 @@
         if (id) { Sfx.play('select'); cb.onNextStage(id); }
       });
 
+      /* ドロワー・ログ開閉 */
+      this.els['btn-drawer-tasks'].addEventListener('click', () => {
+        Sfx.play('click');
+        this.els['panel-tasks'].classList.toggle('closed');
+      });
+      this.els['btn-log-toggle'].addEventListener('click', () => {
+        const open = this.els['panel-status'].classList.toggle('log-open');
+        this.els['btn-log-toggle'].textContent = open ? '📜 記録をとじる ▴' : '📜 記録を見る ▾';
+      });
+
+      /* ズーム */
+      this.els['btn-zoom-in'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1.3); });
+      this.els['btn-zoom-out'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1 / 1.3); });
+      this.els['btn-zoom-reset'].addEventListener('click', () => { Sfx.play('click'); Scene.resetCam(); });
+
+      this.bindCanvasInput();
+
       this.els['modal-backdrop'].addEventListener('click', (ev) => {
         if (ev.target === this.els['modal-backdrop'] && this.modalDismissible) this.closeModal();
       });
       document.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape' && this.modalDismissible) this.closeModal();
       });
-      /* 効果音のアンロック（初回操作時） */
       document.addEventListener('pointerdown', () => Sfx.ensure(), { once: true });
+    },
+
+    /* ---------------- キャンバス入力（タップ/ドラッグ/ズーム） ---------------- */
+    bindCanvasInput() {
+      const cv = this.els['apron'];
+      const pointers = new Map();
+      let dragMoved = false;
+      let pinchDist = null;
+
+      const pos = (ev) => {
+        const r = cv.getBoundingClientRect();
+        return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      };
+
+      cv.addEventListener('pointerdown', (ev) => {
+        try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* すでに離れたポインタ等は無視 */ }
+        pointers.set(ev.pointerId, pos(ev));
+        dragMoved = false;
+        pinchDist = null;
+      });
+      cv.addEventListener('pointermove', (ev) => {
+        if (!pointers.has(ev.pointerId)) return;
+        const p = pos(ev);
+        if (pointers.size === 2) {
+          /* ピンチズーム */
+          pointers.set(ev.pointerId, p);
+          const [a, b] = [...pointers.values()];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (pinchDist != null && d > 0) {
+            Scene.zoomAt(d / pinchDist, (a.x + b.x) / 2, (a.y + b.y) / 2);
+          }
+          pinchDist = d;
+          dragMoved = true;
+          return;
+        }
+        const prev = pointers.get(ev.pointerId);
+        const dx = p.x - prev.x, dy = p.y - prev.y;
+        if (dragMoved || Math.hypot(dx, dy) > 6) {
+          dragMoved = true;
+          Scene.panBy(dx, dy);
+          pointers.set(ev.pointerId, p);
+          cv.classList.add('dragging');
+          this.closeSpotPop();
+        }
+      });
+      const up = (ev) => {
+        const wasTap = pointers.has(ev.pointerId) && !dragMoved && pointers.size === 1;
+        const p = pointers.get(ev.pointerId);
+        pointers.delete(ev.pointerId);
+        cv.classList.remove('dragging');
+        if (wasTap && p) this.handleTap(p.x, p.y);
+      };
+      cv.addEventListener('pointerup', up);
+      cv.addEventListener('pointercancel', (ev) => { pointers.delete(ev.pointerId); cv.classList.remove('dragging'); });
+      cv.addEventListener('wheel', (ev) => {
+        ev.preventDefault();
+        const p = pos(ev);
+        Scene.zoomAt(ev.deltaY < 0 ? 1.15 : 1 / 1.15, p.x, p.y);
+      }, { passive: false });
+    },
+
+    handleTap(sx, sy) {
+      const s = this.state;
+      if (!s || s.ended) return;
+      const sceneP = Scene.screenToScene(sx, sy);
+      const hit = Scene.hitTest(s, sceneP);
+
+      if (hit && hit.type === 'entity') {
+        const e = s.entities.find((x) => x.id === hit.id);
+        this.closeSpotPop();
+        if (e.taskId === null && (e.status === 'idle' || e.status === 'returning')) {
+          this.selected = (this.selected === e.id) ? null : e.id;
+          Sfx.play('click');
+        } else {
+          const task = e.taskId ? s.tasks[e.taskId] : null;
+          this.toast(`${e.label}は${task ? `「${task.def.name}」の担当中` : 'いま手が離せません'}`, 'info');
+        }
+        return;
+      }
+      if (hit && hit.type === 'spot') {
+        const t = s.tasks[hit.id];
+        if (this.selected && window.Game.canAccept(t.id, this.selected)) {
+          this.cb.onAssignEntity(this.selected, t.id);
+          this.selected = null;
+          return;
+        }
+        this.openSpotPop(t.id);
+        return;
+      }
+      this.selected = null;
+      this.closeSpotPop();
+    },
+
+    /* ---------------- 作業スポットのポップオーバー ---------------- */
+    openSpotPop(taskId) {
+      const s = this.state;
+      const t = s.tasks[taskId];
+      if (!t) return;
+      this.spotPopTask = taskId;
+      const pop = this.els['spot-pop'];
+      const G = window.Game;
+
+      let info = '';
+      const btns = [];
+      if (t.status === 'ready' || t.status === 'gathering') {
+        const missing = G.missingSummary(t.id);
+        info = missing
+          ? `あと <strong>${missing}</strong> が必要です。<br>待機所のスタッフ・車両をタップで送るか、おまかせで開始。`
+          : 'メンバー集合中です。到着を待ちましょう。';
+        if (missing) btns.push({ label: '▶ おまかせで開始', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
+        if (t.status === 'gathering') btns.push({ label: '中断', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
+      } else if (t.status === 'active') {
+        info = `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
+        if (t.id !== 'pushback' && t.id !== 'depart') {
+          btns.push({ label: '中断', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
+        }
+      }
+      btns.push({ label: 'くわしく', cls: 'btn-ghost btn-sm', act: () => this.openTaskDetail(t.id) });
+
+      const paceHtml = window.PACE_ALLOWED.has(t.id) && t.status !== 'done'
+        ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
+            `<button class="pace-btn pace-${p} ${t.pace === p ? 'on' : ''}" data-pace="${p}">${window.PACE[p].icon}${window.PACE[p].label}</button>`).join('')}</div>`
+        : '';
+
+      pop.innerHTML = `
+        <div class="sp-title">${t.def.icon} ${t.def.name}</div>
+        <div class="sp-info">${info}</div>
+        ${paceHtml}
+        <div class="sp-btns" style="margin-top:6px;"></div>`;
+      const btnWrap = pop.querySelector('.sp-btns');
+      btns.forEach((b) => {
+        const el = document.createElement('button');
+        el.className = 'btn ' + b.cls;
+        el.textContent = b.label;
+        el.addEventListener('click', () => { Sfx.play('click'); this.closeSpotPop(); b.act(); });
+        btnWrap.appendChild(el);
+      });
+      pop.querySelectorAll('.pace-btn').forEach((el) => {
+        el.addEventListener('click', () => {
+          Sfx.play('click');
+          this.cb.onSetPace(t.id, el.dataset.pace);
+          this.openSpotPop(taskId); // 表示更新
+        });
+      });
+
+      /* スポットの近くに配置（画面外にはみ出さないように） */
+      const a = Scene.anchorOf(t.id) || [615, 320];
+      const sp = Scene.sceneToScreen(a[0], a[1]);
+      pop.classList.remove('hidden');
+      const wrap = this.els['apron-wrap'];
+      const px = clamp(sp.x + 20, 8, wrap.clientWidth - 240);
+      const py = clamp(sp.y - 40, 8, wrap.clientHeight - pop.offsetHeight - 8);
+      pop.style.left = px + 'px';
+      pop.style.top = py + 'px';
+    },
+    closeSpotPop() {
+      this.spotPopTask = null;
+      this.els['spot-pop'].classList.add('hidden');
     },
 
     showScreen(name) {
@@ -894,8 +1310,10 @@
       this.chipEls = {};
       this.lastClockText = '';
       this.lastRemainText = '';
-
+      this.selected = null;
       this.issueTask = null;
+      this.closeSpotPop();
+
       this.els['hud-stage-name'].textContent = state.stage.shortName;
       this.updateWeatherHud();
       this.els['hud-std'].textContent = window.fmtClock(state.stage.std);
@@ -903,12 +1321,15 @@
       this.els['event-banner'].classList.add('hidden');
       this.els['toast-area'].innerHTML = '';
 
-      /* スタートオーバーレイ */
+      /* ドロワーの初期状態: 広い画面ではひらく */
+      this.els['panel-tasks'].classList.toggle('closed', window.innerWidth < 1100);
+      this.els['panel-status'].classList.remove('log-open');
+      this.els['btn-log-toggle'].textContent = '📜 記録を見る ▾';
+
       this.els['start-overlay'].classList.remove('hidden');
       this.els['start-overlay-title'].textContent = state.stage.name;
       this.els['start-overlay-text'].textContent = state.stage.intro;
 
-      /* 作業カード */
       const list = this.els['task-list'];
       list.innerHTML = '';
       state.taskList.forEach((t) => {
@@ -917,6 +1338,10 @@
         card.id = 'card-' + t.id;
         const reqs = window.taskReqList(t.def).map((r) =>
           `<span class="req-chip" style="--c:${r.color}">${r.icon}${r.label}×${r.n}</span>`).join('');
+        const paceHtml = window.PACE_ALLOWED.has(t.id)
+          ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
+              `<button class="pace-btn pace-${p}" data-pace="${p}" title="${p === 'rush' ? '速いが満足度(安全)が下がる' : p === 'careful' ? 'ゆっくりだが満足度が上がる' : '標準の速さ'}">${window.PACE[p].icon}${window.PACE[p].label}</button>`).join('')}</div>`
+          : '';
         card.innerHTML = `
           <div class="tc-head">
             <span class="tc-icon">${t.def.icon}</span>
@@ -930,6 +1355,7 @@
             <span class="tc-extra"></span>
             <span class="tc-prio ${t.def.priority === 'high' ? 'prio-high' : ''}">優先度${t.def.priority === 'high' ? '高' : '中'}</span>
           </div>
+          ${paceHtml}
           <div class="tc-lockmsg"></div>
           <div class="tc-btns">
             <button class="btn btn-sm btn-primary tc-start">開始</button>
@@ -939,12 +1365,14 @@
         card.querySelector('.tc-start').addEventListener('click', () => this.cb.onStartTask(t.id));
         card.querySelector('.tc-info').addEventListener('click', () => { Sfx.play('click'); this.openTaskDetail(t.id); });
         card.querySelector('.tc-cancel').addEventListener('click', () => { Sfx.play('click'); this.cb.onCancelTask(t.id); });
+        card.querySelectorAll('.pace-btn').forEach((el) => {
+          el.addEventListener('click', () => { Sfx.play('click'); this.cb.onSetPace(t.id, el.dataset.pace); });
+        });
         list.appendChild(card);
         this.cardEls[t.id] = card;
         this.updateCard(t.id);
       });
 
-      /* リソースチップ */
       const sStrip = this.els['staff-strip'];
       const vStrip = this.els['vehicle-strip'];
       sStrip.innerHTML = ''; vStrip.innerHTML = '';
@@ -975,34 +1403,36 @@
       const t = s.tasks[id];
       const card = this.cardEls[id];
       if (!card) return;
-      card.classList.remove('st-locked', 'st-ready', 'st-moving', 'st-active', 'st-done', 'st-paused', 'st-issue');
+      card.classList.remove('st-locked', 'st-ready', 'st-gathering', 'st-moving', 'st-active', 'st-done', 'st-paused', 'st-issue');
       card.classList.add('st-' + t.status);
       const paused = window.Game.outdoorPaused() && t.def.outdoor &&
-        (t.status === 'active' || t.status === 'moving');
+        (t.status === 'active' || t.status === 'gathering');
       const issue = this.issueTask === id && t.status !== 'done';
       if (paused) card.classList.add('st-paused');
       if (issue) card.classList.add('st-issue');
       const stEl = card.querySelector('.tc-state');
       const stMap = {
-        locked: '🔒 未開始', ready: '未開始（開始できます）', moving: '🚶 移動中',
+        locked: '🔒 未開始', ready: '未開始（開始できます）', gathering: '🚶 集合中',
         active: '⚙ 作業中', done: '✅ 完了',
       };
       stEl.textContent = issue ? '⚠ 問題発生' : (paused ? '⏸ 停止中（天候）' : (stMap[t.status] || t.status));
 
+      const G = window.Game;
       const timeEl = card.querySelector('.tc-time');
       if (t.status === 'done') {
         timeEl.textContent = `完了 ${window.fmtClock(t.doneAt)}`;
       } else if (t.status === 'active') {
-        timeEl.textContent = (paused ? '⏸ ' : '') + `のこり約${Math.max(1, Math.ceil(t.dur - t.progress))}分`;
-      } else if (t.status === 'moving') {
-        timeEl.textContent = paused ? '⏸ 天候の回復待ち…' : 'スタッフ・車両が移動中…';
+        timeEl.textContent = (paused ? '⏸ ' : '') + `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
+      } else if (t.status === 'gathering') {
+        const missing = G.missingSummary(id);
+        timeEl.textContent = paused ? '⏸ 天候の回復待ち…' : (missing ? `あと ${missing}` : 'メンバー移動中…');
       } else {
-        timeEl.textContent = `必要時間 約${Math.ceil(t.dur - t.progress)}分`;
+        timeEl.textContent = `必要時間 約${Math.ceil(G.effDur(t) - t.progress)}分`;
       }
       card.querySelector('.tc-extra').textContent = t.extra || '';
 
       const fill = card.querySelector('.tc-fill');
-      fill.style.width = `${clamp((t.progress / t.dur) * 100, 0, 100)}%`;
+      fill.style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
 
       const lockEl = card.querySelector('.tc-lockmsg');
       if (t.status === 'locked') {
@@ -1013,11 +1443,18 @@
         lockEl.classList.remove('show');
       }
 
+      /* ペースの選択状態 */
+      card.querySelectorAll('.pace-btn').forEach((el) => {
+        el.classList.toggle('on', el.dataset.pace === t.pace);
+      });
+
       const btnStart = card.querySelector('.tc-start');
       const btnCancel = card.querySelector('.tc-cancel');
-      btnStart.classList.toggle('hidden', t.status === 'active' || t.status === 'moving' || t.status === 'done');
+      const gatherFilled = t.status === 'gathering' && !G.missingSummary(id);
+      btnStart.classList.toggle('hidden', t.status === 'active' || t.status === 'done' || gatherFilled);
+      btnStart.textContent = t.status === 'gathering' ? 'おまかせでそろえる' : '開始';
       btnStart.disabled = false;
-      const cancellable = (t.status === 'active' || t.status === 'moving') && id !== 'pushback' && id !== 'depart';
+      const cancellable = (t.status === 'active' || t.status === 'gathering') && id !== 'pushback' && id !== 'depart';
       btnCancel.classList.toggle('hidden', !cancellable);
     },
 
@@ -1065,6 +1502,16 @@
         const task = e.taskId ? s.tasks[e.taskId] : null;
         chip.querySelector('.rc-st').textContent = stMap[e.status] + (task ? ` ${task.def.icon}` : '');
       });
+      /* 選択中のエンティティが使われたら選択解除 */
+      if (this.selected) {
+        const e = s.entities.find((x) => x.id === this.selected);
+        if (!e || e.taskId !== null) this.selected = null;
+      }
+      /* ポップオーバーの内容も更新 */
+      if (this.spotPopTask) {
+        const t = s.tasks[this.spotPopTask];
+        if (!t || t.status === 'done') this.closeSpotPop();
+      }
     },
 
     updateMetrics() {
@@ -1195,7 +1642,7 @@
       this.openModal({
         kind: 'safety',
         title: '🦺 プッシュバック前の安全確認',
-        body: `<p>飛行機を動かす前に、機体のまわりに<strong>人・車両・置きわすれた機材</strong>が残っていないか確認します。どうしますか？</p>`,
+        body: `<p>トーイングカーが機首に到着しました。飛行機を動かす前に、機体のまわりに<strong>人・車両・置きわすれた機材</strong>が残っていないか確認します。どうしますか？</p>`,
         buttons: [
           { label: '✅ しっかり確認する（+1分）', cls: 'btn-primary', onClick: () => this.cb.onSafetyChoice(true) },
           { label: '⚠ 確認を省略して急ぐ（大きなペナルティ）', cls: 'btn-danger', onClick: () => this.cb.onSafetyChoice(false) },
@@ -1241,21 +1688,21 @@
         {
           title: '🗺 画面の見方',
           body: `<ul class="tut-list">
-                 <li><strong>左：</strong>作業カード（ここから作業を開始）</li>
-                 <li><strong>中央：</strong>駐機場のようす（みんなが動くよ）</li>
-                 <li><strong>右：</strong>安全性などの管理指標と記録</li>
+                 <li><strong>画面ぜんたい：</strong>駐機場のようす（ドラッグで移動、ホイールやピンチ、右下の＋−でズーム）</li>
+                 <li><strong>左の📋タブ：</strong>作業カードのひらけ・とじ</li>
+                 <li><strong>右上：</strong>安全性などの管理指標</li>
                  <li><strong>下：</strong>スタッフと車両の状態</li></ul>`,
         },
         {
-          title: '🛠 作業のすすめ方',
-          body: `<p>カードの<strong>「開始」</strong>を押すと、必要なスタッフ・車両が飛行機へ移動して作業が始まります。</p>
-                 <p>🔒がついた作業は<strong>順番の条件</strong>があります（例：清掃はお客さんが降りてから）。</p>
-                 <p>スタッフや車両の数にはかぎりがあるので、<strong>同時にできる作業</strong>をうまく組み合わせよう。</p>`,
+          title: '🛠 作業のすすめ方（2つのやり方）',
+          body: `<p><strong>① おまかせ：</strong>作業カードの「開始」を押すと、必要なメンバーが自動で移動します。</p>
+                 <p><strong>② 自分で配置：</strong>駐機場の<strong>スタッフや車両をタップ</strong>して選び、<strong>緑に光る持ち場</strong>をタップして送りこみます。必要な人数がそろうと作業開始！</p>
+                 <p>🔒がついた作業は順番の条件があります（例：清掃はお客さんが降りてから）。</p>`,
         },
         {
-          title: '⏱ 時間とスピード',
-          body: `<p>画面上の <strong>⏸（一時停止）／▶（ふつう）／⏩（2倍速）</strong>で時間の速さを変えられます。</p>
-                 <p>まよったら⏸で止めて、ゆっくり作戦を考えよう。</p>`,
+          title: '⏱ 時間と采配レバー',
+          body: `<p>画面上の <strong>⏸／▶／⏩</strong>で時間の速さを変えられます。まよったら⏸で作戦タイム。</p>
+                 <p>各作業は<strong>🐢ていねい／ふつう／🚀急ぐ</strong>を選べます。急ぐと速いけれど、満足度や安全性が下がることも…。使いどころが腕の見せどころ！</p>`,
         },
         {
           title: '🦺 安全がいちばん！',
@@ -1342,13 +1789,13 @@
 
     /* ---------------- 結果画面 ---------------- */
     renderResult(res, isBest, nextStageId) {
-      /* クリア時は「次のステージへ」を主ボタンにする */
       const nextBtn = document.getElementById('btn-next-stage');
       const retryBtn = document.getElementById('btn-retry');
       nextBtn.classList.toggle('hidden', !nextStageId);
       nextBtn.dataset.stage = nextStageId || '';
       retryBtn.classList.toggle('btn-primary', !nextStageId);
       retryBtn.classList.toggle('btn-ghost', !!nextStageId);
+
       const flag = this.els['result-flag'];
       if (!res.departed) {
         flag.textContent = '⏰ 時間内に出発できませんでした…';
@@ -1394,21 +1841,22 @@
     /* ---------------- 毎フレーム ---------------- */
     frame(dtReal) {
       const s = this.state;
-      Scene.draw(s, dtReal);
+      Scene.draw(s, dtReal, this);
       if (!s) return;
       this.updateClock();
       const now = performance.now();
       if (now - this.domThrottle > 250) {
         this.domThrottle = now;
-        const outPaused = window.Game.outdoorPaused();
+        const G = window.Game;
+        const outPaused = G.outdoorPaused();
         s.taskList.forEach((t) => {
           if (t.status === 'active') {
             const card = this.cardEls[t.id];
             if (!card) return;
-            card.querySelector('.tc-fill').style.width = `${clamp((t.progress / t.dur) * 100, 0, 100)}%`;
+            card.querySelector('.tc-fill').style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
             const timeEl = card.querySelector('.tc-time');
             const txt = (outPaused && t.def.outdoor ? '⏸ ' : '') +
-              `のこり約${Math.max(1, Math.ceil(t.dur - t.progress))}分`;
+              `のこり約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
             if (timeEl.textContent !== txt) timeEl.textContent = txt;
           }
         });
@@ -1423,6 +1871,10 @@
           this.updateCard(payload.id);
           this.updateUnfinished();
           this.updateHint(true);
+          if (this.spotPopTask === payload.id) {
+            const t = this.state.tasks[payload.id];
+            if (!t || t.status === 'done' || t.status === 'active') this.closeSpotPop();
+          }
           break;
         case 'resources': this.updateResources(); break;
         case 'metrics': this.updateMetrics(); break;
@@ -1430,8 +1882,9 @@
         case 'log': this.addLog(payload); break;
         case 'toast': this.toast(payload.msg, payload.type); break;
         case 'sfx': Sfx.play(payload); break;
-        case 'safety-ask': this.openSafetyModal(); break;
         case 'weather': this.updateWeatherHud(); break;
+        case 'celebrate': if (this.state) Scene.celebrate(this.state, payload.taskId); break;
+        case 'safety-ask': this.openSafetyModal(); break;
         case 'event-armed':
           this.issueTask = payload.def.affectedTask || null;
           this.showEventBanner(payload.def);
@@ -1445,6 +1898,8 @@
           break;
         }
         case 'stage-end':
+          this.selected = null;
+          this.closeSpotPop();
           this.hideEventBanner();
           if (this.modalKind && this.modalKind !== 'tutorial') this.closeModal();
           break;

@@ -154,6 +154,19 @@ const TASK_DEFS = [
  * 降機・搭乗・ドアクローズは搭乗橋経由、清掃は機内なので屋内扱い。 */
 const OUTDOOR_TASKS = new Set(['unload', 'load', 'refuel', 'catering', 'inspect', 'bagmatch', 'pushback']);
 
+/* ---- 作業ペース（采配レバー） ----
+ * rush: 2割速いが、完了時に満足度が下がる。安全にかかわる作業は安全性も下がる。
+ * careful: 2割ゆっくりだが、完了時に満足度が上がる。 */
+const PACE = {
+  careful: { f: 1.2, label: 'ていねい', icon: '🐢' },
+  normal:  { f: 1.0, label: 'ふつう',   icon: '─' },
+  rush:    { f: 0.8, label: '急ぐ',     icon: '🚀' },
+};
+/* 急がせると安全性に響く作業 */
+const SAFETY_SENSITIVE = new Set(['refuel', 'inspect', 'bagmatch']);
+/* レバーを出す作業（ドアクローズ以降の短い作業と出発は対象外） */
+const PACE_ALLOWED = new Set(['deboard', 'unload', 'clean', 'catering', 'refuel', 'inspect', 'load', 'board', 'bagmatch']);
+
 const TASK_MAP = {};
 TASK_DEFS.forEach((t) => {
   t.outdoor = OUTDOOR_TASKS.has(t.id);
@@ -178,3 +191,6 @@ window.RES_META = RES_META;
 window.TASK_DEFS = TASK_DEFS;
 window.TASK_MAP = TASK_MAP;
 window.taskReqList = taskReqList;
+window.PACE = PACE;
+window.SAFETY_SENSITIVE = SAFETY_SENSITIVE;
+window.PACE_ALLOWED = PACE_ALLOWED;

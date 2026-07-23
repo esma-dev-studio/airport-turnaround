@@ -55,6 +55,14 @@
           const r = Game.cancelTask(id);
           if (r && !r.ok && r.reason) UI.toast(r.reason, 'warn');
         },
+        onAssignEntity: (entityId, taskId) => {
+          if (!this.begun) { UI.toast('まずは「▶ スタート」を押してはじめよう', 'info'); return; }
+          const r = Game.assignEntity(entityId, taskId);
+          if (!r.ok) UI.toast(r.reason, 'warn');
+        },
+        onSetPace: (taskId, pace) => {
+          Game.setPace(taskId, pace);
+        },
         onSafetyChoice: (careful) => Game.chooseSafety(careful),
         onEventChoice: (i) => Game.resolveEvent(i, false),
         onSelectStage: (id) => this.startStage(id),
