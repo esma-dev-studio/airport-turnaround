@@ -39,7 +39,7 @@ ruby { ruby-align: center; }
 .btn rt, .flow-chip rt, .req-chip rt, .res-chip rt, .zk-tab rt, .pace-btn rt, .sc-diff rt { font-size: 0.46em; }
 html, body { height: 100%; }
 body {
-  font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Segoe UI", "Hiragino Sans", Meiryo, system-ui, sans-serif;
+  font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
   color: var(--ink);
   background: var(--sky);
   line-height: 1.7;
@@ -98,7 +98,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .title-clouds { position: absolute; inset: 0; pointer-events: none; }
 .tcl {
   position: absolute;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.55);
   border-radius: 999px;
 }
 .tcl::before, .tcl::after {
@@ -111,54 +111,28 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .tcl-3 { width: 160px; height: 34px; top: 62%; left: -170px; animation: cloud-drift 78s linear 22s infinite; opacity: 0.55; }
 .tcl-3::before { width: 84px; height: 30px; top: -16px; left: 34px; }
 @keyframes cloud-drift { to { transform: translateX(calc(100vw + 340px)); } }
-.title-sun {
-  position: absolute; top: 34px; right: 7%;
-  width: 62px; height: 62px; border-radius: 50%;
-  background: #ffd24a;
-  box-shadow: 0 0 0 14px rgba(255, 210, 74, 0.25), 0 0 0 28px rgba(255, 210, 74, 0.12);
-}
-.tiny-plane {
-  position: absolute; top: 15%; left: -60px;
-  font-size: 1.5rem; color: #7ba7c7;
-  animation: plane-fly 34s linear 4s infinite;
-}
-@keyframes plane-fly {
-  0% { transform: translate(0, 0) rotate(-8deg); }
-  100% { transform: translate(calc(100vw + 130px), -60px) rotate(-8deg); }
-}
 .title-inner { max-width: 720px; text-align: center; position: relative; }
 .title-hero {
   width: min(560px, 92%);
-  border-radius: 18px;
+  border-radius: 14px;
   box-shadow: 0 10px 30px rgba(30, 58, 95, 0.18);
   margin-bottom: 18px;
   background: #fff;
-  animation: hero-float 5.5s ease-in-out infinite;
-}
-@keyframes hero-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
 }
 .title-logo {
   font-size: clamp(1.8rem, 5vw, 3rem);
   font-weight: 900;
   color: var(--navy);
-  letter-spacing: 0.04em;
-  text-shadow: 0 2px 0 #fff, 0 6px 16px rgba(30, 58, 95, 0.22);
+  letter-spacing: 0.05em;
+  text-shadow: 0 3px 12px rgba(30, 58, 95, 0.18);
 }
 .title-num {
-  color: var(--accent); font-size: 1.25em;
-  text-shadow: 0 2px 0 #fff, 0 6px 16px rgba(15, 143, 176, 0.3);
+  color: var(--accent); font-size: 1.2em;
+  text-shadow: 0 3px 12px rgba(15, 143, 176, 0.25);
 }
 .title-sub { color: var(--ink-2); margin-top: 4px; font-size: 0.9rem; }
 .title-desc { margin: 18px 0; line-height: 1.9; }
 .title-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 10px 0 16px; }
-#btn-title-start { animation: cta-pulse 2.6s ease-in-out infinite; }
-@keyframes cta-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.045); }
-}
-#btn-title-start:active { animation: none; transform: translateY(2px); }
 .title-foot { color: var(--ink-2); font-size: 0.75rem; }
 
 /* ---------------- ステージ選択 ---------------- */
@@ -299,14 +273,17 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border-radius: 999px; padding: 0 3.5px;
 }
 .fr-chip.fr-locked { opacity: 0.36; filter: grayscale(1); }
-.fr-chip.fr-ready { border-color: var(--ok); background: #f0fbf4; animation: fr-bounce 1.5s infinite; }
+.fr-chip.fr-ready { border-color: var(--ok); background: #f0fbf4; animation: fr-glow 1.8s ease-in-out infinite; }
 .fr-chip.fr-ready .fr-mark { background: var(--ok); color: #fff; }
 .fr-chip.fr-gathering { border-color: var(--warn); background: #fffcf0; }
 .fr-chip.fr-active { border-color: var(--accent); background: #e7f5fb; animation: pulse-soft 1.2s infinite; }
 .fr-chip.fr-done { background: #eef8f1; }
 .fr-chip.fr-done .fr-mark { background: var(--ok); color: #fff; }
 .fr-chip.fr-flash { animation: fr-flash 0.9s 3; }
-@keyframes fr-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes fr-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(47, 158, 99, 0.28); }
+}
 @keyframes fr-flash {
   0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
   50% { box-shadow: 0 0 0 7px rgba(47, 158, 99, 0.45); }
@@ -905,8 +882,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
   animation: rank-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 0.15s backwards;
 }
 @keyframes rank-pop {
-  0% { transform: scale(0) rotate(-30deg); }
-  100% { transform: scale(1) rotate(0); }
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 .result-rank.rank-S { box-shadow: 0 0 0 5px #fff, 0 0 0 8px #ffd24a, 0 0 26px 8px rgba(255, 200, 60, 0.55); }
 /* 紙ふぶき（クリア時にJSがまく） */
@@ -937,11 +914,11 @@ ruby rt, .tc-ruby { font-weight: normal; }
   color: #f5b301;
   text-shadow: 0 2px 6px rgba(190, 130, 0, 0.4);
   display: inline-block;
-  animation: star-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+  animation: star-pop 0.4s ease-out backwards;
 }
 @keyframes star-pop {
-  0% { transform: scale(0) rotate(-40deg); }
-  100% { transform: scale(1) rotate(0); }
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 /* あたらしいバッジ */
 .result-badges {

@@ -97,8 +97,8 @@
    * 論理座標 1200x640。カメラで拡大・移動して描く。
    * ============================================================ */
   const SCENE_W = 1200, SCENE_H = 640;
-  /* Canvas用フォント（Webフォント読みこみ後は自動でまる文字になる） */
-  const CF = '"Zen Maru Gothic", "Segoe UI", Meiryo, sans-serif';
+  /* Canvas用フォント（Webフォント読みこみ後に適用される） */
+  const CF = '"Zen Kaku Gothic New", "Segoe UI", Meiryo, sans-serif';
 
   /* 作業ごとの持ち場（x, y, [車両の向きdeg]） */
   const SLOTS = {
@@ -279,7 +279,7 @@
     staffHome(state, entity) {
       const staff = state.entities.filter((e) => e.kind === 'staff');
       const i = staff.indexOf(entity);
-      return [272 + (i % 5) * 30, 498 + Math.floor(i / 5) * 26];
+      return [272 + (i % 5) * 32, 506 + Math.floor(i / 5) * 30];
     },
     homeOf(state, e) {
       if (e.kind === 'staff') return this.staffHome(state, e);
@@ -403,8 +403,10 @@
       state.entities.forEach((e) => {
         const rec = this.ent[e.id];
         if (!rec) return;
-        const sp = this.sceneToScreen(rec.pos.x, rec.pos.y);
-        const r = e.kind === 'staff' ? 22 : Math.max(34, 46 * this.scale() / 1.1);
+        /* 人物は背が高くなったので、あたり判定の中心を体の中ほどに */
+        const cy = e.kind === 'staff' ? rec.pos.y - 9 : rec.pos.y;
+        const sp = this.sceneToScreen(rec.pos.x, cy);
+        const r = e.kind === 'staff' ? 26 : Math.max(34, 46 * this.scale() / 1.1);
         const d = Math.hypot(sp.x - sx, sp.y - sy);
         if (d < r && d < bestD) { best = { type: 'entity', id: e.id }; bestD = d; }
       });
@@ -1108,6 +1110,69 @@
       }
     },
 
+    /* ---------- 人物（地上スタッフ。等身高めのフラットな作業員） ----------
+     * x, yFeet = 足もとの座標。全長約24px。かわいさよりも「現場のプロ」の造形。
+     * o: { color(ベスト色), phase(歩行サイクル), moving, working, sway(待機のゆれ) } */
+    drawPerson(x, yFeet, o) {
+      const c = this.ctx;
+      const walk = o.moving ? Math.sin(o.phase) : 0;           // -1..1 交互の足
+      const bob = o.moving ? Math.abs(Math.cos(o.phase)) * 0.7 // 歩行の上下はひかえめに
+        : o.working ? Math.sin(o.phase * 0.5) * 0.5
+        : (o.sway || 0);
+      const top = yFeet - 24 - bob;                            // 頭のてっぺん
+      c.save();
+      /* かげ */
+      c.fillStyle = 'rgba(40,50,60,.22)';
+      c.beginPath(); c.ellipse(x, yFeet + 1, 5.2, 2.2, 0, 0, TAU); c.fill();
+      /* 足（ネイビーの作業ズボン。歩くと交互に前後） */
+      c.strokeStyle = '#39434f'; c.lineWidth = 2.4; c.lineCap = 'round';
+      c.beginPath();
+      c.moveTo(x - 1.9, yFeet - 8.5); c.lineTo(x - 1.9 + walk * 2.2, yFeet - walk * 1.2);
+      c.moveTo(x + 1.9, yFeet - 8.5); c.lineTo(x + 1.9 - walk * 2.2, yFeet + walk * 1.2);
+      c.stroke();
+      /* うで（歩行時は足と逆にふる。作業中はわずかに前へ） */
+      const armY = top + 10;
+      const armSwing = o.moving ? walk * 2.2 : 0;
+      const armLift = o.working ? -1.6 + Math.sin(o.phase) * 0.8 : 0;
+      c.strokeStyle = o.color; c.lineWidth = 2.1;
+      c.beginPath();
+      c.moveTo(x - 4.2, armY); c.lineTo(x - 5.2 - armSwing * 0.5, armY + 6 + armSwing + armLift);
+      c.moveTo(x + 4.2, armY); c.lineTo(x + 5.2 + armSwing * 0.5, armY + 6 - armSwing + armLift);
+      c.stroke();
+      c.lineCap = 'butt';
+      /* 胴体（ハイビズベスト: 肩がわずかに広い台形） */
+      c.fillStyle = o.color;
+      c.strokeStyle = 'rgba(30,40,50,.45)'; c.lineWidth = 1.1;
+      c.beginPath();
+      c.moveTo(x - 4.6, top + 8);
+      c.lineTo(x + 4.6, top + 8);
+      c.lineTo(x + 3.9, top + 17);
+      c.lineTo(x - 3.9, top + 17);
+      c.closePath(); c.fill(); c.stroke();
+      /* 反射ベストの2本ライン（実物のハイビズと同じ） */
+      c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.1;
+      c.beginPath();
+      c.moveTo(x - 4.3, top + 11); c.lineTo(x + 4.3, top + 11);
+      c.moveTo(x - 4.05, top + 14); c.lineTo(x + 4.05, top + 14);
+      c.stroke();
+      /* 頭（小さめ・落ちついた肌色） */
+      c.fillStyle = '#e8bf95';
+      c.beginPath(); c.arc(x, top + 4.4, 3.6, 0, TAU); c.fill();
+      /* 目（小さく2点。表情はひかえめ） */
+      c.fillStyle = '#33404d';
+      c.beginPath(); c.arc(x - 1.4, top + 4.9, 0.6, 0, TAU); c.fill();
+      c.beginPath(); c.arc(x + 1.4, top + 4.9, 0.6, 0, TAU); c.fill();
+      /* ヘルメット（白。つば+通気ラインでそれらしく） */
+      c.fillStyle = '#f2f4f6';
+      c.beginPath(); c.arc(x, top + 3.9, 3.9, Math.PI, 0); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(90,105,120,.55)'; c.lineWidth = 0.9;
+      c.beginPath(); c.moveTo(x - 4.6, top + 3.9); c.lineTo(x + 4.6, top + 3.9); c.stroke();
+      c.strokeStyle = 'rgba(90,105,120,.35)';
+      c.beginPath(); c.arc(x, top + 3.7, 2.2, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+      c.restore();
+      return top;   // バッジ表示用に頭の位置を返す
+    },
+
     drawEntities(state, gt, ui) {
       const c = this.ctx;
       const push = state.tasks.pushback;
@@ -1139,6 +1204,16 @@
         c.restore();
         c.rotate(ang);
         this.vehicleBody(e.type, active, gt, reverse);
+        /* 作業中はキャブの上で黄色の回転灯が点滅（実際のGSEと同じ） */
+        if (active) {
+          const CAB = { beltloader: -34, cart: -26, fuel: -38, catering: -33, pushback: 0 };
+          const bx = CAB[e.type] != null ? CAB[e.type] : 0;
+          const bl = 0.3 + 0.7 * Math.abs(Math.sin(this.time * 5 + x));
+          c.fillStyle = `rgba(255,170,40,${(bl * 0.3).toFixed(3)})`;
+          c.beginPath(); c.arc(bx, 0, 6.5, 0, TAU); c.fill();
+          c.fillStyle = `rgba(255,150,20,${bl.toFixed(3)})`;
+          c.beginPath(); c.arc(bx, 0, 2.5, 0, TAU); c.fill();
+        }
         c.restore();
       });
 
@@ -1159,33 +1234,26 @@
         const meta = window.RES_META.staff[e.type];
         const moving = e.status === 'moving' || e.status === 'returning' ||
           (e.status === 'working' && e.taskId === 'inspect');
-        const bob = moving ? Math.sin(gt * 40 + x) * 1.3 : 0;
+        const working = e.status === 'working' && e.taskId !== 'inspect';
         if (e.id === selected) {
           c.strokeStyle = '#fff'; c.lineWidth = 3;
-          c.beginPath(); c.arc(x, y, 13, 0, TAU); c.stroke();
+          c.beginPath(); c.arc(x, y - 9, 16, 0, TAU); c.stroke();
           c.strokeStyle = '#0f8fb0'; c.lineWidth = 2;
-          c.beginPath(); c.arc(x, y, 16 + Math.sin(this.time * 6) * 2, 0, TAU); c.stroke();
+          c.beginPath(); c.arc(x, y - 9, 19 + Math.sin(this.time * 6) * 2, 0, TAU); c.stroke();
         }
-        c.fillStyle = 'rgba(40,50,60,.2)';
-        c.beginPath(); c.ellipse(x, y + 4, 6, 2.6, 0, 0, TAU); c.fill();
-        const oy = bob * 0.3;
-        /* ベスト（担当の色）+反射ライン */
-        c.fillStyle = meta.color;
-        c.strokeStyle = 'rgba(30,40,50,.4)'; c.lineWidth = 1.2;
-        c.beginPath(); c.ellipse(x, y + oy, 6.2, 4.8, 0, 0, TAU); c.fill(); c.stroke();
-        c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.3;
-        c.beginPath(); c.moveTo(x - 4.4, y + oy + 1.4); c.lineTo(x + 4.4, y + oy + 1.4); c.stroke();
-        /* 顔と黄色ヘルメット */
-        c.fillStyle = '#f2c99f';
-        c.beginPath(); c.arc(x, y - 1.6 + oy, 3, 0, TAU); c.fill();
-        c.fillStyle = '#f6cf3f';
-        c.beginPath(); c.arc(x, y - 2.2 + oy, 3.1, Math.PI, 0); c.closePath(); c.fill();
-        c.strokeStyle = 'rgba(120,90,10,.4)'; c.lineWidth = 0.8;
-        c.beginPath(); c.moveTo(x - 3.3, y - 2 + oy); c.lineTo(x + 3.3, y - 2 + oy); c.stroke();
-        /* 熟練度バッジ */
+        /* 人物（歩行サイクルは個体ごとに位相をずらす） */
+        const idx = Number(e.id.slice(1)) || 0;
+        const top = this.drawPerson(x, y, {
+          color: meta.color,
+          moving,
+          working,
+          phase: moving ? gt * 26 + idx * 2.1 : gt * 6 + idx * 2.1,
+          sway: (!moving && !working) ? Math.sin(this.time * 1.7 + idx * 1.9) * 0.5 : 0,
+        });
+        /* 熟練度バッジ（頭の上） */
         if (e.skill === 'vet' || e.skill === 'rookie') {
-          c.font = '8px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-          c.fillText(e.skill === 'vet' ? '⭐' : '🔰', x, y - 11 + bob * 0.3);
+          c.font = '9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(e.skill === 'vet' ? '⭐' : '🔰', x, top - 5);
         }
       });
 
@@ -1199,7 +1267,7 @@
           const label = `${meta.icon}${e.label} ${skillTxt}— いきさきをタップ！`;
           c.font = 'bold 11px ' + CF + '';
           const w = c.measureText(label).width + 14;
-          const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 26 : 42);
+          const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 36 : 42);
           c.fillStyle = 'rgba(30,58,95,0.92)';
           this.rr(lx - w / 2, ly - 10, w, 20, 10); c.fill();
           c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -1231,15 +1299,21 @@
       }
       this.paxDots.forEach((d) => { d.p += (gt - (d.lastGt != null ? d.lastGt : gt)) * d.speed; d.lastGt = gt; });
       this.paxDots = this.paxDots.filter((d) => d.p < 1);
-      this.paxDots.forEach((d) => {
+      this.paxDots.forEach((d, i) => {
         const t01 = d.dir === 'out' ? d.p : 1 - d.p;
         const pts = BRIDGE_PATH;
         const seg = t01 < 0.5 ? 0 : 1;
         const k = (t01 - seg * 0.5) / 0.5;
         const x = pts[seg][0] + (pts[seg + 1][0] - pts[seg][0]) * k;
         const y = pts[seg][1] + (pts[seg + 1][1] - pts[seg][1]) * k;
+        /* ミニ人物（体+頭+髪。歩きの上下はひかえめ） */
+        const hop = Math.abs(Math.sin((d.p * 26) + i)) * 0.5;
         c.fillStyle = d.color;
-        c.beginPath(); c.arc(x, y, 3.4, 0, TAU); c.fill();
+        this.rr(x - 2.2, y - 4.5 - hop, 4.4, 5.4, 2.2); c.fill();
+        c.fillStyle = '#f6cfa4';
+        c.beginPath(); c.arc(x, y - 6.6 - hop, 2.1, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(60,50,40,.55)';
+        c.beginPath(); c.arc(x, y - 7.5 - hop, 2.1, Math.PI * 1.05, Math.PI * 1.95); c.fill();
       });
     },
 
