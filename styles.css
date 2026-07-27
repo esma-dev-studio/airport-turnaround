@@ -135,7 +135,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ---------------- ゲーム画面レイアウト ---------------- */
 #screen-game.active {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   height: 100%;
   gap: 8px;
   padding: 8px;
@@ -172,6 +172,63 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .speed-btn.active { background: var(--accent); }
 #btn-settings { color: #fff; border-color: rgba(255,255,255,0.35); }
 .btn-flow { color: #fff; border-color: rgba(255,255,255,0.35); font-size: 0.82rem; white-space: nowrap; }
+
+/* ---------------- ながれリボン（常時表示。12の作業を順番どおりに） ---------------- */
+.flow-ribbon {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--paper);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 5px 8px;
+  overflow-x: auto; overflow-y: hidden;
+}
+.fr-lead {
+  font-size: 0.68rem; font-weight: 700; color: var(--navy);
+  white-space: nowrap; line-height: 1.25; text-align: center; flex: 0 0 auto;
+}
+.fr-step {
+  display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+  border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 2px 7px 2px 3px;
+  background: #f7fafc;
+}
+.fr-step.fr-sdone { background: #eaf7ef; border-color: #8fd0aa; }
+.fr-step.fr-snow { border-color: var(--accent); background: #eef8fc; box-shadow: 0 0 0 2px rgba(15, 143, 176, 0.15); }
+.fr-num {
+  width: 21px; height: 21px; flex: 0 0 21px;
+  border: none; border-radius: 50%;
+  background: var(--navy-2); color: #fff;
+  font-size: 0.72rem; font-weight: 700; line-height: 1;
+  cursor: pointer;
+}
+.fr-sdone .fr-num { background: var(--ok); }
+.fr-snow .fr-num { background: var(--accent); }
+.fr-chip {
+  position: relative; flex: 0 0 auto;
+  width: 31px; height: 29px; padding: 0;
+  border: 1.5px solid transparent; border-radius: 8px;
+  background: #fff; cursor: pointer;
+  font-size: 1rem; line-height: 1;
+}
+.fr-mark {
+  position: absolute; right: -4px; top: -5px;
+  font-size: 0.56rem; font-weight: 700; line-height: 1.55;
+  border-radius: 999px; padding: 0 3.5px;
+}
+.fr-chip.fr-locked { opacity: 0.36; filter: grayscale(1); }
+.fr-chip.fr-ready { border-color: var(--ok); background: #f0fbf4; animation: fr-bounce 1.5s infinite; }
+.fr-chip.fr-ready .fr-mark { background: var(--ok); color: #fff; }
+.fr-chip.fr-gathering { border-color: var(--warn); background: #fffcf0; }
+.fr-chip.fr-active { border-color: var(--accent); background: #e7f5fb; animation: pulse-soft 1.2s infinite; }
+.fr-chip.fr-done { background: #eef8f1; }
+.fr-chip.fr-done .fr-mark { background: var(--ok); color: #fff; }
+.fr-chip.fr-flash { animation: fr-flash 0.9s 3; }
+@keyframes fr-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes fr-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
+  50% { box-shadow: 0 0 0 7px rgba(47, 158, 99, 0.45); }
+}
+.fr-arrow { color: var(--ink-2); font-size: 0.9rem; flex: 0 0 auto; }
 
 /* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ */
 #game-main {
@@ -301,6 +358,31 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .tc-lockmsg { display: none; font-size: 0.78rem; color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.6; }
 .tc-lockmsg.show { display: block; }
 
+/* ステップ番号（ながれリボンと同じ番号で順番をおぼえられるように） */
+.tc-step {
+  flex: 0 0 auto;
+  background: var(--navy-2); color: #fff;
+  border-radius: 999px; padding: 1px 7px;
+  font-size: 0.6rem; font-weight: 700; white-space: nowrap;
+}
+.st-done .tc-step { background: var(--ok); }
+.st-locked .tc-step { background: #a9b6c4; }
+
+/* この作業がおわると つぎに何が開くか */
+.tc-unlocks {
+  display: none;
+  font-size: 0.72rem; color: #2a6b48; background: #eef8f1;
+  border-radius: 6px; padding: 4px 8px; margin-top: 6px; line-height: 1.6;
+}
+.tc-unlocks.show { display: block; }
+
+/* 開いた瞬間のカードの光り */
+.task-card.just-open { animation: card-open 0.9s 3; }
+@keyframes card-open {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(47, 158, 99, 0.4); }
+}
+
 .tc-btns { display: flex; gap: 6px; margin-top: 7px; }
 
 /* ---------------- 駐機場ビュー（全面） ---------------- */
@@ -370,7 +452,16 @@ ruby rt, .tc-ruby { font-weight: normal; }
   animation: rise 0.15s ease-out;
 }
 .spot-pop .sp-title { font-weight: 700; color: var(--navy); font-size: 0.9rem; margin-bottom: 4px; }
+.spot-pop .sp-step {
+  display: inline-block; margin-right: 5px;
+  background: var(--navy-2); color: #fff; border-radius: 999px;
+  font-size: 0.6rem; padding: 1px 7px; vertical-align: 2px;
+}
 .spot-pop .sp-info { font-size: 0.74rem; color: var(--ink-2); line-height: 1.6; margin-bottom: 6px; }
+.sp-next {
+  margin-top: 5px; padding: 3px 7px;
+  background: #eef8f1; color: #2a6b48; border-radius: 6px; font-size: 0.7rem;
+}
 .spot-pop .sp-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .event-banner {
@@ -413,6 +504,12 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 .toast-warn { background: rgba(160, 110, 10, 0.96); }
 .toast-bad { background: rgba(178, 44, 44, 0.96); }
+/* 「次に進めるようになった」お知らせ */
+.toast-open {
+  background: #eafaf0; color: #1d6b3f;
+  border: 2px solid var(--ok); font-weight: 700;
+  animation: rise 0.25s ease-out, fr-flash 0.9s 2;
+}
 .toast.out { opacity: 0; transition: opacity 0.45s; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
@@ -660,8 +757,22 @@ ruby rt, .tc-ruby { font-weight: normal; }
 
 /* ---------------- ながれマップ ---------------- */
 .flow-map { display: flex; flex-direction: column; gap: 4px; }
-.flow-note { font-size: 0.74rem; color: var(--ink-2); margin-top: 7px; line-height: 1.5; }
-.flow-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.flow-note { font-size: 0.74rem; color: var(--ink-2); line-height: 1.5; flex: 1; }
+.flow-row { display: flex; flex-wrap: wrap; gap: 6px; margin-left: 28px; }
+/* ステップ見出し（番号・条件・いまここ） */
+.flow-step { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.flow-stepnum {
+  width: 22px; height: 22px; flex: 0 0 22px;
+  border-radius: 50%; background: var(--navy-2); color: #fff;
+  font-size: 0.72rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.flow-step.fs-done .flow-stepnum { background: var(--ok); }
+.flow-step.fs-now .flow-stepnum { background: var(--accent); }
+.flow-here {
+  background: var(--accent); color: #fff; border-radius: 999px;
+  font-size: 0.66rem; font-weight: 700; padding: 2px 9px; white-space: nowrap;
+}
 .flow-chip {
   font-size: 0.78rem;
   background: var(--chip);
@@ -683,6 +794,11 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .flow-legend .fc-locked { opacity: 0.55; }
 
 /* ---------------- ずかん ---------------- */
+.zk-step {
+  display: inline-block; margin-right: 6px;
+  background: var(--navy-2); color: #fff; border-radius: 999px;
+  font-size: 0.62rem; font-weight: 700; padding: 1px 8px; vertical-align: 2px;
+}
 .zk-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .zk-tab {
   flex: 1;
@@ -803,4 +919,6 @@ ruby rt, .tc-ruby { font-weight: normal; }
   .hint-banner { max-width: 88%; }
   .game-log { max-height: 120px; }
   .btn, .speed-btn { min-height: 40px; }
+  .fr-lead { display: none; }
+  .fr-chip { width: 34px; height: 32px; }  /* 指で押しやすく */
 }

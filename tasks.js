@@ -210,7 +210,9 @@ const RUBI_DICT = {
   乗客: 'じょうきゃく', 'お客さん': 'おきゃくさん', 満足度: 'まんぞくど', 満足: 'まんぞく',
   降機: 'こうき', 搭乗橋: 'とうじょうきょう', 搭乗: 'とうじょう',
   手荷物: 'てにもつ', 荷物: 'にもつ', 荷台: 'にだい', 貨物室: 'かもつしつ', 照合: 'しょうごう',
-  機内食: 'きないしょく', 機内: 'きない', 機体: 'きたい', 点検: 'てんけん', 清掃: 'せいそう',
+  機内清掃: 'きないせいそう', 機内食: 'きないしょく', 機内: 'きない',
+  機体点検: 'きたいてんけん', 機体: 'きたい', 点検: 'てんけん', 清掃: 'せいそう',
+  同時: 'どうじ', 順番: 'じゅんばん', 両方: 'りょうほう',
   給油車: 'きゅうゆしゃ', 給油: 'きゅうゆ', 飲料: 'いんりょう', 整備士: 'せいびし', 整備: 'せいび',
   積み込み: 'つみこみ', 積み込む: 'つみこむ', 取り降ろし: 'とりおろし',
   安全確認: 'あんぜんかくにん', 安全性: 'あんぜんせい', 安全: 'あんぜん', 確認: 'かくにん',
@@ -261,20 +263,51 @@ function rubi(text) {
   ).join('');
 }
 
-/* ---- 「出発準備のながれ」マップの行構成（上から時間の流れ） ---- */
+/* ---- 「出発準備のながれ」マップの行構成（上から時間の流れ） ----
+ * step: ステップ番号（1〜7）。同じ行の作業は「同時にできる仲間」。
+ * title: ながれリボン・カードで使う短い見出し
+ * cond: そのステップを始められる合図（「いつ次に進めるか」の説明）
+ */
 const FLOW_ROWS = [
-  { note: '✈ とうちゃく！ この4つは すぐ・同時に始められる', tasks: ['deboard', 'unload', 'refuel', 'inspect'] },
-  { note: '👇 お客さんが降りたら', tasks: ['clean', 'catering'] },
-  { note: '👇 貨物室が空いたら（取り降ろしのあと）', tasks: ['load'] },
-  { note: '👇 機内がきれいになったら', tasks: ['board'] },
-  { note: '👇 積み込みと搭乗が終わったら', tasks: ['bagmatch'] },
-  { note: '👇 搭乗・照合・機内食・給油が ぜんぶ終わったら', tasks: ['doorclose'] },
-  { note: '👇 機体点検もOKなら、いよいよ出発！', tasks: ['pushback', 'depart'] },
+  { step: 1, title: 'とうちゃく',       cond: '飛行機がついたら すぐ！ 4つ同時にはじめられるよ',
+    note: '✈ とうちゃく！ この4つは すぐ・同時に始められる', tasks: ['deboard', 'unload', 'refuel', 'inspect'] },
+  { step: 2, title: 'お客さんが降りたら', cond: '「乗客の降機」がおわったら はじめられるよ',
+    note: '👇 お客さんが降りたら', tasks: ['clean', 'catering'] },
+  { step: 3, title: '貨物室が空いたら',   cond: '「取り降ろし」がおわったら はじめられるよ',
+    note: '👇 貨物室が空いたら（取り降ろしのあと）', tasks: ['load'] },
+  { step: 4, title: '機内がきれいになったら', cond: '「機内清掃」がおわったら はじめられるよ',
+    note: '👇 機内がきれいになったら', tasks: ['board'] },
+  { step: 5, title: '積み込みと搭乗のあと', cond: '「積み込み」と「搭乗」の両方がおわったら はじめられるよ',
+    note: '👇 積み込みと搭乗が終わったら', tasks: ['bagmatch'] },
+  { step: 6, title: 'ぜんぶ そろったら',   cond: '搭乗・照合・機内食・給油の4つがぜんぶおわったら 閉められるよ',
+    note: '👇 搭乗・照合・機内食・給油が ぜんぶ終わったら', tasks: ['doorclose'] },
+  { step: 7, title: 'いよいよ出発！',     cond: 'ドアクローズと機体点検がおわったら 出発できるよ',
+    note: '👇 機体点検もOKなら、いよいよ出発！', tasks: ['pushback', 'depart'] },
 ];
+
+/* 作業id → ステップ行（順番の共通言語として全画面で使う） */
+const STEP_OF = {};
+FLOW_ROWS.forEach((row) => {
+  row.tasks.forEach((id) => {
+    STEP_OF[id] = row;
+    if (TASK_MAP[id]) TASK_MAP[id].step = row.step;
+  });
+});
+
+/* 作業id → その作業が終わると開く作業id（depsの逆引き）。
+ * 「この作業をやると、つぎに何ができるようになるか」の表示に使う。 */
+const TASK_UNLOCKS = {};
+TASK_DEFS.forEach((t) => {
+  (t.deps || []).forEach((d) => {
+    (TASK_UNLOCKS[d] = TASK_UNLOCKS[d] || []).push(t.id);
+  });
+});
 
 window.RES_META = RES_META;
 window.TASK_DEFS = TASK_DEFS;
 window.FLOW_ROWS = FLOW_ROWS;
+window.STEP_OF = STEP_OF;
+window.TASK_UNLOCKS = TASK_UNLOCKS;
 window.rubi = rubi;
 window.TASK_MAP = TASK_MAP;
 window.taskReqList = taskReqList;

@@ -46,6 +46,7 @@
         case 'start':  this.tone(523, 0.09); this.tone(659, 0.12, 0.09); break;
         case 'done':   this.tone(659, 0.1); this.tone(784, 0.16, 0.1); break;
         case 'select': this.tone(660, 0.08); this.tone(880, 0.1, 0.08); break;
+        case 'unlock': [523, 698, 880].forEach((f, i) => this.tone(f, 0.14, i * 0.075, 'triangle', 0.075)); break;
         case 'warn':   this.tone(233, 0.18, 0, 'sawtooth', 0.06); this.tone(220, 0.22, 0.2, 'sawtooth', 0.06); break;
         case 'event':  this.tone(587, 0.12, 0, 'triangle'); this.tone(494, 0.12, 0.14, 'triangle'); this.tone(587, 0.12, 0.28, 'triangle'); break;
         case 'clear':  [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.16, i * 0.13, 'triangle', 0.1)); break;
@@ -127,6 +128,7 @@
     lastPaxSpawn: 0,
     bridge: 1,        // 1=装着 0=格納
     fx: { parts: [], floats: [] },
+    spotFx: {},       // taskId -> 経過秒（ロックが開いた瞬間のリング演出）
     arrivalT: null,   // 到着シネマティックの進行(0..1)。null=なし
     arrivalCb: null,
     planeParked: true,
@@ -142,6 +144,7 @@
       this.bridge = 1;
       this.time = 0;
       this.fx = { parts: [], floats: [] };
+      this.spotFx = {};
       this.cam = { zoom: 1, cx: 600, cy: 330 };
       this.arrivalT = null;
       this.arrivalCb = null;
@@ -370,12 +373,16 @@
       if (best) return best;
       let spot = null; bestD = 1e9;
       state.taskList.forEach((t) => {
-        if (t.status !== 'ready' && t.status !== 'gathering' && t.status !== 'active') return;
+        const open = t.status === 'ready' || t.status === 'gathering' || t.status === 'active';
+        /* 「もうすぐできる」予告サークルも押せる（なぜまだできないかを読めるように） */
+        const soon = t.status === 'locked' && window.Game.opensInMinutes(t.id) != null;
+        if (!open && !soon) return;
         const a = this.anchorOf(t.id);
         if (!a) return;
         const sp = this.sceneToScreen(a[0], a[1]);
         const d = Math.hypot(sp.x - sx, sp.y - sy);
-        if (d < 36 && d < bestD) { spot = { type: 'spot', id: t.id }; bestD = d; }
+        const r = open ? 36 : 24;
+        if (d < r && d < bestD) { spot = { type: 'spot', id: t.id }; bestD = d; }
       });
       return spot;
     },
@@ -476,7 +483,9 @@
         this.drawPlane(state);
         this.drawBridge(state);
         this.drawEffectsUnder(state, gt);
+        this.drawSoonSpots(state);
         this.drawSpots(state, ui);
+        this.drawSpotPops(dtReal);
         this.drawEntities(state, gt, ui);
         this.drawPax(state, gt);
         this.drawRings(state);
@@ -778,6 +787,61 @@
         }
         c.restore();
       }
+    },
+
+    /* ロックが開いた瞬間、その持ち場でリングを広げて知らせる */
+    popSpot(taskId) { this.spotFx[taskId] = 0; },
+
+    drawSpotPops(dtReal) {
+      const c = this.ctx;
+      Object.keys(this.spotFx).forEach((id) => {
+        this.spotFx[id] += dtReal;
+        const p = this.spotFx[id] / 1.1;
+        const a = this.anchorOf(id);
+        if (p >= 1 || !a) { delete this.spotFx[id]; return; }
+        c.save();
+        c.globalAlpha = 1 - p;
+        c.strokeStyle = '#2e9e5b';
+        c.lineWidth = 3.5;
+        c.beginPath(); c.arc(a[0], a[1], 16 + p * 44, 0, TAU); c.stroke();
+        c.restore();
+      });
+    },
+
+    /* 「もうすぐできる」持ち場の予告。
+     * 前提の作業がぜんぶ進行中のときだけ、うすいサークルと「あと◯ふん」を出す。 */
+    drawSoonSpots(state) {
+      const c = this.ctx;
+      const G = window.Game;
+      state.taskList.forEach((t) => {
+        if (t.status !== 'locked') return;
+        const rest = G.opensInMinutes(t.id);
+        if (rest == null) return;
+        const a = this.anchorOf(t.id);
+        if (!a) return;
+        c.save();
+        c.setLineDash([4, 4]);
+        c.strokeStyle = 'rgba(88, 104, 120, 0.7)';
+        c.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        c.lineWidth = 2;
+        c.beginPath(); c.arc(a[0], a[1], 15, 0, TAU); c.fill(); c.stroke();
+        c.setLineDash([]);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = '12px sans-serif';
+        c.fillStyle = '#54636f';
+        c.fillText('🔒', a[0], a[1] + 0.5);
+        /* Canvasにはルビが振れないので、かな書き */
+        const label = `あと${rest}ふん`;
+        c.font = 'bold 10px "Segoe UI", Meiryo, sans-serif';
+        const w = c.measureText(label).width + 10;
+        c.fillStyle = 'rgba(246, 249, 251, 0.95)';
+        this.rr(a[0] - w / 2, a[1] + 18, w, 15, 7); c.fill();
+        c.strokeStyle = '#9aa8b5'; c.lineWidth = 1;
+        this.rr(a[0] - w / 2, a[1] + 18, w, 15, 7); c.stroke();
+        c.fillStyle = '#54636f';
+        c.fillText(label, a[0], a[1] + 26);
+        c.restore();
+      });
     },
 
     /* 作業スポットのバッジ（未開始=点線サークル、選択中は受け入れ可能スポットが光る） */
@@ -1141,7 +1205,7 @@
         'val-safety', 'val-punct', 'val-sat', 'val-cost',
         'bar-safety', 'bar-punct', 'bar-sat', 'bar-cost',
         'unfinished-count', 'game-log', 'staff-strip', 'vehicle-strip',
-        'stage-list', 'modal-backdrop', 'modal', 'panel-tasks', 'panel-status',
+        'stage-list', 'modal-backdrop', 'modal', 'panel-tasks', 'panel-status', 'flow-ribbon',
         'btn-drawer-tasks', 'btn-log-toggle', 'spot-pop', 'apron-wrap',
         'btn-zoom-in', 'btn-zoom-out', 'btn-zoom-reset',
         'result-flag', 'result-rank', 'result-score', 'result-breakdown', 'result-times', 'result-advice'];
@@ -1287,6 +1351,81 @@
       this.closeSpotPop();
     },
 
+    /* ---------------- ながれリボン（常時表示の進行バー） ----------------
+     * 12の作業を「ステップ1〜7」の順に並べ、いまどこまで進んだかを一目で見せる。
+     * 同じまるの中に入っている作業は「同時にできる仲間」。 */
+    buildRibbon() {
+      const wrap = this.els['flow-ribbon'];
+      if (!wrap) return;
+      this.ribbonChips = {};
+      this.ribbonSteps = [];
+      const rows = window.FLOW_ROWS;
+      wrap.innerHTML = '<span class="fr-lead">🗺<br>ながれ</span>' + rows.map((row, i) => {
+        const chips = row.tasks.map((id) => {
+          const d = window.TASK_MAP[id];
+          return `<button class="fr-chip" data-task="${id}" title="${d.name}">${d.icon}<span class="fr-mark"></span></button>`;
+        }).join('');
+        return `<span class="fr-step" data-step="${row.step}">` +
+          `<button class="fr-num" data-step="${row.step}" title="ステップ${row.step}: ${row.title}">${row.step}</button>` +
+          chips + '</span>' +
+          (i < rows.length - 1 ? '<span class="fr-arrow">›</span>' : '');
+      }).join('');
+
+      wrap.querySelectorAll('.fr-chip').forEach((b) => {
+        this.ribbonChips[b.dataset.task] = b;
+        b.addEventListener('click', () => { Sfx.play('click'); this.onRibbonChip(b.dataset.task); });
+      });
+      wrap.querySelectorAll('.fr-num').forEach((b) => {
+        const row = rows[Number(b.dataset.step) - 1];
+        b.addEventListener('click', () => {
+          Sfx.play('click');
+          this.toast(`【ステップ${row.step}】${row.cond}`, 'info');
+        });
+      });
+      rows.forEach((row) => {
+        this.ribbonSteps.push({ row, el: wrap.querySelector(`.fr-step[data-step="${row.step}"]`) });
+      });
+      this.updateRibbon();
+    },
+
+    /* リボンのタップ: いまの状態におうじて「次にすること」へ案内する */
+    onRibbonChip(id) {
+      const s = this.state;
+      if (!s) return;
+      const t = s.tasks[id];
+      if (t.status === 'locked') {
+        this.toast('🔒 ' + window.Game.lockReason(id), 'warn');
+      } else if (t.status === 'done') {
+        this.toast(`✅ 「${t.def.name}」は もうおわったよ`, 'info');
+      } else {
+        this.openSpotPop(id);
+      }
+    },
+
+    updateRibbon() {
+      const s = this.state;
+      if (!s || !this.ribbonChips) return;
+      Object.keys(this.ribbonChips).forEach((id) => {
+        const el = this.ribbonChips[id];
+        const st = s.tasks[id].status;
+        const cls = 'fr-' + (st === 'moving' ? 'gathering' : st);
+        if (el.dataset.st === cls) return;
+        el.dataset.st = cls;
+        el.classList.remove('fr-locked', 'fr-ready', 'fr-gathering', 'fr-active', 'fr-done');
+        el.classList.add(cls);
+        el.querySelector('.fr-mark').textContent =
+          st === 'done' ? '✓' : (st === 'ready' ? '!' : '');
+      });
+      this.ribbonSteps.forEach(({ row, el }) => {
+        if (!el) return;
+        const sts = row.tasks.map((id) => s.tasks[id].status);
+        const done = sts.every((x) => x === 'done');
+        const now = !done && sts.some((x) => x === 'ready' || x === 'gathering' || x === 'active');
+        el.classList.toggle('fr-sdone', done);
+        el.classList.toggle('fr-snow', now);
+      });
+    },
+
     /* ---------------- 作業スポットのポップオーバー ---------------- */
     openSpotPop(taskId) {
       const s = this.state;
@@ -1311,16 +1450,24 @@
         if (t.id !== 'pushback' && t.id !== 'depart') {
           btns.push({ label: 'ストップ', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
         }
+      } else if (t.status === 'locked') {
+        info = '🔒 ' + rubi(G.lockReason(t.id));
+      } else if (t.status === 'done') {
+        info = rubi(`✅ ${window.fmtClock(t.doneAt)}に かんりょう！`);
+      }
+      const opens = G.nextOpens(t.id);
+      if (t.status !== 'done' && opens.length) {
+        info += `<div class="sp-next">🔓 おわると → ${opens.map((d) => `${d.icon}${rubi(d.name)}`).join('・')}</div>`;
       }
       btns.push({ label: 'くわしく', cls: 'btn-ghost btn-sm', act: () => this.openTaskDetail(t.id) });
 
-      const paceHtml = window.PACE_ALLOWED.has(t.id) && t.status !== 'done'
+      const paceHtml = window.PACE_ALLOWED.has(t.id) && t.status !== 'done' && t.status !== 'locked'
         ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
             `<button class="pace-btn pace-${p} ${t.pace === p ? 'on' : ''}" data-pace="${p}">${window.PACE[p].icon}${rubi(window.PACE[p].label)}</button>`).join('')}</div>`
         : '';
 
       pop.innerHTML = `
-        <div class="sp-title">${t.def.icon} ${rubi(t.def.name)}</div>
+        <div class="sp-title"><span class="sp-step">ステップ${t.def.step || '-'}</span>${t.def.icon} ${rubi(t.def.name)}</div>
         <div class="sp-info">${info}</div>
         ${paceHtml}
         <div class="sp-btns" style="margin-top:6px;"></div>`;
@@ -1437,6 +1584,7 @@
           : '';
         card.innerHTML = `
           <div class="tc-head">
+            <span class="tc-step">ステップ${t.def.step || '-'}</span>
             <span class="tc-icon">${t.def.icon}</span>
             <span class="tc-name">${rubi(t.def.name)}</span>
             <span class="tc-state"></span>
@@ -1450,6 +1598,7 @@
           </div>
           ${paceHtml}
           <div class="tc-lockmsg"></div>
+          <div class="tc-unlocks"></div>
           <div class="tc-btns">
             <button class="btn btn-sm btn-primary tc-start">はじめる</button>
             <button class="btn btn-sm btn-ghost tc-info">くわしく</button>
@@ -1481,6 +1630,7 @@
         (e.kind === 'staff' ? sStrip : vStrip).appendChild(chip);
         this.chipEls[e.id] = chip;
       });
+      this.buildRibbon();
       this.updateResources();
       this.updateMetrics();
       this.updateUnfinished();
@@ -1540,6 +1690,18 @@
       } else {
         lockEl.textContent = '';
         lockEl.classList.remove('show');
+      }
+
+      /* この作業がおわると、つぎに何が開くか（順番のつながりを見せる） */
+      const unEl = card.querySelector('.tc-unlocks');
+      if (unEl) {
+        const opens = window.Game.nextOpens(id).filter((d) => !d.auto);
+        if (opens.length && t.status !== 'done' && t.status !== 'locked') {
+          unEl.innerHTML = '🔓 おわると → ' + opens.map((d) => `${d.icon}${rubi(d.name)}`).join('・');
+          unEl.classList.add('show');
+        } else {
+          unEl.classList.remove('show');
+        }
       }
 
       /* ペースの選択状態 */
@@ -1824,8 +1986,21 @@
         }
         return `<span class="flow-chip${cls}">${def.icon} ${def.name}</span>`;
       };
+      /* ステップ見出し: 番号を丸で見せ、プレイ中は「いまここ！」を付ける */
+      const stepHead = (r) => {
+        let cls = '', here = '';
+        if (s) {
+          const sts = r.tasks.map((id) => s.tasks[id].status);
+          if (sts.every((x) => x === 'done')) cls = ' fs-done';
+          else if (sts.some((x) => x === 'ready' || x === 'gathering' || x === 'active')) {
+            cls = ' fs-now';
+            here = '<span class="flow-here">👉 いまここ！</span>';
+          }
+        }
+        return `<div class="flow-step${cls}"><span class="flow-stepnum">${r.step}</span><div class="flow-note">${r.note}</div>${here}</div>`;
+      };
       return '<div class="flow-map">' + window.FLOW_ROWS.map((r) =>
-        `<div class="flow-note">${r.note}</div><div class="flow-row">${r.tasks.map(chip).join('')}</div>`).join('') +
+        stepHead(r) + `<div class="flow-row">${r.tasks.map(chip).join('')}</div>`).join('') +
         (s ? '<div class="flow-legend"><span class="fc-done">✓ 完了</span><span class="fc-active">作業中</span><span class="fc-ready">開始できる</span><span class="fc-locked">まだ</span></div>' : '') +
         '</div>';
     },
@@ -1853,7 +2028,7 @@
       } else if (tab === 'tasks') {
         body = '<div class="zk-list">' + window.TASK_DEFS.map((d) => `
           <div class="zk-item">
-            <div class="zk-head">${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
+            <div class="zk-head"><span class="zk-step">ステップ${d.step || '-'}</span>${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
             <p>${d.desc}</p>
             <p class="zk-why">💡 なぜ必要？ — ${d.why}</p>
             ${d.note ? `<p class="zk-note">🦺 ${d.note}</p>` : ''}
@@ -1906,7 +2081,7 @@
         },
         {
           title: '🗺 出発準備のながれ',
-          body: `<p>作業には<strong>じゅんばん</strong>があるよ。同時にできるものは、どんどん同時に進めよう！</p>` +
+          body: `<p>作業には<strong>じゅんばん</strong>があるよ。<strong>ステップ1→7</strong>の順にすすむよ。同じステップの作業は、どんどん同時に進めよう！</p>` +
             this.buildFlowHtml(false) +
             `<p style="margin-top:8px;">ゲーム中も右上の<strong>🗺ボタン</strong>でいつでも見られるよ。</p>`,
         },
@@ -1914,6 +2089,7 @@
           title: '🗺 画面の見方',
           body: `<ul class="tut-list">
                  <li><strong>画面ぜんたい：</strong>駐機場のようす（ドラッグで移動、ホイールやピンチ、右下の＋−でズーム）</li>
+                 <li><strong>上のながれバー：</strong>作業のじゅんばん（ステップ1→7）。緑✓＝おわった、はねている＝いまできる！</li>
                  <li><strong>左の📋タブ：</strong>作業カードのひらけ・とじ</li>
                  <li><strong>右上：</strong>安全性などの管理指標</li>
                  <li><strong>下：</strong>スタッフと車両の状態</li></ul>`,
@@ -1923,7 +2099,7 @@
           body: `<p><strong>① おまかせ：</strong>作業カードの「開始」を押すと、必要なメンバーが自動で移動します。</p>
                  <p><strong>② 自分で配置：</strong>駐機場の<strong>スタッフや車両をタップ</strong>して選び、<strong>緑に光る持ち場</strong>をタップして送りこみます。必要な人数がそろうと作業開始！</p>
                  <p><strong>⭐ベテラン</strong>は作業が速く、<strong>🔰新人</strong>はゆっくり。だれを送るかも作戦のうち！</p>
-                 <p>🔒がついた作業は順番の条件があります（例：清掃はお客さんが降りてから）。</p>`,
+                 <p>🔒がついた作業は順番の条件があります（例：清掃はお客さんが降りてから）。<strong>🔓はじめられるよ！</strong>のお知らせが出たら、次にすすめる合図だよ。</p>`,
         },
         {
           title: '⏱ 時間と采配レバー',
@@ -2121,6 +2297,13 @@
             const txt = (outPaused && t.def.outdoor ? '⏸ ' : '') +
               `のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
             if (timeEl.textContent !== txt) timeEl.textContent = txt;
+          } else if (t.status === 'locked') {
+            /* 「あと約N分でおわったら〜」のカウントダウンを更新 */
+            const card = this.cardEls[t.id];
+            if (!card) return;
+            const lockEl = card.querySelector('.tc-lockmsg');
+            const html = '🔒 ' + window.rubi(G.lockReason(t.id));
+            if (lockEl._raw !== html) { lockEl._raw = html; lockEl.innerHTML = html; }
           }
         });
         this.updateHint();
@@ -2132,13 +2315,35 @@
       switch (type) {
         case 'task':
           this.updateCard(payload.id);
+          this.updateRibbon();
           this.updateUnfinished();
           this.updateHint(true);
           this.checkCoach();
           if (this.spotPopTask === payload.id) {
             const t = this.state.tasks[payload.id];
             if (!t || t.status === 'done' || t.status === 'active') this.closeSpotPop();
+            else this.openSpotPop(payload.id);  // ロック解除などで内容がかわったら開き直す
           }
+          break;
+        case 'unlocked':
+          /* 次に進めるようになった瞬間を、音+トースト+カード/リボン/持ち場の光りで知らせる */
+          Sfx.play('unlock');
+          this.toast('🔓 ' + payload.ids.map((id) => `「${window.TASK_MAP[id].icon}${window.TASK_MAP[id].name}」`).join('と') + 'が はじめられるよ！', 'open');
+          payload.ids.forEach((id) => {
+            const card = this.cardEls[id];
+            if (card) {
+              card.classList.remove('just-open');
+              void card.offsetWidth;
+              card.classList.add('just-open');
+            }
+            const chip = this.ribbonChips && this.ribbonChips[id];
+            if (chip) {
+              chip.classList.remove('fr-flash');
+              void chip.offsetWidth;
+              chip.classList.add('fr-flash');
+            }
+            Scene.popSpot(id);
+          });
           break;
         case 'resources': this.updateResources(); break;
         case 'metrics': this.updateMetrics(); break;

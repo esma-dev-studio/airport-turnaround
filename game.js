@@ -568,13 +568,20 @@
       }
       this.emit('celebrate', { taskId: t.id });
 
-      /* ロック解除の再計算 */
+      /* ロック解除の再計算。開いた作業は「はじめられるよ！」と大きく知らせる
+       * （＝次に進めるタイミングを、見のがさないようにするため） */
+      const opened = [];
       s.taskList.forEach((o) => {
         if (o.status === 'locked') {
           const ok = (o.def.deps || []).every((d) => s.tasks[d].status === 'done');
-          if (ok) { o.status = 'ready'; this.emit('task', { id: o.id }); }
+          if (ok) { o.status = 'ready'; opened.push(o); this.emit('task', { id: o.id }); }
         }
       });
+      const announce = opened.filter((o) => !o.def.auto); // 自動で始まる「出発」は除く
+      if (announce.length) {
+        this.log(`🔓 ${announce.map((o) => `「${o.def.name}」`).join('と')}が はじめられるようになりました`, 'ok');
+        this.emit('unlocked', { ids: announce.map((o) => o.id) });
+      }
 
       this.emit('task', { id: t.id });
       this.emit('resources');
@@ -786,13 +793,44 @@
       return `次のおすすめ: ${names}`;
     },
 
-    /* ============ ロック理由（UI表示用） ============ */
+    /* ============ ロック理由（UI表示用） ============
+     * 「いつになったら次に進めるのか」を、状況別の具体的なことばで返す。
+     *   前提作業がまだ始まっていない → さきにそれを始めよう（＝プレイヤーの次の一手）
+     *   前提作業が進行中             → あと約N分でおわったら はじめられるよ（＝待つ時間）
+     *   集合中・移動中               → じゅんびちゅう
+     */
     lockReason(taskId) {
       const s = this.state;
       const t = s.tasks[taskId];
+      if (!t) return '';
       const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
       if (!unmet.length) return '';
-      return unmet.map((d) => `「${s.tasks[d].def.name}」`).join('と') + 'の完了待ち';
+      const nm = (ids) => ids.map((d) => `「${s.tasks[d].def.name}」`).join('と');
+      const notStarted = unmet.filter((d) => s.tasks[d].status === 'locked' || s.tasks[d].status === 'ready');
+      if (notStarted.length) return `さきに${nm(notStarted)}をはじめよう`;
+      const active = unmet.filter((d) => s.tasks[d].status === 'active');
+      if (active.length === unmet.length) {
+        const rest = Math.max(1, Math.max.apply(null,
+          active.map((d) => Math.ceil(this.effDur(s.tasks[d]) - s.tasks[d].progress))));
+        return `${nm(unmet)}があと約${rest}分でおわったら はじめられるよ`;
+      }
+      return `${nm(unmet)}のじゅんびちゅう。おわったら はじめられるよ`;
+    },
+
+    /* 前提作業がぜんぶ進行中で「もうすぐ開く」作業か。あと何分かを返す（そうでなければ null） */
+    opensInMinutes(taskId) {
+      const s = this.state;
+      const t = s.tasks[taskId];
+      if (!t || t.status !== 'locked') return null;
+      const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
+      if (!unmet.length || !unmet.every((d) => s.tasks[d].status === 'active')) return null;
+      return Math.max(1, Math.max.apply(null,
+        unmet.map((d) => Math.ceil(this.effDur(s.tasks[d]) - s.tasks[d].progress))));
+    },
+
+    /* この作業が終わると開く作業（＝つぎにつながる作業）。順番の理解を助ける表示用 */
+    nextOpens(taskId) {
+      return (window.TASK_UNLOCKS[taskId] || []).map((id) => window.TASK_MAP[id]).filter(Boolean);
     },
 
     log(msg, cls) {
