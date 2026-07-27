@@ -9,8 +9,38 @@
   const SAVE_KEY = 'airport45_v1';
   const REAL_SEC_PER_GAME_MIN = 8;   // 1倍速: ゲーム内1分 = 実時間8秒（45分 = 実時間6分）
 
+  /* ---- バッジ（実績）の定義と判定 ----
+   * check(result, app) が true になったら獲得。獲得ずみは save.badges に永続化。 */
+  const BADGES = [
+    { id: 'first_clear', icon: '🛫', name: 'はじめてのクリア', desc: 'どれかのステージをクリアする',
+      check: (r) => r.cleared },
+    { id: 'on_time', icon: '⏱', name: 'ていこくしゅっぱつ', desc: '1分もおくれずに出発する',
+      check: (r) => r.cleared && (r.delay || 0) <= 0 },
+    { id: 'safety_100', icon: '🛡', name: 'あんぜんパーフェクト', desc: '安全 満点でクリアする',
+      check: (r) => r.cleared && r.extra.safetyFull },
+    { id: 'sat_100', icon: '😊', name: 'おきゃくさまニコニコ', desc: 'お客さんのまんぞく 満点でクリアする',
+      check: (r) => r.cleared && r.extra.satFull },
+    { id: 'parallel_4', icon: '🤹', name: 'どうじすすめマスター', desc: '4つの作業を同時に進める',
+      check: (r) => r.extra.maxParallel >= 4 },
+    { id: 'all_careful', icon: '🐢', name: 'ていねいしごとにん', desc: '「ていねい」で5作業以上を終えてクリアする',
+      check: (r) => r.cleared && r.extra.careful >= 5 },
+    { id: 'event_hero', icon: '🚨', name: 'トラブルバスター', desc: '1回のプレイで2つのトラブルに自分で対応する',
+      check: (r) => r.extra.manual >= 2 },
+    { id: 'perfect_100', icon: '💯', name: 'パーフェクト100', desc: '100点満点をとる',
+      check: (r) => r.score >= 100 },
+    { id: 'all_clear', icon: '🏆', name: 'ぜんステージクリア', desc: 'すべてのステージをクリアする',
+      check: (r, app) => window.STAGES.every((st) => {
+        const b = app.save.best[st.id];
+        return (b && b.cleared) || (st.id === r.stageId && r.cleared);
+      }) },
+    { id: 'star_15', icon: '🌟', name: 'スターコレクター', desc: '★をぜんぶで15こ集める',
+      check: (r, app) => app.totalStars() >= 15 },
+  ];
+  /* スター: クリア=★ / 80点以上=★★ / 95点以上=★★★ */
+  const starsOf = (r) => (!r.cleared ? 0 : r.score >= 95 ? 3 : r.score >= 80 ? 2 : 1);
+
   const App = {
-    save: { sound: true, tutorialSeen: false, best: {} },
+    save: { sound: true, bgm: true, tutorialSeen: false, best: {}, badges: {} },
     speed: 0,
     prevSpeed: 1,
     begun: false,
@@ -25,10 +55,20 @@
         const raw = localStorage.getItem(SAVE_KEY);
         if (raw) {
           const d = JSON.parse(raw);
-          this.save = Object.assign({ sound: true, tutorialSeen: false, best: {} }, d);
+          this.save = Object.assign({ sound: true, bgm: true, tutorialSeen: false, best: {}, badges: {} }, d);
         }
       } catch (e) { /* 壊れたデータは初期値で続行 */ }
       UI.sfx.enabled = this.save.sound !== false;
+      UI.bgm.enabled = this.save.bgm !== false;
+    },
+
+    /* これまでに集めた★の合計（旧セーブはスコアから換算） */
+    totalStars() {
+      return window.STAGES.reduce((sum, st) => {
+        const b = this.save.best[st.id];
+        if (!b || !b.cleared) return sum;
+        return sum + (b.stars != null ? b.stars : starsOf({ cleared: true, score: b.score }));
+      }, 0);
     },
     persist() {
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* 保存できない環境でも動作継続 */ }
@@ -38,6 +78,7 @@
     boot() {
       this.loadSave();
       this.debug = /[?&]debug=1/.test(location.search);
+      Game.debug = this.debug;  // 抽選・ゆらぎを固定して自動テストを決定的に
 
       Game.init({
         emit: (type, payload) => {
@@ -78,8 +119,22 @@
           this.persist();
           if (on) UI.sfx.play('click');
         },
+        onBgmToggle: (on) => {
+          this.save.bgm = on;
+          UI.bgm.enabled = on;
+          this.persist();
+          if (on && this.inGame() && this.begun && !this.ending) UI.bgm.start();
+          else if (!on) UI.bgm.stop();
+        },
+        /* ずかん・タイトル用: バッジと★の状況 */
+        getProgress: () => ({
+          badgeDefs: BADGES,
+          earned: this.save.badges || {},
+          totalStars: this.totalStars(),
+          maxStars: window.STAGES.length * 3,
+        }),
         onResetData: () => {
-          this.save = { sound: this.save.sound, tutorialSeen: false, best: {} };
+          this.save = { sound: this.save.sound, bgm: this.save.bgm, tutorialSeen: false, best: {}, badges: {} };
           this.persist();
           UI.toast('セーブデータを初期化しました', 'info');
         },
@@ -130,10 +185,13 @@
     /* ---------------- 画面遷移 ---------------- */
     gotoTitle() {
       this.stopLoop();
+      UI.bgm.stop();
+      UI.updateTitleProgress();
       UI.showScreen('title');
     },
     gotoSelect() {
       this.stopLoop();
+      UI.bgm.stop();
       UI.renderStageSelect(this.save, (id) => this.isUnlocked(id));
       UI.showScreen('select');
     },
@@ -171,6 +229,7 @@
       if (this.begun) return;
       this.begun = true;
       UI.hideStartOverlay();
+      UI.bgm.start();
       if (this.debug) {
         /* デバッグ時は到着シネマティックを省略（自動テストを決定的にする） */
         this.setSpeed(1);
@@ -218,7 +277,7 @@
         this.prevSpeed = this.speed > 0 ? this.speed : this.prevSpeed;
         this.setSpeed(0);
       }
-      UI.openSettings({ sound: this.save.sound, inGame: this.inGame() && !this.ending });
+      UI.openSettings({ sound: this.save.sound, bgm: this.save.bgm, inGame: this.inGame() && !this.ending });
     },
 
     openFlowMap() {
@@ -255,24 +314,45 @@
       this.ending = true;
       this.speed = 0;
       UI.setSpeedUI(0);
+      UI.bgm.stop();
 
-      /* ベスト更新はクリア時のみ記録 */
+      /* ベスト更新はクリア時のみ記録（★は過去ベストと比べて高いほうを保持） */
       let isBest = false;
-      const prevBest = this.save.best[result.stageId] ? this.save.best[result.stageId].score : null;
+      const prev = this.save.best[result.stageId];
+      const prevBest = prev ? prev.score : null;
+      const stars = starsOf(result);
       if (result.cleared) {
-        const prev = this.save.best[result.stageId];
+        const bestStars = Math.max(stars, (prev && prev.stars) || 0);
         if (!prev || result.score > prev.score) {
-          this.save.best[result.stageId] = { score: result.score, rank: result.rank, cleared: true };
-          this.persist();
+          this.save.best[result.stageId] = { score: result.score, rank: result.rank, cleared: true, stars: bestStars };
           isBest = true;
+        } else {
+          prev.stars = bestStars;
         }
       }
+
+      /* バッジ判定（新しく取れたものだけ知らせる） */
+      const newBadges = [];
+      BADGES.forEach((b) => {
+        if (this.save.badges[b.id]) return;
+        let ok = false;
+        try { ok = b.check(result, this); } catch (e) { /* 判定エラーは未獲得あつかい */ }
+        if (ok) { this.save.badges[b.id] = true; newBadges.push(b); }
+      });
+      this.persist();
+
+      /* つぎの目標（リプレイをうながす一言） */
+      let nextGoal = '';
+      if (!result.cleared) nextGoal = 'まずはクリアをめざそう！';
+      else if (stars < 3) nextGoal = `★${stars + 1}つまで あと${(stars === 1 ? 80 : 95) - result.score}点！`;
+      else if (result.score < 100) nextGoal = `パーフェクト100点まで あと${100 - result.score}点！`;
+      else nextGoal = 'かんぺき！つぎのステージや、まだ取っていないバッジにちょうせんしよう！';
 
       /* 出発アニメの余韻を見せてから結果画面へ */
       const nextId = result.cleared && window.STAGE_MAP[result.stageId + 1] ? result.stageId + 1 : null;
       setTimeout(() => {
         this.stopLoop();
-        UI.renderResult(result, isBest, nextId, prevBest);
+        UI.renderResult(result, isBest, nextId, prevBest, { stars, newBadges, nextGoal });
         UI.showScreen('result');
       }, result.departed ? 1600 : 800);
     },

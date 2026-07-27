@@ -22,6 +22,7 @@
   const Game = {
     state: null,
     hooks: { emit: function () {} },
+    debug: false,   // trueのとき抽選・ゆらぎを固定（自動テストを決定的にする）
 
     init(hooks) {
       this.hooks = hooks || this.hooks;
@@ -76,6 +77,43 @@
         }
       });
 
+      /* データ検査: ステージのリソースが作業の必要数より少ないと絶対にクリアできない。
+       * ステージ調整時のミスに気づけるよう、起動時に警告を出す。 */
+      window.TASK_DEFS.forEach((def) => {
+        Object.entries(def.staff || {}).forEach(([type, n]) => {
+          if ((stage.resources.staff[type] || 0) < n) {
+            console.warn(`[stage${stage.id}] ${def.id}: staff.${type} が不足（必要${n}人 / 配置${stage.resources.staff[type] || 0}人）→クリア不能`);
+          }
+        });
+        Object.entries(def.vehicles || {}).forEach(([type, n]) => {
+          if ((stage.resources.vehicles[type] || 0) < n) {
+            console.warn(`[stage${stage.id}] ${def.id}: vehicles.${type} が不足（必要${n}台 / 配置${stage.resources.vehicles[type] || 0}台）→クリア不能`);
+          }
+        });
+      });
+
+      /* イベントの構成: 固定分 + プールからの抽選分。
+       * さらに通常プレイでは発生タイミングに少しゆらぎを入れて、
+       * 「2回目からも展開が読めない」リプレイ性を出す（debug時は固定）。 */
+      let eventList = (stage.events || []).map((e) => Object.assign({}, e));
+      if (stage.eventPool && stage.eventPool.list) {
+        const pool = stage.eventPool.list.map((e) => Object.assign({}, e));
+        const n = Math.min(stage.eventPool.pick || 1, pool.length);
+        if (!this.debug) {
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+          }
+        }
+        eventList = eventList.concat(pool.slice(0, n));
+      }
+      if (!this.debug) {
+        eventList.forEach((e) => {
+          if (e.at != null) e.at = Math.max(1, e.at + (Math.random() * 4 - 2));
+          if (e.when) e.when = { task: e.when.task, pct: clamp(e.when.pct + (Math.random() * 0.16 - 0.08), 0.15, 0.9) };
+        });
+      }
+
       this.state = {
         stage,
         clock: stage.arrival,
@@ -84,14 +122,14 @@
         entities,
         metrics: { safety: 100, punct: 100, sat: 100, cost: 100 },
         /* ステージ定義を汚さないよう、イベント項目は複製して持つ */
-        eventQueue: (stage.events || []).map((e) => Object.assign({}, e)),
+        eventQueue: eventList,
         activeEvent: null,
         outdoorPauseUntil: null,  // 天候による屋外作業停止の解除時刻
         weatherNow: null,         // イベントで天気が変わったとき用
         resolvedEvents: [],
         log: [],
         flags: { critical: false, safetySkipped: false, safetyChoiceDone: false },
-        stats: { blockOff: null, delay: 0, firstStarts: {}, satNotes: [], rushCount: 0, carefulCount: 0, warned: [] },
+        stats: { blockOff: null, delay: 0, firstStarts: {}, satNotes: [], rushCount: 0, carefulCount: 0, warned: [], maxParallel: 0 },
         pendingSafety: false,
         ended: false,
         endResult: null,
@@ -146,12 +184,16 @@
       });
 
       /* --- 進行中の作業（天候停止中の屋外作業は進まない） --- */
+      let activeCount = 0;
       s.taskList.forEach((t) => {
         if (t.status !== 'active') return;
+        activeCount++;
         if (outPaused && t.def.outdoor) return;
         t.progress += dt;
         if (t.progress >= this.effDur(t)) this._completeTask(t);
       });
+      /* バッジ用: 同時に進んだ作業の最大数 */
+      if (activeCount > s.stats.maxParallel) s.stats.maxParallel = activeCount;
 
       /* --- イベントの発火判定 ---
        * at: 経過分 / when: 対象作業の進捗率。条件を満たしたら _armed。
@@ -248,9 +290,10 @@
       return false;
     },
 
-    /* ペースと担当スタッフの熟練度を反映した実際の必要時間 */
+    /* ペース・担当スタッフの熟練度・雨（rainAllステージの屋外作業）を反映した実際の必要時間 */
     effDur(t) {
-      return t.dur * (window.PACE[t.pace] ? window.PACE[t.pace].f : 1) * (t.crewFactor || 1);
+      const rain = (this.state && this.state.stage.rainAll && t.def.outdoor) ? 1.12 : 1;
+      return t.dur * (window.PACE[t.pace] ? window.PACE[t.pace].f : 1) * (t.crewFactor || 1) * rain;
     },
 
     /* 必要リソースがすべて割り当て済みか */
@@ -698,6 +741,15 @@
         delay: s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null,
         advice: this._buildAdvice(departed),
         stageId: s.stage.id,
+        /* バッジ判定用のプレイ内容 */
+        extra: {
+          maxParallel: s.stats.maxParallel,
+          careful: s.stats.carefulCount,
+          rush: s.stats.rushCount,
+          manual: s.resolvedEvents.filter((e) => !e.auto).length,
+          safetyFull: m.safety >= 99.5,
+          satFull: m.sat >= 99.5,
+        },
         /* 結果画面のタイムライン表示用 */
         timeline: s.taskList.map((t) => ({
           id: t.id, name: t.def.name, icon: t.def.icon,

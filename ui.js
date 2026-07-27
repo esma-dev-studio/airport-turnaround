@@ -57,6 +57,42 @@
   };
 
   /* ============================================================
+   * BGM（WebAudioで生成する、ゆったりしたペンタトニックのループ）
+   * 効果音とは別トグル。ゲーム中だけ流れる。
+   * ============================================================ */
+  const Bgm = {
+    enabled: true,
+    playing: false,
+    timer: null,
+    step: 0,
+    /* ドレミソラ系のやさしい進行（2小節ぶん） */
+    MELODY: [392, 440, 523, 440, 392, 330, 392, 0, 523, 587, 659, 587, 523, 440, 392, 0],
+    BASS:   [131, 131, 110, 110, 98, 98, 131, 131],
+    start() {
+      if (!this.enabled || this.playing) return;
+      Sfx.ensure();
+      if (!Sfx.ctx) return;
+      this.playing = true;
+      this.step = 0;
+      this.timer = setInterval(() => this._tick(), 620);
+      this._tick();
+    },
+    stop() {
+      this.playing = false;
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    },
+    _tick() {
+      if (!this.enabled || !this.playing || !Sfx.ctx) return;
+      const m = this.MELODY[this.step % this.MELODY.length];
+      if (m > 0) Sfx.tone(m, 0.5, 0, 'sine', 0.016);
+      if (this.step % 2 === 0) {
+        Sfx.tone(this.BASS[(this.step / 2) % this.BASS.length], 0.9, 0, 'triangle', 0.014);
+      }
+      this.step++;
+    },
+  };
+
+  /* ============================================================
    * 駐機場シーン（Canvas 2.5D風）
    * 論理座標 1200x640。カメラで拡大・移動して描く。
    * ============================================================ */
@@ -1257,15 +1293,19 @@
 
     /* 天候イベント中の雨（屋外作業停止の間だけ降る） */
     drawRain(state) {
-      if (!(state.outdoorPauseUntil != null && state.clock < state.outdoorPauseUntil)) return;
+      /* 雷雨イベント中はつよい雨、rainAllステージ（ステージ5）はずっとよわい雨 */
+      const storm = state.outdoorPauseUntil != null && state.clock < state.outdoorPauseUntil;
+      const always = !!(state.stage && state.stage.rainAll);
+      if (!storm && !always) return;
       const c = this.ctx;
-      c.fillStyle = 'rgba(45, 62, 88, 0.13)';
+      c.fillStyle = storm ? 'rgba(45, 62, 88, 0.13)' : 'rgba(45, 62, 88, 0.05)';
       c.fillRect(0, 0, SCENE_W, SCENE_H);
-      c.strokeStyle = 'rgba(210, 228, 246, 0.75)';
-      c.lineWidth = 2.2;
+      c.strokeStyle = storm ? 'rgba(210, 228, 246, 0.75)' : 'rgba(210, 228, 246, 0.5)';
+      c.lineWidth = storm ? 2.2 : 1.7;
       c.lineCap = 'round';
       c.beginPath();
-      for (let i = 0; i < 80; i++) {
+      const n = storm ? 80 : 52;
+      for (let i = 0; i < n; i++) {
         const x = ((i * 149 + this.time * 340) % (SCENE_W + 120)) - 60;
         const y = (i * 97 + this.time * 700) % SCENE_H;
         c.moveTo(x, y);
@@ -1290,6 +1330,7 @@
     domThrottle: 0,
     hintThrottle: 0,
     sfx: Sfx,
+    bgm: Bgm,
     scene: Scene,
     selected: null,       // タップ選択中のエンティティid
     spotPopTask: null,    // ポップオーバー表示中の作業id
@@ -1613,19 +1654,21 @@
       window.STAGES.forEach((st) => {
         const best = save.best && save.best[st.id];
         const unlocked = isUnlocked(st.id);
+        const stars = best && best.cleared ? (best.stars != null ? best.stars : (best.score >= 95 ? 3 : best.score >= 80 ? 2 : 1)) : 0;
+        const starHtml = `<span class="sc-stars">${[1, 2, 3].map((i) => `<i class="${i <= stars ? 'on' : ''}">★</i>`).join('')}</span>`;
         const card = document.createElement('button');
         card.className = 'stage-card' + (unlocked ? '' : ' locked');
         card.innerHTML = `
           <div class="sc-row1">
             <span class="sc-name">${window.rubi(st.name)}</span>
-            <span class="sc-diff">${window.rubi(st.difficulty)}</span>
+            <span class="sc-diff diff-${st.difficulty === '上級' ? 'hard' : st.difficulty === '中級' ? 'mid' : 'easy'}">${window.rubi(st.difficulty)}</span>
           </div>
           <div class="sc-sub">${window.rubi(st.subtitle)}</div>
           <div class="sc-row2">
             <span>${st.weather.icon} ${window.rubi(st.weather.label)}</span>
             ${!unlocked
               ? `<span class="sc-soon">🔒 ステージ${st.id - 1}をクリアするとあそべるよ</span>`
-              : (best ? `<span class="sc-best">★ ベスト ${best.score}点（${best.rank}）</span>` : '<span class="sc-best sc-best-none">まだクリアしていない</span>')}
+              : (best ? `<span class="sc-best">${starHtml} ベスト ${best.score}点（${best.rank}）</span>` : `<span class="sc-best sc-best-none">${starHtml} まだクリアしていない</span>`)}
           </div>`;
         if (unlocked) {
           card.addEventListener('click', () => { Sfx.play('select'); this.cb.onSelectStage(st.id); });
@@ -1640,6 +1683,9 @@
     bindRun(state) {
       this.state = state;
       Scene.reset();
+      /* 前の結果画面の紙ふぶきが残っていたら消す */
+      const cf = document.querySelector('.confetti-box');
+      if (cf) cf.remove();
       this.cardEls = {};
       this.chipEls = {};
       this.lastClockText = '';
@@ -2116,9 +2162,20 @@
       });
     },
 
+    /* タイトル画面の「スター・バッジ」進捗表示 */
+    updateTitleProgress() {
+      const el = document.getElementById('title-progress');
+      if (!el || !this.cb.getProgress) return;
+      const p = this.cb.getProgress();
+      const earned = Object.keys(p.earned || {}).length;
+      if (!earned && !p.totalStars) { el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      el.innerHTML = `🌟 スター ${p.totalStars}/${p.maxStars}　🏅 バッジ ${earned}/${p.badgeDefs.length}`;
+    },
+
     openZukan(tab) {
       tab = tab || 'flow';
-      const tabs = [['flow', '🗺 ながれ'], ['tasks', '🛠 おしごと'], ['crew', '🧑‍✈️ なかまたち']];
+      const tabs = [['flow', '🗺 ながれ'], ['tasks', '🛠 おしごと'], ['crew', '🧑‍✈️ なかまたち'], ['badge', '🏅 バッジ']];
       const tabBtns = '<div class="zk-tabs">' + tabs.map(([k, l]) =>
         `<button class="zk-tab ${k === tab ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('') + '</div>';
       let body = '';
@@ -2132,6 +2189,17 @@
             <p class="zk-why">💡 なぜ必要？ — ${d.why}</p>
             ${d.note ? `<p class="zk-note">🦺 ${d.note}</p>` : ''}
           </div>`).join('') + '</div>';
+      } else if (tab === 'badge') {
+        const p = this.cb.getProgress ? this.cb.getProgress() : { badgeDefs: [], earned: {}, totalStars: 0, maxStars: 15 };
+        const earned = Object.keys(p.earned || {}).length;
+        body = `<p class="zk-badge-sum">🌟 スター ${p.totalStars}/${p.maxStars}　🏅 バッジ ${earned}/${p.badgeDefs.length}</p>` +
+          '<div class="zk-list">' + p.badgeDefs.map((b) => {
+            const got = !!p.earned[b.id];
+            return `<div class="zk-item badge-item ${got ? 'bd-got' : 'bd-notyet'}">
+              <div class="zk-head">${got ? b.icon : '❔'} ${window.rubi(b.name)}${got ? ' <span class="bd-mark">GET!</span>' : ''}</div>
+              <p>${window.rubi(b.desc)}</p>
+            </div>`;
+          }).join('') + '</div>';
       } else {
         body = '<div class="zk-list"><h4 class="zk-cat">スタッフ</h4>' +
           Object.values(window.RES_META.staff).map((m) =>
@@ -2235,7 +2303,7 @@
 
     /* ---------------- 設定 ---------------- */
     openSettings(opts) {
-      const { sound, inGame } = opts;
+      const { sound, bgm, inGame } = opts;
       this.openModal({
         kind: 'settings',
         title: '⚙ 設定',
@@ -2243,6 +2311,10 @@
           <label class="set-row">
             <span>🔊 効果音</span>
             <input type="checkbox" id="set-sound" ${sound ? 'checked' : ''}>
+          </label>
+          <label class="set-row">
+            <span>🎵 おんがく（BGM）</span>
+            <input type="checkbox" id="set-bgm" ${bgm !== false ? 'checked' : ''}>
           </label>
           <div class="set-row">
             <span>📖 あそびかたをもう一度見る</span>
@@ -2261,6 +2333,7 @@
         dismissible: true,
       });
       $('#set-sound').addEventListener('change', (ev) => this.cb.onSoundToggle(ev.target.checked));
+      $('#set-bgm').addEventListener('change', (ev) => this.cb.onBgmToggle(ev.target.checked));
       $('#set-tutorial').addEventListener('click', () => { this.closeModal(); this.openTutorial(null); });
       const quit = $('#set-quit');
       if (quit) quit.addEventListener('click', () => {
@@ -2311,13 +2384,35 @@
     },
 
     /* ---------------- 結果画面 ---------------- */
-    renderResult(res, isBest, nextStageId, prevBest) {
+    renderResult(res, isBest, nextStageId, prevBest, extras) {
+      extras = extras || { stars: 0, newBadges: [], nextGoal: '' };
       const nextBtn = document.getElementById('btn-next-stage');
       const retryBtn = document.getElementById('btn-retry');
       nextBtn.classList.toggle('hidden', !nextStageId);
       nextBtn.dataset.stage = nextStageId || '';
       retryBtn.classList.toggle('btn-primary', !nextStageId);
       retryBtn.classList.toggle('btn-ghost', !!nextStageId);
+
+      /* ★の獲得表示（1つずつ順番に光る） */
+      const starsEl = document.getElementById('result-stars');
+      starsEl.innerHTML = [1, 2, 3].map((i) =>
+        `<i class="${i <= extras.stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</i>`).join('');
+
+      /* 新しくとれたバッジ */
+      const badgeEl = document.getElementById('result-badges');
+      if (extras.newBadges && extras.newBadges.length) {
+        badgeEl.classList.remove('hidden');
+        badgeEl.innerHTML = '<span class="rb-title">🎉 あたらしいバッジ！</span>' +
+          extras.newBadges.map((b) => `<span class="badge-chip">${b.icon} ${window.rubi(b.name)}</span>`).join('');
+      } else {
+        badgeEl.classList.add('hidden');
+        badgeEl.innerHTML = '';
+      }
+
+      /* つぎの目標 */
+      const goalEl = document.getElementById('result-goal');
+      goalEl.innerHTML = extras.nextGoal ? '🎯 ' + window.rubi(extras.nextGoal) : '';
+      goalEl.classList.toggle('hidden', !extras.nextGoal);
 
       const rubi = window.rubi;
       const flag = this.els['result-flag'];

@@ -191,6 +191,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .sc-best { color: #b07d10; font-weight: 700; }
 .sc-best-none { color: var(--ink-2); font-weight: 400; }
 .sc-soon { color: var(--ink-2); }
+/* ステージの★（とった数だけ金色） */
+.sc-stars i { font-style: normal; color: #d3dce4; }
+.sc-stars i.on { color: #f5b301; text-shadow: 0 1px 2px rgba(160, 110, 0, 0.35); }
+/* むずかしさの色分け */
+.sc-diff.diff-easy { background: var(--ok); }
+.sc-diff.diff-mid { background: var(--navy-2); }
+.sc-diff.diff-hard { background: #b0483f; }
 #btn-select-back { display: block; margin: 0 auto; }
 
 /* ---------------- ゲーム画面レイアウト ---------------- */
@@ -923,6 +930,52 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .rank-X { background: var(--bad); }
 .result-score { font-size: 3rem; font-weight: 800; color: var(--navy); }
 .result-score-max { color: var(--ink-2); }
+/* ★の獲得表示（1つずつポンッと出る） */
+.result-stars { font-size: 2rem; line-height: 1.2; margin-bottom: 10px; letter-spacing: 0.12em; }
+.result-stars i { font-style: normal; color: #dbe3ea; }
+.result-stars i.on {
+  color: #f5b301;
+  text-shadow: 0 2px 6px rgba(190, 130, 0, 0.4);
+  display: inline-block;
+  animation: star-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+}
+@keyframes star-pop {
+  0% { transform: scale(0) rotate(-40deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+/* あたらしいバッジ */
+.result-badges {
+  display: flex; align-items: center; justify-content: center; gap: 7px; flex-wrap: wrap;
+  background: #fff8e2; border: 1.5px solid #eed48a; border-radius: 10px;
+  padding: 7px 12px; margin-bottom: 10px; font-size: 0.8rem;
+}
+.result-badges .rb-title { font-weight: 900; color: #8a6d1d; }
+.badge-chip {
+  background: #fff; border: 1.5px solid #eabf4d; border-radius: 999px;
+  padding: 2px 11px; font-weight: 700; color: #7a5b12;
+  animation: stamp-in 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+}
+/* つぎの目標 */
+.result-goal {
+  font-size: 0.85rem; font-weight: 700; color: var(--accent-d);
+  background: #ecf7fb; border-radius: 999px; padding: 5px 16px;
+  display: inline-block; margin: 0 auto 12px; line-height: 1.8;
+}
+/* タイトルの進捗（スター・バッジ数） */
+.title-progress {
+  margin: 2px 0 12px;
+  font-size: 0.85rem; font-weight: 700; color: #8a6d1d;
+  background: rgba(255, 248, 226, 0.9); border: 1.5px solid #eed48a;
+  border-radius: 999px; padding: 4px 16px; display: inline-block;
+}
+/* ずかんのバッジ一覧 */
+.zk-badge-sum { font-weight: 900; color: #8a6d1d; background: #fff8e2; border-radius: 8px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.85rem; }
+.badge-item.bd-got { border-color: #eabf4d; background: #fffdf4; }
+.badge-item.bd-notyet { opacity: 0.62; filter: grayscale(0.4); }
+.bd-mark {
+  font-size: 0.6rem; font-weight: 900; color: #fff;
+  background: #f5a301; border-radius: 999px; padding: 1px 7px; vertical-align: 2px;
+}
 .result-breakdown { list-style: none; margin-bottom: 12px; display: flex; flex-direction: column; gap: 7px; }
 .result-breakdown li { display: grid; grid-template-columns: 11em 1fr auto; align-items: center; gap: 8px; font-size: 0.82rem; line-height: 1.8; }
 .rb-label { text-align: left; }
