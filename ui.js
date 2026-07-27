@@ -61,6 +61,8 @@
    * 論理座標 1200x640。カメラで拡大・移動して描く。
    * ============================================================ */
   const SCENE_W = 1200, SCENE_H = 640;
+  /* Canvas用フォント（Webフォント読みこみ後は自動でまる文字になる） */
+  const CF = '"Zen Maru Gothic", "Segoe UI", Meiryo, sans-serif';
 
   /* 作業ごとの持ち場（x, y, [車両の向きdeg]） */
   const SLOTS = {
@@ -436,7 +438,7 @@
       this.fx.floats.forEach((f) => {
         const k = f.age / f.life;
         c.globalAlpha = clamp(1 - k * k, 0, 1);
-        c.font = 'bold 17px "Segoe UI", "Hiragino Sans", Meiryo, sans-serif';
+        c.font = 'bold 17px ' + CF + '';
         c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 4;
         c.strokeText(f.text, f.x, f.y - k * 30);
         c.fillStyle = f.color;
@@ -498,47 +500,87 @@
 
     drawBackground(state) {
       const c = this.ctx;
-      /* 空 */
-      c.fillStyle = '#cde5f4';
-      c.fillRect(0, 0, SCENE_W, 30);
-      c.fillStyle = '#ffd77a';
-      c.beginPath(); c.arc(66, 13, 9, 0, TAU); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.85)';
+      /* 空（2色の帯で高さを出す） */
+      c.fillStyle = '#9fd0ee';
+      c.fillRect(0, 0, SCENE_W, 16);
+      c.fillStyle = '#c6e4f6';
+      c.fillRect(0, 16, SCENE_W, 14);
+      /* 太陽（光の輪つき） */
+      c.fillStyle = 'rgba(255,214,90,.3)';
+      c.beginPath(); c.arc(66, 13, 15, 0, TAU); c.fill();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(66, 13, 9.5, 0, TAU); c.fill();
+      /* 遠くを飛ぶ飛行機（ひこうき雲つき・ゆっくり右へ） */
+      const fpx = ((this.time * 26) % (SCENE_W + 420)) - 210;
+      c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 2.5; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(fpx - 150, 12.5); c.lineTo(fpx - 14, 12.5); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.32)'; c.lineWidth = 4.5;
+      c.beginPath(); c.moveTo(fpx - 195, 12.5); c.lineTo(fpx - 120, 12.5); c.stroke();
+      c.lineCap = 'butt';
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.moveTo(fpx + 12, 12.5); c.lineTo(fpx - 6, 7.5); c.lineTo(fpx - 2.5, 12.5); c.lineTo(fpx - 6, 17.5);
+      c.closePath(); c.fill();
+      /* 雲 */
+      c.fillStyle = 'rgba(255,255,255,.9)';
       const cl = (x, y, s) => { this.rr(x, y, 54 * s, 11 * s, 5.5 * s); c.fill(); this.rr(x + 12 * s, y - 6 * s, 30 * s, 9 * s, 4.5 * s); c.fill(); };
       cl(220 + Math.sin(this.time * 0.08) * 24, 9, 0.9);
+      cl(500 + Math.cos(this.time * 0.05) * 36, 13, 0.6);
       cl(760 + Math.cos(this.time * 0.06) * 30, 11, 0.75);
 
-      /* ターミナルビル */
-      c.fillStyle = '#c3d0dd';
+      /* ターミナルビル（ガラス張り） */
+      c.fillStyle = '#b0c2d2';
       c.fillRect(0, 30, SCENE_W, 8);
-      c.fillStyle = '#e3e9f0';
+      c.fillStyle = '#e9eef4';
       c.fillRect(0, 38, SCENE_W, 88);
       for (let x = 48; x < SCENE_W - 60; x += 46) {
-        c.fillStyle = (x / 46) % 2 ? '#b6c8d8' : '#aabfd1';
+        c.fillStyle = (x / 46) % 2 ? '#a8c4dc' : '#98b8d3';
         c.fillRect(x, 52, 28, 54);
+        /* 窓のななめの光 */
+        c.fillStyle = 'rgba(255,255,255,.26)';
+        c.beginPath();
+        c.moveTo(x, 52); c.lineTo(x + 13, 52); c.lineTo(x, 74);
+        c.closePath(); c.fill();
       }
+      /* 屋根の旗（ぱたぱた） */
+      [508, 548, 588].forEach((fx, i) => {
+        const wave = Math.sin(this.time * 3 + i * 1.1) * 3;
+        c.strokeStyle = '#8496a8'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(fx, 30); c.lineTo(fx, 13); c.stroke();
+        c.fillStyle = ['#e2711d', '#0f8fb0', '#2f9e63'][i];
+        c.beginPath();
+        c.moveTo(fx, 13); c.lineTo(fx + 15, 16 + wave); c.lineTo(fx, 21);
+        c.closePath(); c.fill();
+      });
       c.fillStyle = '#cbd5e0';
       c.fillRect(0, 126, SCENE_W, 12);
-      c.fillStyle = '#51667e';
-      c.font = 'bold 15px "Segoe UI", "Hiragino Sans", Meiryo, sans-serif';
+      /* 空港名の看板 */
+      c.fillStyle = 'rgba(30,58,95,.92)';
+      this.rr(10, 34, 178, 22, 11); c.fill();
+      c.fillStyle = '#fff';
+      c.font = 'bold 13px ' + CF + '';
       c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText('そらみなと国際空港', 16, 45);
+      c.fillText('✈ そらみなと国際空港', 21, 46);
       /* ゲート表示 */
       c.fillStyle = '#27496d';
       this.rr(292, 104, 92, 24, 6); c.fill();
-      c.fillStyle = '#fff';
-      c.font = 'bold 13px "Segoe UI", Meiryo, sans-serif';
+      c.fillStyle = '#ffd24a';
+      c.font = 'bold 13px ' + CF + '';
       c.textAlign = 'center';
       c.fillText('GATE 7', 338, 117);
-      /* 管制塔 */
+      /* 管制塔（てっぺんの赤ランプが点滅） */
       c.fillStyle = '#d6dee6'; c.fillRect(1082, 48, 24, 78);
+      c.fillStyle = '#c3ccd6'; c.fillRect(1082, 48, 6, 78);
       c.fillStyle = '#6f8598'; this.rr(1068, 30, 52, 26, 8); c.fill();
       c.fillStyle = '#b7e0ef'; this.rr(1073, 36, 42, 10, 4); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.4)'; this.rr(1073, 36, 42, 4, 2); c.fill();
       c.strokeStyle = '#6f8598'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(1094, 30); c.lineTo(1094, 18); c.stroke();
+      c.fillStyle = `rgba(255,86,86,${0.4 + 0.6 * Math.abs(Math.sin(this.time * 2.4))})`;
+      c.beginPath(); c.arc(1094, 16, 3.2, 0, TAU); c.fill();
 
       /* エプロン（駐機場） */
-      c.fillStyle = '#b8bfc7';
+      c.fillStyle = '#b6bdc4';
       c.fillRect(0, 138, SCENE_W, SCENE_H - 138);
       c.strokeStyle = 'rgba(255,255,255,.16)';
       c.lineWidth = 1.5;
@@ -548,22 +590,39 @@
       for (let y = 230; y < SCENE_H; y += 130) {
         c.beginPath(); c.moveTo(0, y); c.lineTo(SCENE_W, y); c.stroke();
       }
+      /* 路面のよごれ（うすいシミ）とタイヤあと */
+      c.fillStyle = 'rgba(60,70,80,.05)';
+      [[210, 320, 60, 20], [1030, 260, 56, 18], [400, 462, 40, 12], [980, 440, 52, 16]].forEach(([x, y, w, h]) => {
+        c.beginPath(); c.ellipse(x, y, w, h, 0.3, 0, TAU); c.fill();
+      });
+      c.strokeStyle = 'rgba(50,60,70,.08)'; c.lineWidth = 5;
+      c.beginPath(); c.moveTo(560, 574); c.quadraticCurveTo(590, 545, 610, 480); c.stroke();
+      c.beginPath(); c.moveTo(664, 574); c.quadraticCurveTo(648, 542, 622, 480); c.stroke();
+      /* エプロンのふち取り（白線） */
+      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(0, 143); c.lineTo(SCENE_W, 143); c.stroke();
 
       /* 誘導路（タキシーウェイ） */
-      c.fillStyle = '#9aa2ab';
+      c.fillStyle = '#99a1aa';
       c.fillRect(0, 574, SCENE_W, 56);
+      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2.5;
+      c.beginPath(); c.moveTo(0, 578); c.lineTo(SCENE_W, 578); c.stroke();
       c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
       c.setLineDash([26, 18]);
       c.beginPath(); c.moveTo(0, 602); c.lineTo(SCENE_W, 602); c.stroke();
       c.setLineDash([]);
 
-      /* スタンド導入線とスポット番号 */
+      /* スタンド導入線・停止線・スポット番号の標識 */
       c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
       c.beginPath(); c.moveTo(615, 574); c.lineTo(615, 330); c.stroke();
-      c.fillStyle = '#7c858e';
-      c.font = 'bold 20px "Segoe UI", Meiryo, sans-serif';
+      c.beginPath(); c.moveTo(597, 330); c.lineTo(633, 330); c.stroke();
+      c.fillStyle = '#fff';
+      this.rr(566, 544, 50, 26, 6); c.fill();
+      c.strokeStyle = '#98a2ab'; c.lineWidth = 1.5; this.rr(566, 544, 50, 26, 6); c.stroke();
+      c.fillStyle = '#4c5661';
+      c.font = 'bold 17px ' + CF + '';
       c.textAlign = 'center';
-      c.fillText('S7', 592, 566);
+      c.fillText('S7', 591, 558);
 
       /* 制限区域ライン（赤の点線） */
       c.strokeStyle = 'rgba(214,69,69,.5)'; c.lineWidth = 2.5;
@@ -576,7 +635,7 @@
       this.rr(250, 484, 172, 58, 8); c.fill();
       c.strokeStyle = '#8b959c'; c.lineWidth = 2; this.rr(250, 484, 172, 58, 8); c.stroke();
       c.fillStyle = '#616d78';
-      c.font = '11px "Segoe UI", Meiryo, sans-serif';
+      c.font = '11px ' + CF + '';
       c.textAlign = 'left';
       c.fillText('スタッフのまちあい', 256, 478);
 
@@ -646,47 +705,72 @@
 
       const ACC = '#1793b8', ACC_D = '#0e6f8c';
       /* 主翼（上側） */
-      c.fillStyle = '#e7ebef'; c.strokeStyle = '#9aa6b1'; c.lineWidth = 2;
+      c.fillStyle = '#eef1f4'; c.strokeStyle = '#9aa6b1'; c.lineWidth = 2;
       c.beginPath();
       c.moveTo(520, 300); c.lineTo(742, 182); c.lineTo(788, 182); c.lineTo(668, 300);
       c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = 'rgba(140,155,170,.18)';
+      c.beginPath(); c.moveTo(520, 300); c.lineTo(600, 258); c.lineTo(648, 258); c.lineTo(576, 300); c.closePath(); c.fill();
       c.fillStyle = ACC; c.fillRect(742, 178, 46, 7);
+      c.fillStyle = '#ffd24a'; c.fillRect(742, 185, 46, 2.5);
       /* 主翼（下側） */
       c.beginPath();
-      c.fillStyle = '#dfe4e9';
+      c.fillStyle = '#e2e7ec';
       c.moveTo(520, 340); c.lineTo(742, 458); c.lineTo(788, 458); c.lineTo(668, 340);
       c.closePath(); c.fill(); c.stroke();
       c.fillStyle = ACC; c.fillRect(742, 455, 46, 7);
+      c.fillStyle = '#ffd24a'; c.fillRect(742, 452.5, 46, 2.5);
       /* 水平尾翼 */
-      c.fillStyle = '#e7ebef';
+      c.fillStyle = '#eef1f4';
       c.beginPath(); c.moveTo(898, 305); c.lineTo(962, 258); c.lineTo(988, 258); c.lineTo(944, 305); c.closePath(); c.fill(); c.stroke();
       c.beginPath(); c.moveTo(898, 335); c.lineTo(962, 382); c.lineTo(988, 382); c.lineTo(944, 335); c.closePath(); c.fill(); c.stroke();
-      /* エンジン */
+      /* エンジン（青いリング+ファン） */
       const eng = (y) => {
-        c.fillStyle = '#c7ced5';
+        c.fillStyle = '#cfd6dd';
         this.rr(536, y, 58, 26, 12); c.fill();
-        c.strokeStyle = '#8d99a5'; this.rr(536, y, 58, 26, 12); c.stroke();
+        c.strokeStyle = '#8d99a5'; c.lineWidth = 2; this.rr(536, y, 58, 26, 12); c.stroke();
+        c.fillStyle = ACC;
+        c.beginPath(); c.ellipse(543, y + 13, 7, 13, 0, Math.PI / 2, Math.PI * 1.5); c.fill();
         c.fillStyle = '#3d4854';
         c.beginPath(); c.ellipse(538, y + 13, 5, 11, 0, 0, TAU); c.fill();
-        c.fillStyle = ACC; c.fillRect(560, y, 10, 4);
+        c.fillStyle = '#e8edf1';
+        c.beginPath(); c.ellipse(538, y + 13, 2.2, 5, 0, 0, TAU); c.fill();
       };
       eng(244); eng(370);
-      /* 胴体 */
-      c.fillStyle = '#f6f8fa'; c.strokeStyle = '#8d99a5'; c.lineWidth = 2;
-      c.beginPath();
-      c.moveTo(340, 292);
-      c.lineTo(856, 292);
-      c.quadraticCurveTo(946, 297, 990, 317);
-      c.lineTo(990, 323);
-      c.quadraticCurveTo(946, 343, 856, 348);
-      c.lineTo(340, 348);
-      c.quadraticCurveTo(283, 344, 271, 320);
-      c.quadraticCurveTo(283, 296, 340, 292);
-      c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = 'rgba(255,255,255,.65)';
-      c.beginPath();
-      c.moveTo(340, 310); c.lineTo(900, 310); c.lineTo(900, 316); c.lineTo(340, 316);
-      c.closePath(); c.fill();
+      /* 胴体（白+おなかの2トーン+青のライン） */
+      const fus = new Path2D();
+      fus.moveTo(340, 292);
+      fus.lineTo(856, 292);
+      fus.quadraticCurveTo(946, 297, 990, 317);
+      fus.lineTo(990, 323);
+      fus.quadraticCurveTo(946, 343, 856, 348);
+      fus.lineTo(340, 348);
+      fus.quadraticCurveTo(283, 344, 271, 320);
+      fus.quadraticCurveTo(283, 296, 340, 292);
+      fus.closePath();
+      c.fillStyle = '#fbfcfe'; c.strokeStyle = '#8d99a5'; c.lineWidth = 2;
+      c.fill(fus);
+      c.save();
+      c.clip(fus);
+      /* おなか側のかげ */
+      c.fillStyle = '#e2e9ef';
+      c.fillRect(260, 334, 740, 20);
+      /* 青のチートライン（窓の下の飾り線） */
+      c.fillStyle = ACC;
+      c.fillRect(260, 329, 745, 3.5);
+      c.fillStyle = '#ffd24a';
+      c.fillRect(260, 332.5, 745, 1.8);
+      /* 機首のワンポイント */
+      c.fillStyle = ACC;
+      c.beginPath(); c.moveTo(271, 306); c.quadraticCurveTo(282, 298, 300, 295); c.lineTo(300, 345); c.quadraticCurveTo(282, 342, 271, 334); c.closePath();
+      c.globalAlpha = 0.12; c.fill(); c.globalAlpha = 1;
+      c.restore();
+      c.stroke(fus);
+      /* まどの列 */
+      c.fillStyle = '#33414f';
+      for (let wx = 428; wx <= 858; wx += 26) {
+        this.rr(wx, 303, 9, 6, 2.5); c.fill();
+      }
       /* コックピット窓 */
       c.fillStyle = '#33414f';
       c.beginPath();
@@ -697,14 +781,22 @@
       c.moveTo(292, 332); c.quadraticCurveTo(310, 340, 330, 340);
       c.lineTo(330, 334); c.quadraticCurveTo(310, 334, 296, 328);
       c.closePath(); c.fill();
-      /* 垂直尾翼（上から見た形） */
+      /* 垂直尾翼（上から見た形・雲マークつき） */
       c.fillStyle = ACC;
       c.beginPath();
       c.moveTo(890, 317); c.lineTo(980, 312); c.lineTo(996, 320); c.lineTo(980, 328); c.lineTo(890, 323);
       c.closePath(); c.fill();
       c.strokeStyle = ACC_D; c.lineWidth = 1.5; c.stroke();
       c.strokeStyle = '#fff'; c.lineWidth = 2.5;
-      c.beginPath(); c.moveTo(950, 320); c.quadraticCurveTo(960, 314, 972, 318); c.stroke();
+      c.beginPath(); c.moveTo(946, 320); c.quadraticCurveTo(958, 313, 972, 318); c.stroke();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(936, 319, 2.6, 0, TAU); c.fill();
+      /* 衝突防止ライト（赤の点滅・胴体の中央） */
+      const blink = 0.35 + 0.65 * Math.abs(Math.sin(this.time * 3.4));
+      c.fillStyle = `rgba(255,90,90,${blink * 0.35})`;
+      c.beginPath(); c.arc(640, 320, 7, 0, TAU); c.fill();
+      c.fillStyle = `rgba(255,70,70,${blink})`;
+      c.beginPath(); c.arc(640, 320, 3.2, 0, TAU); c.fill();
 
       /* ドア・ハッチ */
       const t = state.tasks;
@@ -723,7 +815,7 @@
 
       /* 機体名 */
       c.fillStyle = ACC_D;
-      c.font = 'bold 13px "Segoe UI", Meiryo, sans-serif';
+      c.font = 'bold 13px ' + CF + '';
       c.textAlign = 'left'; c.textBaseline = 'middle';
       c.fillText('AOZORA', 356, 302);
 
@@ -832,7 +924,7 @@
         c.fillText('🔒', a[0], a[1] + 0.5);
         /* Canvasにはルビが振れないので、かな書き */
         const label = `あと${rest}ふん`;
-        c.font = 'bold 10px "Segoe UI", Meiryo, sans-serif';
+        c.font = 'bold 10px ' + CF + '';
         const w = c.measureText(label).width + 10;
         c.fillStyle = 'rgba(246, 249, 251, 0.95)';
         this.rr(a[0] - w / 2, a[1] + 18, w, 15, 7); c.fill();
@@ -884,7 +976,7 @@
         if (t.status === 'gathering') {
           const missing = G.missingIcons(t.id);
           if (missing) {
-            c.font = 'bold 10px "Segoe UI", Meiryo, sans-serif';
+            c.font = 'bold 10px ' + CF + '';
             const w = c.measureText('あと ' + missing).width + 10;
             c.fillStyle = 'rgba(255, 253, 244, 0.95)';
             this.rr(a[0] - w / 2, a[1] + 26, w, 15, 7); c.fill();
@@ -950,7 +1042,7 @@
           c.strokeStyle = '#9aa4ad'; this.rr(-26, -13, 74, 26, 13); c.stroke();
           c.fillStyle = '#b8434e'; c.fillRect(-22, -2, 66, 4);
           c.fillStyle = '#55606a';
-          c.font = 'bold 9px "Segoe UI", Meiryo, sans-serif';
+          c.font = 'bold 9px ' + CF + '';
           c.textAlign = 'center'; c.textBaseline = 'middle';
           c.fillText('ねんりょう', 11, -7);
           break;
@@ -1040,13 +1132,20 @@
         }
         c.fillStyle = 'rgba(40,50,60,.2)';
         c.beginPath(); c.ellipse(x, y + 4, 6, 2.6, 0, 0, TAU); c.fill();
+        const oy = bob * 0.3;
+        /* ベスト（担当の色）+反射ライン */
         c.fillStyle = meta.color;
         c.strokeStyle = 'rgba(30,40,50,.4)'; c.lineWidth = 1.2;
-        c.beginPath(); c.ellipse(x, y + bob * 0.3, 6.2, 4.8, 0, 0, TAU); c.fill(); c.stroke();
+        c.beginPath(); c.ellipse(x, y + oy, 6.2, 4.8, 0, 0, TAU); c.fill(); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.3;
+        c.beginPath(); c.moveTo(x - 4.4, y + oy + 1.4); c.lineTo(x + 4.4, y + oy + 1.4); c.stroke();
+        /* 顔と黄色ヘルメット */
         c.fillStyle = '#f2c99f';
-        c.beginPath(); c.arc(x, y - 1 + bob * 0.3, 3, 0, TAU); c.fill();
-        c.fillStyle = 'rgba(255,255,255,.85)';
-        c.beginPath(); c.arc(x, y - 1 + bob * 0.3, 1.3, 0, TAU); c.fill();
+        c.beginPath(); c.arc(x, y - 1.6 + oy, 3, 0, TAU); c.fill();
+        c.fillStyle = '#f6cf3f';
+        c.beginPath(); c.arc(x, y - 2.2 + oy, 3.1, Math.PI, 0); c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(120,90,10,.4)'; c.lineWidth = 0.8;
+        c.beginPath(); c.moveTo(x - 3.3, y - 2 + oy); c.lineTo(x + 3.3, y - 2 + oy); c.stroke();
         /* 熟練度バッジ */
         if (e.skill === 'vet' || e.skill === 'rookie') {
           c.font = '8px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -1062,7 +1161,7 @@
           const meta = e.kind === 'staff' ? window.RES_META.staff[e.type] : window.RES_META.vehicles[e.type];
           const skillTxt = e.skill === 'vet' ? '⭐はやい ' : e.skill === 'rookie' ? '🔰ゆっくり ' : '';
           const label = `${meta.icon}${e.label} ${skillTxt}— いきさきをタップ！`;
-          c.font = 'bold 11px "Segoe UI", Meiryo, sans-serif';
+          c.font = 'bold 11px ' + CF + '';
           const w = c.measureText(label).width + 14;
           const lx = rec.pos.x, ly = rec.pos.y - (e.kind === 'staff' ? 26 : 42);
           c.fillStyle = 'rgba(30,58,95,0.92)';
@@ -1122,7 +1221,7 @@
         text = `🧑‍🤝‍🧑 のる人 ${n}/${PAX_TOTAL}人`;
       }
       if (!text) return;
-      c.font = 'bold 12px "Segoe UI", Meiryo, sans-serif';
+      c.font = 'bold 12px ' + CF + '';
       const w = c.measureText(text).width + 16;
       c.fillStyle = 'rgba(255,255,255,0.92)';
       this.rr(402 - w / 2, 158, w, 22, 11); c.fill();
@@ -1467,7 +1566,7 @@
         : '';
 
       pop.innerHTML = `
-        <div class="sp-title"><span class="sp-step">ステップ${t.def.step || '-'}</span>${t.def.icon} ${rubi(t.def.name)}</div>
+        <div class="sp-title"><span class="sp-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span>${t.def.icon} ${rubi(t.def.name)}</div>
         <div class="sp-info">${info}</div>
         ${paceHtml}
         <div class="sp-btns" style="margin-top:6px;"></div>`;
@@ -1584,7 +1683,7 @@
           : '';
         card.innerHTML = `
           <div class="tc-head">
-            <span class="tc-step">ステップ${t.def.step || '-'}</span>
+            <span class="tc-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span>
             <span class="tc-icon">${t.def.icon}</span>
             <span class="tc-name">${rubi(t.def.name)}</span>
             <span class="tc-state"></span>
@@ -1997,7 +2096,7 @@
             here = '<span class="flow-here">👉 いまここ！</span>';
           }
         }
-        return `<div class="flow-step${cls}"><span class="flow-stepnum">${r.step}</span><div class="flow-note">${r.note}</div>${here}</div>`;
+        return `<div class="flow-step${cls}"><span class="flow-stepnum" data-step="${r.step}">${r.step}</span><div class="flow-note">${r.note}</div>${here}</div>`;
       };
       return '<div class="flow-map">' + window.FLOW_ROWS.map((r) =>
         stepHead(r) + `<div class="flow-row">${r.tasks.map(chip).join('')}</div>`).join('') +
@@ -2028,7 +2127,7 @@
       } else if (tab === 'tasks') {
         body = '<div class="zk-list">' + window.TASK_DEFS.map((d) => `
           <div class="zk-item">
-            <div class="zk-head"><span class="zk-step">ステップ${d.step || '-'}</span>${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
+            <div class="zk-head"><span class="zk-step" data-step="${d.step || ''}">ステップ${d.step || '-'}</span>${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
             <p>${d.desc}</p>
             <p class="zk-why">💡 なぜ必要？ — ${d.why}</p>
             ${d.note ? `<p class="zk-note">🦺 ${d.note}</p>` : ''}
@@ -2189,6 +2288,28 @@
       });
     },
 
+    /* 紙ふぶき（クリア演出。数秒でひとりでに消える） */
+    dropConfetti(n) {
+      const old = document.querySelector('.confetti-box');
+      if (old) old.remove();
+      const box = document.createElement('div');
+      box.className = 'confetti-box';
+      const colors = ['#e5867c', '#7ca3d8', '#ffd24a', '#8fc98f', '#b493cf', '#7cc2c9', '#0f8fb0'];
+      for (let i = 0; i < n; i++) {
+        const p = document.createElement('i');
+        const r = (a, b) => a + Math.random() * (b - a);
+        p.style.left = r(0, 100) + '%';
+        p.style.background = colors[i % colors.length];
+        p.style.animationDuration = r(2.4, 4.2) + 's';
+        p.style.animationDelay = r(0, 0.9) + 's';
+        p.style.width = r(7, 11) + 'px';
+        p.style.height = r(10, 15) + 'px';
+        box.appendChild(p);
+      }
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 5600);
+    },
+
     /* ---------------- 結果画面 ---------------- */
     renderResult(res, isBest, nextStageId, prevBest) {
       const nextBtn = document.getElementById('btn-next-stage');
@@ -2217,7 +2338,18 @@
       const rankEl = this.els['result-rank'];
       rankEl.textContent = res.rank;
       rankEl.className = 'result-rank rank-' + (res.rank === '×' ? 'X' : res.rank);
-      this.els['result-score'].textContent = String(res.score);
+      /* スコアのカウントアップ演出 */
+      const scoreEl = this.els['result-score'];
+      if (this._scoreAnim) cancelAnimationFrame(this._scoreAnim);
+      const t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / 900);
+        scoreEl.textContent = String(Math.round(res.score * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) this._scoreAnim = requestAnimationFrame(tick);
+      };
+      this._scoreAnim = requestAnimationFrame(tick);
+      /* クリアしたら紙ふぶき */
+      if (res.cleared) this.dropConfetti(res.rank === 'S' ? 56 : 36);
 
       const bd = this.els['result-breakdown'];
       bd.innerHTML = '';

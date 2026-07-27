@@ -6,6 +6,10 @@
 <title>出発準備45分！ Airport Turnaround</title>
 <meta name="description" content="飛行機の到着から出発までの地上作業を管理するシミュレーションゲーム">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<!-- まる文字フォント（読みこめない環境ではシステムフォントで動作） -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,6 +17,11 @@
 
   <!-- ============ タイトル画面 ============ -->
   <section id="screen-title" class="screen active">
+    <div class="title-clouds" aria-hidden="true">
+      <span class="tcl tcl-1"></span><span class="tcl tcl-2"></span><span class="tcl tcl-3"></span>
+      <span class="title-sun"></span>
+      <span class="tiny-plane">✈</span>
+    </div>
     <div class="title-inner">
       <img class="title-hero" src="assets/title-hero.svg" alt="そらみなと国際空港に駐機するあおぞら航空の飛行機">
       <h1 class="title-logo"><ruby>出発準備<rt>しゅっぱつじゅんび</rt></ruby><span class="title-num">45</span><ruby>分<rt>ふん</rt></ruby>！</h1>
