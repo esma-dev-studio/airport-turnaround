@@ -1759,7 +1759,7 @@
       const stEl = card.querySelector('.tc-state');
       const stMap = {
         locked: '🔒 まだ', ready: 'はじめられるよ！', gathering: '🚶 あつまり中',
-        active: '⚙ おしごと中', done: '✅ かんりょう！',
+        active: '⚙ おしごと中', done: '✅',
       };
       stEl.textContent = issue ? '⚠ トラブル！' : (paused ? '⏸ ストップ中（天気）' : (stMap[t.status] || t.status));
 
@@ -2353,11 +2353,11 @@
 
       const bd = this.els['result-breakdown'];
       bd.innerHTML = '';
-      Object.values(res.breakdown).forEach((b) => {
+      Object.entries(res.breakdown).forEach(([key, b]) => {
         const li = document.createElement('li');
         const pct = (b.got / b.max) * 100;
         li.innerHTML = `<span class="rb-label">${rubi(b.label)}</span>
-          <span class="rb-bar"><span class="rb-fill" style="width:${pct}%"></span></span>
+          <span class="rb-bar"><span class="rb-fill fill-${key}" style="width:${pct}%"></span></span>
           <span class="rb-num">${b.got} / ${b.max}点</span>`;
         bd.appendChild(li);
       });
@@ -2392,7 +2392,10 @@
             bars += `<i class="gr-gather" style="left:${pct(t.startedAt)}%;width:${Math.max(0.5, pct(t.activeAt) - pct(t.startedAt))}%"></i>`;
           }
           if (t.activeAt != null && t.doneAt != null) {
-            bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%"></i>`;
+            /* ながれリボンと同じステップ色でぬる（順番の学びとつなげる） */
+            const stp = (window.TASK_MAP[t.id] && window.TASK_MAP[t.id].step) || 0;
+            const col = stp ? `background:var(--s${stp});` : '';
+            bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%;${col}"></i>`;
           }
           row.innerHTML = `<span class="gr-label" title="${t.name}">${t.icon}${rubi(nm)}</span>` +
             `<span class="gr-track">${t.startedAt == null ? '<span class="gr-none">できなかった…</span>' : bars}</span>`;
