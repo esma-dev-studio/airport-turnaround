@@ -183,6 +183,7 @@
       this.time = 0;
       this.fx = { parts: [], floats: [] };
       this.spotFx = {};
+      this.bgKey = '';   // ステージが変わったら背景キャッシュを作り直す
       this.cam = { zoom: 1, cx: 600, cy: 330 };
       this.arrivalT = null;
       this.arrivalCb = null;
@@ -506,7 +507,7 @@
 
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       c.clearRect(0, 0, this.cw, this.ch);
-      c.fillStyle = '#8f99a3';
+      c.fillStyle = (state && state.stage && state.stage.rainAll) ? '#7e8792' : '#9aa1a9';
       c.fillRect(0, 0, this.cw, this.ch);
 
       this.stepArrival(dtReal);
@@ -517,7 +518,9 @@
       c.scale(S, S);
       c.translate(-this.cam.cx, -this.cam.cy);
 
-      this.drawBackground(state);
+      this.ensureBg(state);
+      c.drawImage(this.bgCanvas, 0, 0, SCENE_W, SCENE_H);
+      this.drawSkyLife(state);
       if (state) {
         this.updateBridge(state, dtReal);
         this.drawPlane(state);
@@ -536,23 +539,262 @@
       c.restore();
     },
 
-    drawBackground(state) {
-      const c = this.ctx;
-      /* 空（2色の帯で高さを出す） */
-      c.fillStyle = '#9fd0ee';
-      c.fillRect(0, 0, SCENE_W, 16);
-      c.fillStyle = '#c6e4f6';
-      c.fillRect(0, 16, SCENE_W, 14);
-      /* 太陽（光の輪つき） */
-      c.fillStyle = 'rgba(255,214,90,.3)';
-      c.beginPath(); c.arc(66, 13, 15, 0, TAU); c.fill();
+    /* ============ 背景（照明つき・静的部分はオフスクリーンに1回だけ描く） ============
+     * 光源は画面左上で統一し、落ち影・面の明暗・コンクリートの質感を持たせる。
+     * 静止要素は bgCanvas にキャッシュ（2倍解像度）して毎フレームは1枚絵として貼るだけ。
+     * 動く要素（雲・遠くの機体・旗・管制塔ランプ・吹き流し）は drawSkyLife で毎フレーム描く。 */
+    noiseTile() {
+      if (this._noise) return this._noise;
+      const t = document.createElement('canvas');
+      t.width = t.height = 96;
+      const g = t.getContext('2d');
+      const img = g.createImageData(96, 96);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = 100 + Math.random() * 100;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+        img.data[i + 3] = 22;
+      }
+      g.putImageData(img, 0, 0);
+      this._noise = t;
+      return t;
+    },
+
+    ensureBg(state) {
+      const st = state && state.stage;
+      const key = (st ? st.id : 0) + '|' + (st && st.rainAll ? 1 : 0) + '|' +
+        ((state && state.weatherNow && state.weatherNow.label) || '');
+      if (this.bgCanvas && this.bgKey === key) return;
+      this.bgKey = key;
+      if (!this.bgCanvas) {
+        this.bgCanvas = document.createElement('canvas');
+        this.bgCanvas.width = SCENE_W * 2;
+        this.bgCanvas.height = SCENE_H * 2;
+      }
+      const g = this.bgCanvas.getContext('2d');
+      g.setTransform(2, 0, 0, 2, 0, 0);
+      g.clearRect(0, 0, SCENE_W, SCENE_H);
+      const prev = this.ctx;
+      this.ctx = g;   // rr()等のヘルパーを使うため一時的に差し替え
+      try { this.renderBg(g, !!(st && st.rainAll)); } finally { this.ctx = prev; }
+    },
+
+    /* 静的背景。wet=trueは雨ステージ（暗く・濡れた路面） */
+    renderBg(c, wet) {
+      /* --- 空（グラデーション） --- */
+      const sky = c.createLinearGradient(0, 0, 0, 30);
+      if (wet) { sky.addColorStop(0, '#8798a8'); sky.addColorStop(1, '#b7c4cf'); }
+      else { sky.addColorStop(0, '#7fbfe9'); sky.addColorStop(1, '#cfe8f8'); }
+      c.fillStyle = sky;
+      c.fillRect(0, 0, SCENE_W, 30);
+      if (!wet) {
+        const glow = c.createRadialGradient(66, 13, 2, 66, 13, 26);
+        glow.addColorStop(0, 'rgba(255,225,140,.9)');
+        glow.addColorStop(0.45, 'rgba(255,220,120,.35)');
+        glow.addColorStop(1, 'rgba(255,220,120,0)');
+        c.fillStyle = glow;
+        c.beginPath(); c.arc(66, 13, 26, 0, TAU); c.fill();
+        c.fillStyle = '#ffd95e';
+        c.beginPath(); c.arc(66, 13, 9, 0, TAU); c.fill();
+      }
+
+      /* --- ターミナルビル（面の明暗つき） --- */
+      c.fillStyle = wet ? '#9aa9b6' : '#b0c2d2';
+      c.fillRect(0, 30, SCENE_W, 8);
+      const fac = c.createLinearGradient(0, 38, 0, 126);
+      if (wet) { fac.addColorStop(0, '#d3dae1'); fac.addColorStop(1, '#bcc6cf'); }
+      else { fac.addColorStop(0, '#f2f6fa'); fac.addColorStop(1, '#dde5ec'); }
+      c.fillStyle = fac;
+      c.fillRect(0, 38, SCENE_W, 88);
+      for (let x = 48; x < SCENE_W - 60; x += 46) {
+        const win = c.createLinearGradient(0, 52, 0, 106);
+        if (wet) { win.addColorStop(0, '#8b9fb2'); win.addColorStop(1, '#76899b'); }
+        else { win.addColorStop(0, '#a9c6de'); win.addColorStop(1, '#87a9c6'); }
+        c.fillStyle = win;
+        c.fillRect(x, 52, 28, 54);
+        /* 窓のななめの光 */
+        c.fillStyle = wet ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.30)';
+        c.beginPath();
+        c.moveTo(x, 52); c.lineTo(x + 13, 52); c.lineTo(x, 74);
+        c.closePath(); c.fill();
+        /* 窓わく */
+        c.strokeStyle = 'rgba(70,90,110,.25)'; c.lineWidth = 1;
+        c.strokeRect(x + 0.5, 52.5, 27, 53);
+      }
+      /* 屋根のフチ（上面が明るく、下に影の線） */
+      c.fillStyle = wet ? '#aeb9c3' : '#cbd5e0';
+      c.fillRect(0, 126, SCENE_W, 12);
+      c.fillStyle = 'rgba(255,255,255,.4)';
+      c.fillRect(0, 126, SCENE_W, 2.5);
+      c.fillStyle = 'rgba(30,45,65,.25)';
+      c.fillRect(0, 136, SCENE_W, 2);
+      /* 空港名の看板 */
+      c.fillStyle = 'rgba(24,46,74,.94)';
+      this.rr(10, 34, 178, 22, 11); c.fill();
+      c.fillStyle = '#fff';
+      c.font = 'bold 13px ' + CF;
+      c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillText('✈ そらみなと国際空港', 21, 46);
+      /* ゲート表示 */
+      c.fillStyle = '#22405f';
+      this.rr(292, 104, 92, 24, 6); c.fill();
       c.fillStyle = '#ffd24a';
-      c.beginPath(); c.arc(66, 13, 9.5, 0, TAU); c.fill();
-      /* 遠くを飛ぶ飛行機（ひこうき雲つき・ゆっくり右へ） */
+      c.font = 'bold 13px ' + CF;
+      c.textAlign = 'center';
+      c.fillText('GATE 7', 338, 117);
+      /* 管制塔（右面に陰） */
+      c.fillStyle = wet ? '#b8c1ca' : '#d6dee6';
+      c.fillRect(1082, 48, 24, 78);
+      c.fillStyle = 'rgba(255,255,255,.45)'; c.fillRect(1082, 48, 5, 78);
+      c.fillStyle = 'rgba(50,65,85,.18)'; c.fillRect(1098, 48, 8, 78);
+      c.fillStyle = wet ? '#5d7183' : '#6f8598';
+      this.rr(1068, 30, 52, 26, 8); c.fill();
+      const twin = c.createLinearGradient(0, 36, 0, 46);
+      twin.addColorStop(0, wet ? '#9db3c2' : '#cdeaf6');
+      twin.addColorStop(1, wet ? '#7d93a4' : '#9cc4d8');
+      c.fillStyle = twin; this.rr(1073, 36, 42, 10, 4); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.5)'; this.rr(1073, 36, 42, 3.5, 2); c.fill();
+      c.strokeStyle = '#6f8598'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(1094, 30); c.lineTo(1094, 18); c.stroke();
+
+      /* --- エプロン（コンクリート。奥が明るく手前がわずかに暗い） --- */
+      const ap = c.createLinearGradient(0, 138, 0, SCENE_H);
+      if (wet) { ap.addColorStop(0, '#99a0a9'); ap.addColorStop(1, '#878e98'); }
+      else { ap.addColorStop(0, '#bcc2c9'); ap.addColorStop(1, '#a9b0b8'); }
+      c.fillStyle = ap;
+      c.fillRect(0, 138, SCENE_W, SCENE_H - 138);
+      /* コンクリートの質感（ノイズ） */
+      c.save();
+      c.globalAlpha = wet ? 0.5 : 0.75;
+      c.fillStyle = c.createPattern(this.noiseTile(), 'repeat');
+      c.fillRect(0, 138, SCENE_W, SCENE_H - 138);
+      c.restore();
+      /* ターミナルの落ち影（光源が左上→建物の南側に影） */
+      const bsh = c.createLinearGradient(0, 138, 0, 176);
+      bsh.addColorStop(0, wet ? 'rgba(20,32,48,.30)' : 'rgba(22,36,56,.22)');
+      bsh.addColorStop(1, 'rgba(22,36,56,0)');
+      c.fillStyle = bsh;
+      c.fillRect(0, 138, SCENE_W, 38);
+      /* 日ざしの色（左上からのあたたかい光） */
+      if (!wet) {
+        const sun = c.createRadialGradient(140, 40, 60, 140, 40, 1050);
+        sun.addColorStop(0, 'rgba(255,240,205,.13)');
+        sun.addColorStop(1, 'rgba(255,240,205,0)');
+        c.fillStyle = sun;
+        c.fillRect(0, 30, SCENE_W, SCENE_H - 30);
+      } else {
+        /* 雨の日は全体をひんやりした色に */
+        c.fillStyle = 'rgba(70,90,115,.08)';
+        c.fillRect(0, 30, SCENE_W, SCENE_H - 30);
+      }
+      /* コンクリートのつなぎ目（影＋ハイライトの2重線で彫りを出す） */
+      for (let x = 120; x < SCENE_W; x += 150) {
+        c.strokeStyle = 'rgba(55,65,75,.14)'; c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(x, 138); c.lineTo(x, SCENE_H); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(x + 1.5, 138); c.lineTo(x + 1.5, SCENE_H); c.stroke();
+      }
+      for (let y = 230; y < SCENE_H; y += 130) {
+        c.strokeStyle = 'rgba(55,65,75,.14)'; c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(0, y); c.lineTo(SCENE_W, y); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(0, y + 1.5); c.lineTo(SCENE_W, y + 1.5); c.stroke();
+      }
+      /* 路面のよごれ・タイヤあと */
+      c.fillStyle = 'rgba(50,60,70,.07)';
+      [[210, 320, 60, 20], [1030, 260, 56, 18], [400, 462, 40, 12], [980, 440, 52, 16], [700, 200, 70, 16]].forEach(([x, y, w, h]) => {
+        c.beginPath(); c.ellipse(x, y, w, h, 0.3, 0, TAU); c.fill();
+      });
+      c.strokeStyle = 'rgba(40,50,60,.10)'; c.lineWidth = 5;
+      c.beginPath(); c.moveTo(560, 574); c.quadraticCurveTo(590, 545, 610, 480); c.stroke();
+      c.beginPath(); c.moveTo(664, 574); c.quadraticCurveTo(648, 542, 622, 480); c.stroke();
+      /* 雨の日: 水たまりと路面の照りかえし */
+      if (wet) {
+        [[350, 300, 70, 14], [820, 250, 90, 16], [520, 470, 60, 12], [1000, 480, 80, 14]].forEach(([x, y, w, h]) => {
+          const pud = c.createLinearGradient(0, y - h, 0, y + h);
+          pud.addColorStop(0, 'rgba(175,195,215,.30)');
+          pud.addColorStop(1, 'rgba(140,160,185,.16)');
+          c.fillStyle = pud;
+          c.beginPath(); c.ellipse(x, y, w, h, 0, 0, TAU); c.fill();
+          c.fillStyle = 'rgba(235,245,252,.25)';
+          c.beginPath(); c.ellipse(x - w * 0.25, y - h * 0.3, w * 0.4, h * 0.3, 0, 0, TAU); c.fill();
+        });
+      }
+      /* エプロンのふち取り（白線） */
+      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(0, 143); c.lineTo(SCENE_W, 143); c.stroke();
+
+      /* --- 誘導路（タキシーウェイ） --- */
+      const tw = c.createLinearGradient(0, 574, 0, SCENE_H);
+      if (wet) { tw.addColorStop(0, '#79818c'); tw.addColorStop(1, '#6e7681'); }
+      else { tw.addColorStop(0, '#9aa2ab'); tw.addColorStop(1, '#8e969f'); }
+      c.fillStyle = tw;
+      c.fillRect(0, 574, SCENE_W, 56);
+      c.fillStyle = 'rgba(30,40,52,.18)';
+      c.fillRect(0, 574, SCENE_W, 4);
+      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2.5;
+      c.beginPath(); c.moveTo(0, 579); c.lineTo(SCENE_W, 579); c.stroke();
+      c.strokeStyle = wet ? '#c8ae44' : '#e8c84a'; c.lineWidth = 3;
+      c.setLineDash([26, 18]);
+      c.beginPath(); c.moveTo(0, 602); c.lineTo(SCENE_W, 602); c.stroke();
+      c.setLineDash([]);
+
+      /* --- スタンド導入線・停止線・スポット番号の標識 --- */
+      c.strokeStyle = wet ? '#c8ae44' : '#e8c84a'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(615, 574); c.lineTo(615, 330); c.stroke();
+      c.beginPath(); c.moveTo(597, 330); c.lineTo(633, 330); c.stroke();
+      c.fillStyle = 'rgba(30,40,52,.20)';
+      this.rr(568.5, 546.5, 50, 26, 6); c.fill();
+      c.fillStyle = '#fbfcfd';
+      this.rr(566, 544, 50, 26, 6); c.fill();
+      c.strokeStyle = '#8b959e'; c.lineWidth = 1.5; this.rr(566, 544, 50, 26, 6); c.stroke();
+      c.fillStyle = '#46505b';
+      c.font = 'bold 17px ' + CF;
+      c.textAlign = 'center';
+      c.fillText('S7', 591, 558);
+
+      /* 制限区域ライン（赤の点線） */
+      c.strokeStyle = 'rgba(214,69,69,.45)'; c.lineWidth = 2.5;
+      c.setLineDash([14, 10]);
+      this.rr(225, 195, 790, 275, 30); c.stroke();
+      c.setLineDash([]);
+
+      /* スタッフ待機所（うっすら影つき） */
+      c.fillStyle = 'rgba(30,40,52,.16)';
+      this.rr(253, 487, 172, 58, 8); c.fill();
+      c.fillStyle = wet ? '#98a2ab' : '#aeb7be';
+      this.rr(250, 484, 172, 58, 8); c.fill();
+      c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(252, 485.5); c.lineTo(420, 485.5); c.stroke();
+      c.strokeStyle = '#87919a'; c.lineWidth = 2; this.rr(250, 484, 172, 58, 8); c.stroke();
+      c.fillStyle = '#57626d';
+      c.font = '11px ' + CF;
+      c.textAlign = 'left';
+      c.fillText('スタッフのまちあい', 256, 478);
+
+      /* 車両置き場 */
+      c.fillStyle = '#57626d';
+      c.fillText('はたらく車のおきば', 452, 478);
+      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
+      [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
+        c.beginPath(); c.moveTo(x, 486); c.lineTo(x, 548); c.stroke();
+      });
+
+      /* 吹き流しのポール（本体はdrawSkyLifeで動かす） */
+      c.strokeStyle = '#7c858e'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(1128, 188); c.lineTo(1128, 154); c.stroke();
+    },
+
+    /* 動きのある背景要素（毎フレーム描画。数が少ないので軽い） */
+    drawSkyLife(state) {
+      const c = this.ctx;
+      const wet = !!(state && state.stage && state.stage.rainAll);
+      /* 遠くを飛ぶ飛行機（ひこうき雲つき） */
       const fpx = ((this.time * 26) % (SCENE_W + 420)) - 210;
-      c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 2.5; c.lineCap = 'round';
+      c.strokeStyle = wet ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.7)';
+      c.lineWidth = 2.5; c.lineCap = 'round';
       c.beginPath(); c.moveTo(fpx - 150, 12.5); c.lineTo(fpx - 14, 12.5); c.stroke();
-      c.strokeStyle = 'rgba(255,255,255,.32)'; c.lineWidth = 4.5;
+      c.strokeStyle = wet ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.32)';
+      c.lineWidth = 4.5;
       c.beginPath(); c.moveTo(fpx - 195, 12.5); c.lineTo(fpx - 120, 12.5); c.stroke();
       c.lineCap = 'butt';
       c.fillStyle = '#fff';
@@ -560,26 +802,11 @@
       c.moveTo(fpx + 12, 12.5); c.lineTo(fpx - 6, 7.5); c.lineTo(fpx - 2.5, 12.5); c.lineTo(fpx - 6, 17.5);
       c.closePath(); c.fill();
       /* 雲 */
-      c.fillStyle = 'rgba(255,255,255,.9)';
+      c.fillStyle = wet ? 'rgba(228,236,242,.8)' : 'rgba(255,255,255,.9)';
       const cl = (x, y, s) => { this.rr(x, y, 54 * s, 11 * s, 5.5 * s); c.fill(); this.rr(x + 12 * s, y - 6 * s, 30 * s, 9 * s, 4.5 * s); c.fill(); };
       cl(220 + Math.sin(this.time * 0.08) * 24, 9, 0.9);
       cl(500 + Math.cos(this.time * 0.05) * 36, 13, 0.6);
       cl(760 + Math.cos(this.time * 0.06) * 30, 11, 0.75);
-
-      /* ターミナルビル（ガラス張り） */
-      c.fillStyle = '#b0c2d2';
-      c.fillRect(0, 30, SCENE_W, 8);
-      c.fillStyle = '#e9eef4';
-      c.fillRect(0, 38, SCENE_W, 88);
-      for (let x = 48; x < SCENE_W - 60; x += 46) {
-        c.fillStyle = (x / 46) % 2 ? '#a8c4dc' : '#98b8d3';
-        c.fillRect(x, 52, 28, 54);
-        /* 窓のななめの光 */
-        c.fillStyle = 'rgba(255,255,255,.26)';
-        c.beginPath();
-        c.moveTo(x, 52); c.lineTo(x + 13, 52); c.lineTo(x, 74);
-        c.closePath(); c.fill();
-      }
       /* 屋根の旗（ぱたぱた） */
       [508, 548, 588].forEach((fx, i) => {
         const wave = Math.sin(this.time * 3 + i * 1.1) * 3;
@@ -590,109 +817,14 @@
         c.moveTo(fx, 13); c.lineTo(fx + 15, 16 + wave); c.lineTo(fx, 21);
         c.closePath(); c.fill();
       });
-      c.fillStyle = '#cbd5e0';
-      c.fillRect(0, 126, SCENE_W, 12);
-      /* 空港名の看板 */
-      c.fillStyle = 'rgba(30,58,95,.92)';
-      this.rr(10, 34, 178, 22, 11); c.fill();
-      c.fillStyle = '#fff';
-      c.font = 'bold 13px ' + CF + '';
-      c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText('✈ そらみなと国際空港', 21, 46);
-      /* ゲート表示 */
-      c.fillStyle = '#27496d';
-      this.rr(292, 104, 92, 24, 6); c.fill();
-      c.fillStyle = '#ffd24a';
-      c.font = 'bold 13px ' + CF + '';
-      c.textAlign = 'center';
-      c.fillText('GATE 7', 338, 117);
-      /* 管制塔（てっぺんの赤ランプが点滅） */
-      c.fillStyle = '#d6dee6'; c.fillRect(1082, 48, 24, 78);
-      c.fillStyle = '#c3ccd6'; c.fillRect(1082, 48, 6, 78);
-      c.fillStyle = '#6f8598'; this.rr(1068, 30, 52, 26, 8); c.fill();
-      c.fillStyle = '#b7e0ef'; this.rr(1073, 36, 42, 10, 4); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.4)'; this.rr(1073, 36, 42, 4, 2); c.fill();
-      c.strokeStyle = '#6f8598'; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(1094, 30); c.lineTo(1094, 18); c.stroke();
-      c.fillStyle = `rgba(255,86,86,${0.4 + 0.6 * Math.abs(Math.sin(this.time * 2.4))})`;
+      /* 管制塔のランプ点滅 */
+      c.fillStyle = `rgba(255,86,86,${(0.4 + 0.6 * Math.abs(Math.sin(this.time * 2.4))).toFixed(3)})`;
       c.beginPath(); c.arc(1094, 16, 3.2, 0, TAU); c.fill();
-
-      /* エプロン（駐機場） */
-      c.fillStyle = '#b6bdc4';
-      c.fillRect(0, 138, SCENE_W, SCENE_H - 138);
-      c.strokeStyle = 'rgba(255,255,255,.16)';
-      c.lineWidth = 1.5;
-      for (let x = 120; x < SCENE_W; x += 150) {
-        c.beginPath(); c.moveTo(x, 138); c.lineTo(x, SCENE_H); c.stroke();
-      }
-      for (let y = 230; y < SCENE_H; y += 130) {
-        c.beginPath(); c.moveTo(0, y); c.lineTo(SCENE_W, y); c.stroke();
-      }
-      /* 路面のよごれ（うすいシミ）とタイヤあと */
-      c.fillStyle = 'rgba(60,70,80,.05)';
-      [[210, 320, 60, 20], [1030, 260, 56, 18], [400, 462, 40, 12], [980, 440, 52, 16]].forEach(([x, y, w, h]) => {
-        c.beginPath(); c.ellipse(x, y, w, h, 0.3, 0, TAU); c.fill();
-      });
-      c.strokeStyle = 'rgba(50,60,70,.08)'; c.lineWidth = 5;
-      c.beginPath(); c.moveTo(560, 574); c.quadraticCurveTo(590, 545, 610, 480); c.stroke();
-      c.beginPath(); c.moveTo(664, 574); c.quadraticCurveTo(648, 542, 622, 480); c.stroke();
-      /* エプロンのふち取り（白線） */
-      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(0, 143); c.lineTo(SCENE_W, 143); c.stroke();
-
-      /* 誘導路（タキシーウェイ） */
-      c.fillStyle = '#99a1aa';
-      c.fillRect(0, 574, SCENE_W, 56);
-      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2.5;
-      c.beginPath(); c.moveTo(0, 578); c.lineTo(SCENE_W, 578); c.stroke();
-      c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
-      c.setLineDash([26, 18]);
-      c.beginPath(); c.moveTo(0, 602); c.lineTo(SCENE_W, 602); c.stroke();
-      c.setLineDash([]);
-
-      /* スタンド導入線・停止線・スポット番号の標識 */
-      c.strokeStyle = '#e8c84a'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(615, 574); c.lineTo(615, 330); c.stroke();
-      c.beginPath(); c.moveTo(597, 330); c.lineTo(633, 330); c.stroke();
-      c.fillStyle = '#fff';
-      this.rr(566, 544, 50, 26, 6); c.fill();
-      c.strokeStyle = '#98a2ab'; c.lineWidth = 1.5; this.rr(566, 544, 50, 26, 6); c.stroke();
-      c.fillStyle = '#4c5661';
-      c.font = 'bold 17px ' + CF + '';
-      c.textAlign = 'center';
-      c.fillText('S7', 591, 558);
-
-      /* 制限区域ライン（赤の点線） */
-      c.strokeStyle = 'rgba(214,69,69,.5)'; c.lineWidth = 2.5;
-      c.setLineDash([14, 10]);
-      this.rr(225, 195, 790, 275, 30); c.stroke();
-      c.setLineDash([]);
-
-      /* スタッフ待機所 */
-      c.fillStyle = '#a9b3ba';
-      this.rr(250, 484, 172, 58, 8); c.fill();
-      c.strokeStyle = '#8b959c'; c.lineWidth = 2; this.rr(250, 484, 172, 58, 8); c.stroke();
-      c.fillStyle = '#616d78';
-      c.font = '11px ' + CF + '';
-      c.textAlign = 'left';
-      c.fillText('スタッフのまちあい', 256, 478);
-
-      /* 車両置き場 */
-      c.fillStyle = '#616d78';
-      c.fillText('はたらく車のおきば', 452, 478);
-      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
-      [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
-        c.beginPath(); c.moveTo(x, 486); c.lineTo(x, 548); c.stroke();
-      });
-
       /* 吹き流し */
-      const wx = 1128, wy = 188;
-      c.strokeStyle = '#7c858e'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(wx, wy); c.lineTo(wx, wy - 34); c.stroke();
       const flap = Math.sin(this.time * 2.2) * 4;
       c.fillStyle = '#e2711d';
       c.beginPath();
-      c.moveTo(wx, wy - 34); c.lineTo(wx + 26, wy - 30 + flap); c.lineTo(wx + 26, wy - 26 + flap); c.lineTo(wx, wy - 24);
+      c.moveTo(1128, 154); c.lineTo(1154, 158 + flap); c.lineTo(1154, 162 + flap); c.lineTo(1128, 164);
       c.closePath(); c.fill();
     },
 
@@ -737,34 +869,51 @@
       c.rotate(tr.rot);
       c.translate(-615, -320);
 
-      /* 影 */
-      c.fillStyle = 'rgba(40,50,60,.13)';
-      c.beginPath(); c.ellipse(620, 336, 360, 56, 0, 0, TAU); c.fill();
+      /* 落ち影（光源=左上 → 右下へオフセット。フチはやわらかく） */
+      const psh = c.createRadialGradient(636, 352, 60, 636, 352, 390);
+      psh.addColorStop(0, 'rgba(28,38,52,.20)');
+      psh.addColorStop(0.75, 'rgba(28,38,52,.13)');
+      psh.addColorStop(1, 'rgba(28,38,52,0)');
+      c.fillStyle = psh;
+      c.beginPath(); c.ellipse(636, 352, 385, 62, 0, 0, TAU); c.fill();
 
       const ACC = '#1793b8', ACC_D = '#0e6f8c';
-      /* 主翼（上側） */
-      c.fillStyle = '#eef1f4'; c.strokeStyle = '#9aa6b1'; c.lineWidth = 2;
+      /* 主翼（上側）: つけ根→翼端へのシェーディング */
+      const wingU = c.createLinearGradient(520, 300, 788, 182);
+      wingU.addColorStop(0, '#dde3e9');
+      wingU.addColorStop(0.5, '#eef1f4');
+      wingU.addColorStop(1, '#f7f9fb');
+      c.fillStyle = wingU; c.strokeStyle = '#95a1ac'; c.lineWidth = 2;
       c.beginPath();
       c.moveTo(520, 300); c.lineTo(742, 182); c.lineTo(788, 182); c.lineTo(668, 300);
       c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = 'rgba(140,155,170,.18)';
+      c.fillStyle = 'rgba(120,140,158,.22)';
       c.beginPath(); c.moveTo(520, 300); c.lineTo(600, 258); c.lineTo(648, 258); c.lineTo(576, 300); c.closePath(); c.fill();
       c.fillStyle = ACC; c.fillRect(742, 178, 46, 7);
       c.fillStyle = '#ffd24a'; c.fillRect(742, 185, 46, 2.5);
       /* 主翼（下側） */
+      const wingL = c.createLinearGradient(520, 340, 788, 458);
+      wingL.addColorStop(0, '#d3dae1');
+      wingL.addColorStop(0.5, '#e2e7ec');
+      wingL.addColorStop(1, '#eef2f5');
       c.beginPath();
-      c.fillStyle = '#e2e7ec';
+      c.fillStyle = wingL;
       c.moveTo(520, 340); c.lineTo(742, 458); c.lineTo(788, 458); c.lineTo(668, 340);
       c.closePath(); c.fill(); c.stroke();
       c.fillStyle = ACC; c.fillRect(742, 455, 46, 7);
       c.fillStyle = '#ffd24a'; c.fillRect(742, 452.5, 46, 2.5);
       /* 水平尾翼 */
-      c.fillStyle = '#eef1f4';
+      c.fillStyle = '#e8edf1';
       c.beginPath(); c.moveTo(898, 305); c.lineTo(962, 258); c.lineTo(988, 258); c.lineTo(944, 305); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#dfe5ea';
       c.beginPath(); c.moveTo(898, 335); c.lineTo(962, 382); c.lineTo(988, 382); c.lineTo(944, 335); c.closePath(); c.fill(); c.stroke();
       /* エンジン（青いリング+ファン） */
       const eng = (y) => {
-        c.fillStyle = '#cfd6dd';
+        const eb = c.createLinearGradient(0, y, 0, y + 26);
+        eb.addColorStop(0, '#e6ebf0');
+        eb.addColorStop(0.35, '#cfd6dd');
+        eb.addColorStop(1, '#aab4bd');
+        c.fillStyle = eb;
         this.rr(536, y, 58, 26, 12); c.fill();
         c.strokeStyle = '#8d99a5'; c.lineWidth = 2; this.rr(536, y, 58, 26, 12); c.stroke();
         c.fillStyle = ACC;
@@ -790,9 +939,15 @@
       c.fill(fus);
       c.save();
       c.clip(fus);
-      /* おなか側のかげ */
-      c.fillStyle = '#e2e9ef';
-      c.fillRect(260, 334, 740, 20);
+      /* 胴体のシェーディング（上面ハイライト→腹の陰。光源=左上） */
+      const hull = c.createLinearGradient(0, 292, 0, 348);
+      hull.addColorStop(0, 'rgba(125,150,172,.20)');   // 上フチは空の映りこみ
+      hull.addColorStop(0.18, 'rgba(255,255,255,.85)'); // ハイライト帯
+      hull.addColorStop(0.42, 'rgba(255,255,255,.05)');
+      hull.addColorStop(0.78, 'rgba(96,118,138,.14)');
+      hull.addColorStop(1, 'rgba(70,92,112,.30)');      // 腹の陰
+      c.fillStyle = hull;
+      c.fillRect(258, 290, 745, 60);
       /* 青のチートライン（窓の下の飾り線） */
       c.fillStyle = ACC;
       c.fillRect(260, 329, 745, 3.5);
@@ -802,6 +957,11 @@
       c.fillStyle = ACC;
       c.beginPath(); c.moveTo(271, 306); c.quadraticCurveTo(282, 298, 300, 295); c.lineTo(300, 345); c.quadraticCurveTo(282, 342, 271, 334); c.closePath();
       c.globalAlpha = 0.12; c.fill(); c.globalAlpha = 1;
+      /* パネルのつなぎ目（ごく薄く） */
+      c.strokeStyle = 'rgba(120,135,150,.14)'; c.lineWidth = 1;
+      [420, 560, 700, 840].forEach((px) => {
+        c.beginPath(); c.moveTo(px, 292); c.lineTo(px, 348); c.stroke();
+      });
       c.restore();
       c.stroke(fus);
       /* まどの列 */
@@ -820,7 +980,10 @@
       c.lineTo(330, 334); c.quadraticCurveTo(310, 334, 296, 328);
       c.closePath(); c.fill();
       /* 垂直尾翼（上から見た形・雲マークつき） */
-      c.fillStyle = ACC;
+      const tail = c.createLinearGradient(890, 0, 996, 0);
+      tail.addColorStop(0, '#1ba0c6');
+      tail.addColorStop(1, ACC_D);
+      c.fillStyle = tail;
       c.beginPath();
       c.moveTo(890, 317); c.lineTo(980, 312); c.lineTo(996, 320); c.lineTo(980, 328); c.lineTo(890, 323);
       c.closePath(); c.fill();
@@ -1121,9 +1284,9 @@
         : (o.sway || 0);
       const top = yFeet - 24 - bob;                            // 頭のてっぺん
       c.save();
-      /* かげ */
-      c.fillStyle = 'rgba(40,50,60,.22)';
-      c.beginPath(); c.ellipse(x, yFeet + 1, 5.2, 2.2, 0, 0, TAU); c.fill();
+      /* かげ（光源=左上 → 右下へ少しずらす） */
+      c.fillStyle = 'rgba(30,40,54,.22)';
+      c.beginPath(); c.ellipse(x + 1.6, yFeet + 1.4, 5.4, 2.2, 0, 0, TAU); c.fill();
       /* 足（ネイビーの作業ズボン。歩くと交互に前後） */
       c.strokeStyle = '#39434f'; c.lineWidth = 2.4; c.lineCap = 'round';
       c.beginPath();
@@ -1149,6 +1312,12 @@
       c.lineTo(x + 3.9, top + 17);
       c.lineTo(x - 3.9, top + 17);
       c.closePath(); c.fill(); c.stroke();
+      /* ベスト下半分のかげ（体の丸みを出す） */
+      c.fillStyle = 'rgba(25,38,52,.14)';
+      c.beginPath();
+      c.moveTo(x - 4.25, top + 13); c.lineTo(x + 4.25, top + 13);
+      c.lineTo(x + 3.9, top + 17); c.lineTo(x - 3.9, top + 17);
+      c.closePath(); c.fill();
       /* 反射ベストの2本ライン（実物のハイビズと同じ） */
       c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.1;
       c.beginPath();
@@ -1199,8 +1368,8 @@
         }
         c.save();
         c.rotate(ang);
-        c.fillStyle = 'rgba(40,50,60,.16)';
-        c.beginPath(); c.ellipse(2, 5, 50, 16, 0, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(30,40,54,.18)';
+        c.beginPath(); c.ellipse(4, 7, 50, 16, 0, 0, TAU); c.fill();
         c.restore();
         c.rotate(ang);
         this.vehicleBody(e.type, active, gt, reverse);
