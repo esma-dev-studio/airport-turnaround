@@ -1126,7 +1126,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 /* 背の低い画面: すすめかたは「すすめかたを かえる」で開く */
 .sp-pace-more > summary {
   display: flex; align-items: center; gap: 4px; min-height: 44px;
-  list-style: none; cursor: pointer;
+  list-style: none;   /* 子の svg が「押せる部品」に数えられないよう cursor は変えない（ずかんの くわしく と同じ） */
   font-size: var(--fs-sm); font-weight: 700; color: var(--accent-d); line-height: 1.6;
 }
 .sp-pace-more > summary::-webkit-details-marker { display: none; }
