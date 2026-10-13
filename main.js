@@ -97,8 +97,8 @@
           if (r && !r.ok && r.reason) UI.toast(r.reason, 'warn');
         },
         onAssignEntity: (entityId, taskId) => {
-          if (!this.begun) { UI.toast('まずは「▶ スタート」を押してはじめよう', 'info'); return; }
-          if (this.cinematic) { UI.toast('✈ とうちゃく中… 駐機したら作業スタート！', 'info'); return; }
+          if (!this.begun) { UI.toast('まずは「▶ はじめる」を おしてね', 'info'); return; }
+          if (this.cinematic) { UI.toast('✈ いま とうちゃくしているよ。とまったら はじめよう', 'info'); return; }
           const r = Game.assignEntity(entityId, taskId);
           if (!r.ok) UI.toast(r.reason, 'warn');
         },
@@ -152,6 +152,10 @@
       document.addEventListener('keydown', (ev) => {
         if (!this.inGame() || !this.begun || (Game.state && Game.state.ended)) return;
         if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
+        /* モーダルを開いているときは何もしない。キーボードでボタンをえらんでいるときの Space はボタンを押す */
+        const bd = document.getElementById('modal-backdrop');
+        if (bd && !bd.classList.contains('hidden')) return;
+        if (ev.code === 'Space' && ev.target && ev.target.matches && ev.target.matches('button:focus-visible')) return;
         if (ev.code === 'Space') {
           ev.preventDefault();
           this.setSpeed(this.speed === 0 ? (this.prevSpeed || 1) : 0);
@@ -259,11 +263,11 @@
 
     onStartTask(id) {
       if (!this.begun) {
-        UI.toast('まずは「▶ スタート」を押してはじめよう', 'info');
+        UI.toast('まずは「▶ はじめる」を おしてね', 'info');
         return;
       }
       if (this.cinematic) {
-        UI.toast('✈ とうちゃく中… 駐機したら作業スタート！', 'info');
+        UI.toast('✈ いま とうちゃくしているよ。とまったら はじめよう', 'info');
         return;
       }
       const r = Game.startTask(id);
