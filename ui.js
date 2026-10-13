@@ -144,16 +144,16 @@
   ];
   const pickTrivia = () => TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
 
-  /* 👨‍✈️コーチのふきだし（初級=ステージ1のみ・節目で流れを実況） */
+  /* コーチのふきだし（初級=ステージ1のみ・節目で流れを実況）。{clean} などは、その作業のアイコンになる */
   const COACH_RULES = [
     { id: 'afterDeboard', when: (s) => s.tasks.deboard.status === 'done',
-      msg: '👨‍✈️ お客さんが降りたよ！つぎは『機内清掃』🧹と『機内食』🍱が始められる！' },
+      msg: 'お客さんが 降りたよ！ つぎは『{clean}機内清掃』と『{catering}機内食』が はじめられる！' },
     { id: 'afterClean', when: (s) => s.tasks.clean.status === 'done',
-      msg: '👨‍✈️ 機内がピカピカ！『乗客の搭乗』を始めよう。給油や積み込みは同時に続けてOK！' },
+      msg: '機内が ピカピカ！『{board}乗客の搭乗』を はじめよう。給油や 積み込みは 同時に つづけて いいよ！' },
     { id: 'beforeMatch', when: (s) => s.tasks.board.status === 'done' && s.tasks.load.status === 'done' && s.tasks.bagmatch.status !== 'done',
-      msg: '👨‍✈️ 仕上げの『手荷物照合』✅！乗っていない人の荷物がないか確認しよう。' },
+      msg: 'しあげの『{bagmatch}手荷物照合』！ 乗っていない お客さんの 荷物が ないか 確認しよう。' },
     { id: 'afterDoor', when: (s) => s.tasks.doorclose.status === 'done',
-      msg: '👨‍✈️ ドアクローズ完了🚪！点検が済んでいれば『プッシュバック』🚜で出発だ！' },
+      msg: '{doorclose}ドアクローズ かんりょう！ 点検が すんでいれば『{pushback}プッシュバック』で 出発だ！' },
   ];
 
   const Scene = {
@@ -1623,14 +1623,15 @@
       });
       this.els['btn-log-toggle'].addEventListener('click', () => {
         const open = this.els['panel-status'].classList.toggle('log-open');
-        this.els['btn-log-toggle'].textContent = open ? '📜 きろくをとじる ▴' : '📜 きろくを見る ▾';
+        this.setLogToggle(open);
       });
 
       /* ズーム */
-      this.els['btn-zoom-in'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1.3); });
-      this.els['btn-zoom-out'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1 / 1.3); });
-      this.els['btn-zoom-reset'].addEventListener('click', () => { Sfx.play('click'); Scene.resetCam(); });
+      this.els['btn-zoom-in'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1.3); this.updateTouchAction(); });
+      this.els['btn-zoom-out'].addEventListener('click', () => { Sfx.play('click'); Scene.zoomAt(1 / 1.3); this.updateTouchAction(); });
+      this.els['btn-zoom-reset'].addEventListener('click', () => { Sfx.play('click'); Scene.resetCam(); this.updateTouchAction(); });
 
+      this.initGameUi();
       this.bindCanvasInput();
 
       this.els['modal-backdrop'].addEventListener('click', (ev) => {
@@ -1642,11 +1643,59 @@
       document.addEventListener('pointerdown', () => Sfx.ensure(), { once: true });
     },
 
+    /* ゲーム画面の部品の登録（上の知らせ・ドロワー・スタッフ帯・リボン・ポップ） */
+    initGameUi() {
+      ['game-main', 'top-rail', 'coach-bubble', 'pause-chip', 'hud-remain-box', 'hud-remain-label', 'drawer-badge', 'drawer-nudge',
+        'res-scroll', 'btn-res-more', 'staff-pick', 'toast-global', 'panel-resources', 'zoom-ctrl'].forEach((id) => {
+        this.els[id] = document.getElementById(id);
+      });
+      this.els['hint-banner'].addEventListener('click', () => { Sfx.play('click'); this.onHintTap(); });
+      /* ドロワーの開閉（つまみ・自動でとじる・テストのどれでも）にあわせる */
+      new MutationObserver(() => this.syncDrawer()).observe(this.els['panel-tasks'], { attributes: true, attributeFilter: ['class'] });
+      /* スタッフ帯の高さ → --res-h */
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => { this.measureResH(); this.updateResMore(); }).observe(this.els['panel-resources']);
+        new ResizeObserver(() => this.placeRail()).observe(this.els['panel-status']);
+      }
+      window.addEventListener('resize', () => {
+        this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH();
+        if (this.spotPopTask && !this.isNarrow()) this.placeSpotPop(this.spotPopTask);
+      });
+      /* リボン: 手で動かした時刻（自動スクロールを3秒ひかえる）・続きの合図・吹き出しを閉じる */
+      const rib = this.els['flow-ribbon'];
+      const touched = () => { this._ribbonUserTs = performance.now(); };
+      ['wheel', 'touchstart', 'pointerdown'].forEach((t) => rib.addEventListener(t, touched, { passive: true }));
+      rib.addEventListener('scroll', () => { this.updateRibbonMore(); this.hideRibbonTip(); }, { passive: true });
+      /* スタッフ帯: 横スクロール（ホイールを横に）と「›」ボタン */
+      const rs = this.els['res-scroll'];
+      rs.addEventListener('scroll', () => this.updateResMore(), { passive: true });
+      rs.addEventListener('wheel', (ev) => {
+        if (Math.abs(ev.deltaY) > Math.abs(ev.deltaX) && rs.scrollWidth > rs.clientWidth + 1) {
+          rs.scrollLeft += ev.deltaY;
+          ev.preventDefault();
+        }
+      }, { passive: false });
+      this.els['btn-res-more'].addEventListener('click', () => {
+        Sfx.play('click');
+        rs.scrollBy({ left: Math.max(120, rs.clientWidth * 0.7), behavior: this.motionOk() ? 'smooth' : 'auto' });
+      });
+      /* スマホのシート・重なったスタッフのリスト: 外を押したら閉じる（開いた直後のイベントは無視） */
+      document.addEventListener('pointerdown', (ev) => {
+        const tgt = ev.target;
+        if (tgt === this.els['apron']) return;
+        if (this.spotPopTask && this.isNarrow() && performance.now() - (this._popOpenedAt || 0) > 350 &&
+            !this.els['spot-pop'].contains(tgt)) this.closeSpotPop();
+        if (!this.els['staff-pick'].contains(tgt)) this.closeStaffPick();
+      }, true);
+    },
+
     /* ---------------- キャンバス入力（タップ/ドラッグ/ズーム） ---------------- */
     bindCanvasInput() {
       const cv = this.els['apron'];
       const pointers = new Map();
       let dragMoved = false;
+      let tapCancelled = false;
+      let dragTh = 5;
       let pinchDist = null;
 
       const pos = (ev) => {
@@ -1660,7 +1709,10 @@
         try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* すでに離れたポインタ等は無視 */ }
         pointers.set(ev.pointerId, pos(ev));
         dragMoved = false;
+        tapCancelled = false;
         pinchDist = null;
+        /* 子どもの指は少し動くので、タッチは 10px・マウスは 5px まではタップとみなす */
+        dragTh = ev.pointerType === 'touch' ? 10 : 5;
       });
       cv.addEventListener('pointermove', (ev) => {
         if (!pointers.has(ev.pointerId)) return;
@@ -1672,6 +1724,7 @@
           const d = Math.hypot(a.x - b.x, a.y - b.y);
           if (pinchDist != null && d > 0) {
             Scene.zoomAt(d / pinchDist, (a.x + b.x) / 2, (a.y + b.y) / 2);
+            this.updateTouchAction();
           }
           pinchDist = d;
           dragMoved = true;
@@ -1679,16 +1732,22 @@
         }
         const prev = pointers.get(ev.pointerId);
         const dx = p.x - prev.x, dy = p.y - prev.y;
-        if (dragMoved || Math.hypot(dx, dy) > 6) {
-          dragMoved = true;
+        if (!dragMoved && Math.hypot(dx, dy) > dragTh) {
+          /* パンできないとき（ぜんたいが見えている）はドラッグにしない。大きく動いたらタップにもしない */
+          const canPan = Scene.canPan ? Scene.canPan() : true;
+          if (canPan) dragMoved = true;
+          else if (Math.hypot(dx, dy) > dragTh * 3) tapCancelled = true;
+        }
+        if (dragMoved) {
           Scene.panBy(dx, dy);
           pointers.set(ev.pointerId, p);
           cv.classList.add('dragging');
           this.closeSpotPop();
+          this.closeStaffPick();
         }
       });
       const up = (ev) => {
-        const wasTap = pointers.has(ev.pointerId) && !dragMoved && pointers.size === 1;
+        const wasTap = pointers.has(ev.pointerId) && !dragMoved && !tapCancelled && pointers.size === 1;
         const p = pointers.get(ev.pointerId);
         pointers.delete(ev.pointerId);
         cv.classList.remove('dragging');
@@ -1700,23 +1759,39 @@
         ev.preventDefault();
         const p = pos(ev);
         Scene.zoomAt(ev.deltaY < 0 ? 1.15 : 1 / 1.15, p.x, p.y);
+        this.updateTouchAction();
       }, { passive: false });
     },
 
     handleTap(sx, sy) {
       const s = this.state;
       if (!s || s.ended) return;
+      this.closeStaffPick();
+      /* 701〜1099px: 駐機場をさわったらドロワーをとじる（ドロワーの下の持ち場を押せるように） */
+      this.autoCloseDrawer();
       const hit = Scene.hitTest(s, sx, sy);
 
       if (hit && hit.type === 'entity') {
         const e = s.entities.find((x) => x.id === hit.id);
         this.closeSpotPop();
         if (e.taskId === null && (e.status === 'idle' || e.status === 'returning')) {
+          /* スマホ: まちあいの人が重なっているときは、だれをえらぶかのリストを出す */
+          if (e.kind === 'staff' && this.els['apron'].clientWidth < 600) {
+            const near = this.staffNear(s, sx, sy, 26);
+            if (near.length >= 2) { this.openStaffPick(near, sx, sy); return; }
+          }
           this.selected = (this.selected === e.id) ? null : e.id;
           Sfx.play('click');
-        } else {
-          const task = e.taskId ? s.tasks[e.taskId] : null;
-          this.toast(`${e.label}はいま${task ? `「${task.def.name}」のおしごと中` : 'いそがしいみたい'}`, 'info');
+        } else if (e.taskId) {
+          /* おしごと中・あつまり中の人: その持ち場へ送れる人をえらんでいたら送る。そうでなければ持ち場のポップを開く */
+          if (this.selected && window.Game.canAccept(e.taskId, this.selected)) {
+            this.cb.onAssignEntity(this.selected, e.taskId);
+            this.selected = null;
+            return;
+          }
+          const task = s.tasks[e.taskId];
+          const doing = task && task.status === 'active' ? 'を しているよ' : 'に むかっているよ';
+          this.openSpotPop(e.taskId, { note: `${this.gx(e.label)}は いま この おしごと${doing}` });
         }
         return;
       }
@@ -1734,6 +1809,41 @@
       this.closeSpotPop();
     },
 
+    /* タップした点の近くにいる、えらべるスタッフ（まちあい中・もどり中） */
+    staffNear(s, sx, sy, r) {
+      return s.entities.filter((e) => {
+        if (e.kind !== 'staff' || e.taskId !== null || (e.status !== 'idle' && e.status !== 'returning')) return false;
+        const rec = Scene.ent && Scene.ent[e.id];
+        if (!rec) return false;
+        const sp = Scene.sceneToScreen(rec.pos.x, rec.pos.y - 9);
+        return Math.hypot(sp.x - sx, sp.y - sy) <= r;
+      });
+    },
+    openStaffPick(list, sx, sy) {
+      const box = this.els['staff-pick'];
+      box.innerHTML = '<div class="sk-head">だれを えらぶ？</div>' + list.map((e) => {
+        const meta = window.RES_META.staff[e.type];
+        const skill = e.skill === 'vet' ? this.ico('vet') : e.skill === 'rookie' ? this.ico('rookie') : '';
+        return `<button class="sk-row" type="button" role="menuitem" data-id="${e.id}"><span class="rc-ico" style="--c:${meta.color}">${this.resIco(e.type)}</span>${skill}${this.resName(e.label)}</button>`;
+      }).join('');
+      box.querySelectorAll('.sk-row').forEach((b) => {
+        b.addEventListener('click', () => {
+          Sfx.play('click');
+          this.selected = b.dataset.id;
+          this.closeStaffPick();
+        });
+      });
+      box.classList.remove('hidden');
+      const wrap = this.els['apron-wrap'];
+      const w = box.offsetWidth, h = box.offsetHeight;
+      box.style.left = clamp(sx - w / 2, 8, Math.max(8, wrap.clientWidth - w - 8)) + 'px';
+      box.style.top = clamp(sy + 14, 8, Math.max(8, wrap.clientHeight - h - 8)) + 'px';
+    },
+    closeStaffPick() {
+      const box = this.els['staff-pick'];
+      if (box && !box.classList.contains('hidden')) { box.classList.add('hidden'); box.innerHTML = ''; }
+    },
+
     /* ---------------- ながれリボン（常時表示の進行バー） ----------------
      * 12の作業を「ステップ1〜7」の順に並べ、いまどこまで進んだかを一目で見せる。
      * 同じまるの中に入っている作業は「同時にできる仲間」。 */
@@ -1742,27 +1852,28 @@
       if (!wrap) return;
       this.ribbonChips = {};
       this.ribbonSteps = [];
+      this._ribbonFront = null;
       const rows = window.FLOW_ROWS;
-      wrap.innerHTML = '<span class="fr-lead">🗺<br>ながれ</span>' + rows.map((row, i) => {
+      wrap.innerHTML = '<span class="fr-lead" aria-hidden="true">ながれ</span>' + rows.map((row, i) => {
         const chips = row.tasks.map((id) => {
           const d = window.TASK_MAP[id];
-          return `<button class="fr-chip" data-task="${id}" title="${d.name}">${d.icon}<span class="fr-mark"></span></button>`;
+          return `<button class="fr-chip" data-task="${id}" title="${d.name}" aria-label="${d.name}">${this.taskIco(id)}<span class="fr-mark"></span></button>`;
         }).join('');
         return `<span class="fr-step" data-step="${row.step}">` +
-          `<button class="fr-num" data-step="${row.step}" title="ステップ${row.step}: ${row.title}">${row.step}</button>` +
+          `<button class="fr-num" data-step="${row.step}" aria-label="ステップ${row.step}">${row.step}</button>` +
           chips + '</span>' +
-          (i < rows.length - 1 ? '<span class="fr-arrow">›</span>' : '');
+          (i < rows.length - 1 ? '<span class="fr-arrow" aria-hidden="true">›</span>' : '');
       }).join('');
 
       wrap.querySelectorAll('.fr-chip').forEach((b) => {
         this.ribbonChips[b.dataset.task] = b;
-        b.addEventListener('click', () => { Sfx.play('click'); this.onRibbonChip(b.dataset.task); });
+        b.addEventListener('click', () => { Sfx.play('click'); this.onRibbonChip(b.dataset.task, b); });
       });
       wrap.querySelectorAll('.fr-num').forEach((b) => {
         const row = rows[Number(b.dataset.step) - 1];
         b.addEventListener('click', () => {
           Sfx.play('click');
-          this.toast(`【ステップ${row.step}】${row.cond}`, 'info');
+          this.ribbonTip(b, `<strong>ステップ${row.step}</strong>: ${this.gx(row.cond)}`);
         });
       });
       rows.forEach((row) => {
@@ -1771,23 +1882,50 @@
       this.updateRibbon();
     },
 
-    /* リボンのタップ: いまの状態におうじて「次にすること」へ案内する */
-    onRibbonChip(id) {
+    /* リボンのタップ: いまの状態におうじて「次にすること」へ案内する（答えは押したチップの真下に出す） */
+    onRibbonChip(id, el) {
       const s = this.state;
       if (!s) return;
       const t = s.tasks[id];
       if (t.status === 'locked') {
-        this.toast('🔒 ' + window.Game.lockReason(id), 'warn');
+        this.ribbonTip(el, this.ico('lock') + ' ' + this.gx(window.Game.lockReason(id)));
       } else if (t.status === 'done') {
-        this.toast(`✅ 「${t.def.name}」は もうおわったよ`, 'info');
+        this.ribbonTip(el, this.ico('check') + ' ' + this.gx(`「${t.def.name}」は もう おわったよ`));
       } else {
         this.openSpotPop(id);
       }
     },
 
+    /* 押した部品の真下に出す小さな吹き出し（3.5秒で消える。リボンを横にスクロールしたら消える） */
+    ribbonTip(el, html) {
+      let tip = this._frTip;
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.className = 'fr-tip hidden';
+        tip.setAttribute('role', 'status');
+        this.els['screen-game'].appendChild(tip);
+        this._frTip = tip;
+      }
+      tip.innerHTML = html;
+      tip.classList.remove('hidden');
+      const r = el.getBoundingClientRect();
+      const w = tip.offsetWidth;
+      const x = clamp(r.left + r.width / 2 - w / 2, 8, Math.max(8, window.innerWidth - w - 8));
+      tip.style.left = x + 'px';
+      tip.style.top = (r.bottom + 9) + 'px';
+      tip.style.setProperty('--tip-x', clamp(r.left + r.width / 2 - x, 14, w - 14) + 'px');
+      clearTimeout(this._frTipTimer);
+      this._frTipTimer = setTimeout(() => this.hideRibbonTip(), 3500);
+    },
+    hideRibbonTip() {
+      clearTimeout(this._frTipTimer);
+      if (this._frTip) this._frTip.classList.add('hidden');
+    },
+
     updateRibbon() {
       const s = this.state;
       if (!s || !this.ribbonChips) return;
+      const MARK = { 'fr-ready': 'play', 'fr-gathering': 'dots', 'fr-active': 'working', 'fr-done': 'check' };
       Object.keys(this.ribbonChips).forEach((id) => {
         const el = this.ribbonChips[id];
         const st = s.tasks[id].status;
@@ -1796,9 +1934,9 @@
         el.dataset.st = cls;
         el.classList.remove('fr-locked', 'fr-ready', 'fr-gathering', 'fr-active', 'fr-done');
         el.classList.add(cls);
-        el.querySelector('.fr-mark').textContent =
-          st === 'done' ? '✓' : (st === 'ready' ? '!' : '');
+        el.querySelector('.fr-mark').innerHTML = MARK[cls] ? this.ico(MARK[cls]) : '';
       });
+      let front = null;
       this.ribbonSteps.forEach(({ row, el }) => {
         if (!el) return;
         const sts = row.tasks.map((id) => s.tasks[id].status);
@@ -1806,83 +1944,198 @@
         const now = !done && sts.some((x) => x === 'ready' || x === 'gathering' || x === 'active');
         el.classList.toggle('fr-sdone', done);
         el.classList.toggle('fr-snow', now);
+        if (now) front = row.step;   // いま進められる中で、いちばん先のステップ
       });
+      if (front != null && front !== this._ribbonFront) {
+        this._ribbonFront = front;
+        this.scrollRibbonTo(front);
+      }
+      this.updateRibbonMore();
+    },
+    /* いまのステップが見えるところへ、リボンだけを横に動かす（ページは動かさない。手で動かした直後の3秒は動かさない） */
+    scrollRibbonTo(step) {
+      const wrap = this.els['flow-ribbon'];
+      const rec = this.ribbonSteps && this.ribbonSteps.find((x) => x.row.step === step);
+      if (!wrap || !rec || !rec.el) return;
+      if (performance.now() - (this._ribbonUserTs || -1e9) < 3000) return;
+      if (wrap.scrollWidth <= wrap.clientWidth + 1) return;
+      const left = wrap.scrollLeft + (rec.el.getBoundingClientRect().left - wrap.getBoundingClientRect().left) - 8;
+      wrap.scrollTo({ left, behavior: this.motionOk() ? 'smooth' : 'auto' });
+    },
+    updateRibbonMore() {
+      const w = this.els['flow-ribbon'];
+      if (!w) return;
+      const more = w.scrollLeft + w.clientWidth < w.scrollWidth - 2;
+      if (w.classList.contains('has-more') !== more) w.classList.toggle('has-more', more);
     },
 
     /* ---------------- 作業スポットのポップオーバー ---------------- */
-    openSpotPop(taskId) {
+    openSpotPop(taskId, opt) {
       const s = this.state;
-      const t = s.tasks[taskId];
+      const t = s && s.tasks[taskId];
       if (!t) return;
+      opt = opt || {};
+      this.autoCloseDrawer();
+      this.closeStaffPick();
+      this.hideRibbonTip();
       this.spotPopTask = taskId;
+      this._popOpenedAt = performance.now();
       const pop = this.els['spot-pop'];
       const G = window.Game;
-
       const rubi = window.rubi;
+
       let info = '';
+      let extra = '';
       const btns = [];
+      const cancellable = t.id !== 'pushback' && t.id !== 'depart';
       if (t.status === 'ready' || t.status === 'gathering') {
-        const missing = G.missingSummary(t.id);
-        info = missing
-          ? `あと <strong>${rubi(missing)}</strong> がひつよう。<br>スタッフや車をタップでおくるか、おまかせでOK！`
-          : rubi('メンバーがあつまっています。到着を待ちましょう。');
-        if (missing) btns.push({ label: t.status === 'gathering' ? '▶ おまかせでそろえる' : '▶ おまかせではじめる', cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
-        if (t.status === 'gathering') btns.push({ label: 'ストップ', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
-      } else if (t.status === 'active') {
-        info = rubi(`のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`);
-        if (t.id !== 'pushback' && t.id !== 'depart') {
-          btns.push({ label: 'ストップ', cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
+        const miss = this.missingHtml(t.id);
+        if (t.status === 'ready') {
+          info = (miss ? `ひつよう: ${miss}<br>` : '') +
+            `${this.ico('play')} はじめる で、あいている なかまが じどうで むかうよ`;
+          btns.push({ html: `${this.ico('play')}はじめる`, cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
+        } else {
+          info = miss ? `あと ${miss}` : 'みんな そろったよ。つくのを まってね';
+          if (miss) btns.push({ html: `${this.ico('play')}のこりを よぶ`, cls: 'btn-primary btn-sm', act: () => this.cb.onStartTask(t.id) });
+          if (cancellable) btns.push({ html: `${this.ico('stop')}ストップ`, cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
         }
+      } else if (t.status === 'active') {
+        info = this.gx(`のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`);
+        if (cancellable) btns.push({ html: `${this.ico('stop')}ストップ`, cls: 'btn-warnghost btn-sm', act: () => this.cb.onCancelTask(t.id) });
       } else if (t.status === 'locked') {
-        info = '🔒 ' + rubi(G.lockReason(t.id));
+        info = this.ico('lock') + ' ' + this.gx(G.lockReason(t.id));
+        /* つぎにすることへ進めるように: 前の作業がはじめられるなら、その作業を開くボタン。進んでいるなら進みぐあい */
+        const depId = G.lockDep ? G.lockDep(t.id) : null;
+        const dep = depId && s.tasks[depId];
+        if (dep && dep.status === 'ready') {
+          btns.push({ html: `${this.taskIco(dep.id)}「${rubi(dep.def.name)}」を みる`, cls: 'btn-primary btn-sm', act: () => this.openSpotPop(dep.id) });
+        } else if (dep && dep.status === 'active') {
+          const pct = clamp((dep.progress / G.effDur(dep)) * 100, 0, 100);
+          extra = `<div class="sp-dep"><span class="sp-ticon">${this.taskIco(dep.id)}</span><div class="tc-bar"><div class="tc-fill" style="width:${pct.toFixed(0)}%"></div></div></div>`;
+        }
       } else if (t.status === 'done') {
-        info = rubi(`✅ ${window.fmtClock(t.doneAt)}に かんりょう！`);
+        info = this.ico('check') + ' ' + this.gx(`${window.fmtClock(t.doneAt)}に かんりょう！`);
       }
       const opens = G.nextOpens(t.id);
-      if (t.status !== 'done' && opens.length) {
-        info += `<div class="sp-next">🔓 おわると → ${opens.map((d) => `${d.icon}${rubi(d.name)}`).join('・')}</div>`;
-      }
-      btns.push({ label: 'くわしく', cls: 'btn-ghost btn-sm', act: () => this.openTaskDetail(t.id) });
-
-      const paceHtml = window.PACE_ALLOWED.has(t.id) && t.status !== 'done' && t.status !== 'locked'
-        ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
-            `<button class="pace-btn pace-${p} ${t.pace === p ? 'on' : ''}" data-pace="${p}">${window.PACE[p].icon}${rubi(window.PACE[p].label)}</button>`).join('')}</div>`
+      const next = (t.status !== 'done' && t.status !== 'locked' && opens.length)
+        ? `<div class="sp-next">${this.ico('unlock')} おわると → ${opens.map((d) => `${this.taskIco(d.id)}${rubi(d.name)}`).join('・')}</div>`
         : '';
+      btns.push({ html: 'くわしく', cls: 'btn-ghost btn-sm', act: () => this.openTaskDetail(t.id) });
+      /* ストップはいちばん右へ（くわしく のとなりに置かない） */
+      btns.sort((a, b) => (a.cls.includes('btn-warnghost') ? 1 : 0) - (b.cls.includes('btn-warnghost') ? 1 : 0));
+
+      const paceHtml = t.status !== 'done' && t.status !== 'locked' ? this.paceHtml(t) : '';
 
       pop.innerHTML = `
-        <div class="sp-title"><span class="sp-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span>${t.def.icon} ${rubi(t.def.name)}</div>
-        <div class="sp-info">${info}</div>
-        ${paceHtml}
-        <div class="sp-btns" style="margin-top:6px;"></div>`;
+        <button class="sp-close" type="button" aria-label="とじる">${this.ico('close')}</button>
+        <div class="sp-body">
+          <div class="sp-title"><span class="sp-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span><span class="sp-ticon">${this.taskIco(t.id)}</span><span class="sp-name">${rubi(t.def.name)}</span></div>
+          ${opt.note ? `<div class="sp-note">${opt.note}</div>` : ''}
+          <div class="sp-info">${info}</div>
+          ${extra}
+          ${paceHtml}
+          ${next}
+          <div class="sp-btns"></div>
+        </div>`;
       const btnWrap = pop.querySelector('.sp-btns');
       btns.forEach((b) => {
         const el = document.createElement('button');
         el.className = 'btn ' + b.cls;
-        el.innerHTML = b.label;
+        el.innerHTML = b.html;
         el.addEventListener('click', () => { Sfx.play('click'); this.closeSpotPop(); b.act(); });
         btnWrap.appendChild(el);
       });
+      pop.querySelector('.sp-close').addEventListener('click', () => { Sfx.play('click'); this.closeSpotPop(); });
       pop.querySelectorAll('.pace-btn').forEach((el) => {
         el.addEventListener('click', () => {
           Sfx.play('click');
           this.cb.onSetPace(t.id, el.dataset.pace);
-          this.openSpotPop(taskId); // 表示更新
+          this.openSpotPop(taskId, opt); // 表示更新
         });
       });
 
-      /* スポットの近くに配置（画面外にはみ出さないように） */
-      const a = Scene.anchorOf(t.id) || [615, 320];
-      const sp = Scene.sceneToScreen(a[0], a[1]);
-      pop.classList.remove('hidden');
+      pop.classList.remove('hidden', 'sp-arrow-left', 'sp-arrow-right', 'sp-arrow-up');
+      if (this.isNarrow()) {
+        /* スマホは下からのシート（位置・高さは CSS が決める） */
+        pop.style.left = '';
+        pop.style.top = '';
+        pop.style.maxHeight = '';
+        return;
+      }
+      this.placeSpotPop(t.id);
+    },
+
+    /* 持ち場のそばに置く。ドロワー・スコア板・スタッフ帯・ズーム・上の知らせをよけて、右 → 左 → 下 の順にためす */
+    placeSpotPop(taskId) {
+      const pop = this.els['spot-pop'];
       const wrap = this.els['apron-wrap'];
-      const px = clamp(sp.x + 20, 8, wrap.clientWidth - 240);
-      const py = clamp(sp.y - 40, 8, wrap.clientHeight - pop.offsetHeight - 8);
-      pop.style.left = px + 'px';
-      pop.style.top = py + 'px';
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      if (Scene.resize && (Scene.cw !== W || Scene.ch !== H)) Scene.resize();   // 画面を出した直後でも、いまの大きさで計算する
+      const a = Scene.anchorOf(taskId) || [615, 320];
+      const sp = Scene.sceneToScreen(a[0], a[1]);
+      const wr = wrap.getBoundingClientRect();
+      /* 上下は スタッフ帯の上まで。入らないときはポップの中をスクロールする */
+      const resR = this.els['panel-resources'].getBoundingClientRect();
+      const bandB = Math.min(H, resR.top - wr.top) - 8;
+      pop.style.maxHeight = Math.max(160, bandB - 8) + 'px';
+      const w = pop.offsetWidth, h = pop.offsetHeight;
+      const rel = (el) => {
+        if (!el || el.classList.contains('hidden')) return null;
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return null;
+        return { x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height };
+      };
+      const pt = this.els['panel-tasks'];
+      const boxes = [
+        pt.classList.contains('closed') ? rel(this.els['btn-drawer-tasks']) : rel(pt),
+        rel(this.els['panel-status']), rel(this.els['panel-resources']), rel(this.els['zoom-ctrl']),
+        ...[...this.els['top-rail'].children].map(rel),
+      ].filter(Boolean);
+      const cover = (x, y) => boxes.reduce((sum, b) => {
+        const ix = Math.min(x + w, b.x + b.w) - Math.max(x, b.x);
+        const iy = Math.min(y + h, b.y + b.h) - Math.max(y, b.y);
+        return sum + (ix > 0 && iy > 0 ? ix * iy : 0);
+      }, 0);
+      const fit = (x, y) => [clamp(x, 8, Math.max(8, W - w - 8)), clamp(y, 8, Math.max(8, bandB - h))];
+      /* 上の知らせの下はし（そこより下に置けば、知らせにかからない） */
+      const railB = [...this.els['top-rail'].children].map(rel).filter(Boolean).reduce((m, b) => Math.max(m, b.y + b.h), 0);
+      const cands = [
+        { side: 'right', x: sp.x + 24, y: sp.y - 44 },
+        { side: 'right', x: sp.x + 24, y: railB + 8 },
+        { side: 'right', x: sp.x + 24, y: sp.y - h + 44 },
+        { side: 'left', x: sp.x - 24 - w, y: sp.y - 44 },
+        { side: 'left', x: sp.x - 24 - w, y: railB + 8 },
+        { side: 'left', x: sp.x - 24 - w, y: sp.y - h + 44 },
+        { side: 'below', x: sp.x - w / 2, y: sp.y + 28 },
+      ];
+      let best = null;
+      for (const c of cands) {
+        const [x, y] = fit(c.x, c.y);
+        const onAnchor = sp.x > x - 6 && sp.x < x + w + 6 && sp.y > y - 6 && sp.y < y + h + 6;
+        const score = cover(x, y) + (onAnchor ? 1e7 : 0);
+        if (!best || score < best.score) best = { side: c.side, x, y, score };
+        if (score === 0) break;
+      }
+      pop.style.left = best.x + 'px';
+      pop.style.top = best.y + 'px';
+      /* しっぽ（置いた側に、持ち場を指す三角。持ち場の高さにとどくときだけ） */
+      const reachY = sp.y >= best.y + 12 && sp.y <= best.y + h - 12;
+      if (best.side === 'right' && best.x >= sp.x && reachY) {
+        pop.classList.add('sp-arrow-left');
+        pop.style.setProperty('--ay', clamp(sp.y - best.y, 18, h - 18) + 'px');
+      } else if (best.side === 'left' && best.x + w <= sp.x && reachY) {
+        pop.classList.add('sp-arrow-right');
+        pop.style.setProperty('--ay', clamp(sp.y - best.y, 18, h - 18) + 'px');
+      } else if (best.side === 'below' && best.y >= sp.y) {
+        pop.classList.add('sp-arrow-up');
+        pop.style.setProperty('--ax', clamp(sp.x - best.x, 18, w - 18) + 'px');
+      }
     },
     closeSpotPop() {
       this.spotPopTask = null;
-      this.els['spot-pop'].classList.add('hidden');
+      const pop = this.els['spot-pop'];
+      pop.classList.add('hidden');
+      pop.style.maxHeight = '';
     },
 
     showScreen(name) {
@@ -1937,25 +2190,38 @@
       this.issueTask = null;
       this.coachShown = new Set();
       this.closeSpotPop();
+      this.closeStaffPick();
+      this.hideCoach();
+      this.hideRibbonTip();
+      this._toastQ = [];
+      this._openToast = null;
+      this._lastReady = null;
+      this._wxPaused = null;
+      this._lastHint = null;
 
       this.els['hud-stage-name'].textContent = state.stage.shortName;
       this.updateWeatherHud();
       this.els['hud-std'].textContent = window.fmtClock(state.stage.std);
       this.els['game-log'].innerHTML = '';
       this.els['event-banner'].classList.add('hidden');
+      this.els['screen-game'].classList.remove('has-event');
       this.els['toast-area'].innerHTML = '';
 
-      /* ドロワーの初期状態: 広い画面ではひらく */
-      this.els['panel-tasks'].classList.toggle('closed', window.innerWidth < 1100);
+      /* ドロワーの初期状態: 広い画面ではひらく（ステージの始めは すべらせずに置く） */
+      const pt = this.els['panel-tasks'];
+      pt.classList.add('no-anim');
+      pt.classList.toggle('closed', window.innerWidth < 1100);
+      void pt.offsetWidth;
+      pt.classList.remove('no-anim');
       this.els['panel-status'].classList.remove('log-open');
-      this.els['btn-log-toggle'].textContent = '📜 きろくを見る ▾';
+      this.setLogToggle(false);
 
       const rubi = window.rubi;
       this.els['start-overlay'].classList.remove('hidden');
-      this.els['start-overlay-title'].innerHTML = rubi(state.stage.name);
-      this.els['start-overlay-text'].innerHTML = rubi(state.stage.intro).replace(/\n/g, '<br>');
-      document.getElementById('start-trivia').innerHTML = '💡 まめちしき: ' + rubi(pickTrivia());
-      document.getElementById('pause-chip').classList.add('hidden');
+      this.els['start-overlay-title'].innerHTML = this.gx(state.stage.name);
+      this.els['start-overlay-text'].innerHTML = this.gx(state.stage.intro).replace(/\n/g, '<br>');
+      document.getElementById('start-trivia').innerHTML = this.ico('info') + ' まめちしき: ' + this.gx(pickTrivia());
+      this.els['pause-chip'].classList.add('hidden');
       this.prevMetrics = { safety: 100, punct: 100, sat: 100, cost: 100 };
 
       const list = this.els['task-list'];
@@ -1965,34 +2231,33 @@
         card.className = 'task-card';
         card.id = 'card-' + t.id;
         const reqs = window.taskReqList(t.def).map((r) =>
-          `<span class="req-chip" style="--c:${r.color}">${r.icon}${rubi(r.label)}×${r.n}</span>`).join('');
-        const paceHtml = window.PACE_ALLOWED.has(t.id)
-          ? `<div class="pace-ctrl">${['careful', 'normal', 'rush'].map((p) =>
-              `<button class="pace-btn pace-${p}" data-pace="${p}" title="${p === 'rush' ? 'はやいが、まんぞく度(安全)が下がる' : p === 'careful' ? 'ゆっくりだが、まんぞく度が上がる' : 'ふつうのはやさ'}">${window.PACE[p].icon}${rubi(window.PACE[p].label)}</button>`).join('')}</div>`
-          : '';
+          `<span class="req-chip" data-req="${r.kind === 'staff' ? 'staff' : 'vehicle'}:${r.type}" style="--c:${r.color}">${this.resIco(r.type)}${this.resName(r.label)}×${r.n}<span class="req-x hidden">${this.ico('close')}</span></span>`).join('');
         card.innerHTML = `
           <div class="tc-head">
             <span class="tc-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span>
-            <span class="tc-icon">${t.def.icon}</span>
+            <span class="tc-icon">${this.taskIco(t.id)}</span>
             <span class="tc-name">${rubi(t.def.name)}</span>
             <span class="tc-state"></span>
           </div>
-          <div class="tc-reqs">${reqs || '<span class="req-chip req-none">だれもいらない</span>'}</div>
+          <div class="tc-reqs">${reqs || '<span class="req-chip req-none">だれも いらない</span>'}</div>
+          <div class="tc-short"></div>
           <div class="tc-bar"><div class="tc-fill"></div></div>
           <div class="tc-foot">
             <span class="tc-time"></span>
             <span class="tc-extra"></span>
-            <span class="tc-prio ${t.def.priority === 'high' ? 'prio-high' : ''}">${t.def.priority === 'high' ? 'だいじ！' : 'ふつう'}</span>
+            ${t.def.priority === 'high' ? `<span class="tc-prio prio-high">${this.ico('alert')}だいじ</span>` : ''}
           </div>
-          ${paceHtml}
+          ${this.paceHtml(t)}
           <div class="tc-lockmsg"></div>
           <div class="tc-unlocks"></div>
           <div class="tc-btns">
-            <button class="btn btn-sm btn-primary tc-start">はじめる</button>
+            <button class="btn btn-sm btn-primary tc-start">${this.ico('play')}<span class="tc-start-txt">はじめる</span></button>
+            <button class="btn btn-sm btn-primary tc-issue hidden">${this.ico('alert')}どうする？ えらぶ</button>
             <button class="btn btn-sm btn-ghost tc-info">くわしく</button>
-            <button class="btn btn-sm btn-warnghost tc-cancel hidden">ストップ</button>
+            <button class="btn btn-sm btn-warnghost tc-cancel hidden">${this.ico('stop')}ストップ</button>
           </div>`;
         card.querySelector('.tc-start').addEventListener('click', () => this.cb.onStartTask(t.id));
+        card.querySelector('.tc-issue').addEventListener('click', () => { Sfx.play('click'); this.openEventModal(); });
         card.querySelector('.tc-info').addEventListener('click', () => { Sfx.play('click'); this.openTaskDetail(t.id); });
         card.querySelector('.tc-cancel').addEventListener('click', () => { Sfx.play('click'); this.cb.onCancelTask(t.id); });
         card.querySelectorAll('.pace-btn').forEach((el) => {
@@ -2011,23 +2276,121 @@
         const chip = document.createElement('span');
         chip.className = 'res-chip';
         chip.style.setProperty('--c', meta.color);
-        const skillMark = e.skill === 'vet' ? '⭐' : e.skill === 'rookie' ? '🔰' : '';
-        if (e.skill === 'vet') chip.title = 'ベテラン: おしごとが15%はやい';
-        if (e.skill === 'rookie') chip.title = 'ルーキー: おしごとが15%ゆっくり';
-        chip.innerHTML = `<span class="rc-ico">${meta.icon}</span><span class="rc-name">${skillMark}${window.rubi(e.label)}</span><span class="rc-st"></span>`;
+        const skillMark = e.skill === 'vet' ? this.ico('vet') : e.skill === 'rookie' ? this.ico('rookie') : '';
+        if (e.skill === 'vet') chip.dataset.skill = 'ベテラン（おしごとが はやい）';
+        if (e.skill === 'rookie') chip.dataset.skill = 'ルーキー（おしごとが ゆっくり）';
+        chip.innerHTML = `<span class="rc-ico">${this.resIco(e.type)}</span><span class="rc-name">${skillMark}${this.resName(e.label)}</span><span class="rc-st"></span>`;
         (e.kind === 'staff' ? sStrip : vStrip).appendChild(chip);
         this.chipEls[e.id] = chip;
       });
+      this.els['res-scroll'].scrollLeft = 0;
       this.buildRibbon();
       this.updateResources();
       this.updateMetrics();
       this.updateUnfinished();
       this.updateHint(true);
       this.updateClock(true);
+      this.syncDrawer();
+      this.updateTouchAction();
+      requestAnimationFrame(() => { this.measureResH(); this.updateResMore(); this.updateRibbonMore(); this.applyViewInsets(); });
     },
 
     hideStartOverlay() {
       this.els['start-overlay'].classList.add('hidden');
+    },
+
+    /* ---- 作業カード・持ち場ポップの部品 ---- */
+    /* 采配レバー（すすめかた）: 見出し + 3つのボタン + えらんだ方の効果の1行 */
+    paceHtml(t) {
+      if (!window.PACE_ALLOWED.has(t.id)) return '';
+      const ICO = { careful: 'gauge-slow', normal: 'gauge-mid', rush: 'gauge-fast' };
+      const btns = ['careful', 'normal', 'rush'].map((p) =>
+        `<button class="pace-btn pace-${p}${t.pace === p ? ' on' : ''}" data-pace="${p}" aria-pressed="${t.pace === p}" title="${this.paceEffText(t.id, p)}">${this.ico(ICO[p])}${window.rubi(window.PACE[p].label)}</button>`).join('');
+      const eff = this.paceEffText(t.id, t.pace);
+      return `<div class="pace-wrap"><div class="pace-head">すすめかた</div>` +
+        `<div class="pace-ctrl" role="group" aria-label="すすめかた">${btns}</div>` +
+        `<div class="pace-eff${t.pace !== 'normal' ? ' show' : ''}">${t.pace !== 'normal' ? eff : ''}</div></div>`;
+    },
+    /* 効果の文（tasks.js の PACE と SAFETY_SENSITIVE から作る。かなだけなので title にも使える） */
+    paceEffText(id, pace) {
+      if (pace === 'careful') return 'ゆっくり・まんぞく ＋2';
+      if (pace === 'rush') return 'はやい・まんぞく −3' + (window.SAFETY_SENSITIVE.has(id) ? '・あんぜん −5' : '');
+      return 'ふつうの はやさ';
+    },
+    isPausedTask(t) {
+      return window.Game.outdoorPaused() && t.def.outdoor && (t.status === 'active' || t.status === 'gathering');
+    },
+    /* 状態ピルの中身（アイコン+ことば。色だけにしない） */
+    stateHtml(t, paused, issue) {
+      const CHU = '<ruby>中<rt>ちゅう</rt></ruby>';
+      if (issue) return this.ico('alert') + 'トラブル！';
+      if (paused) {
+        const s = this.state;
+        const rest = Math.max(1, Math.ceil(s.outdoorPauseUntil - s.clock));
+        return this.ico('storm') + this.gx(`かみなりで おやすみ（あと約${rest}分）`);
+      }
+      switch (t.status) {
+        case 'locked': return this.ico('lock') + 'まだ';
+        case 'ready': return this.ico('play') + 'はじめられる';
+        case 'gathering': case 'moving': return this.ico('dots') + 'あつまり' + CHU;
+        case 'active': return this.ico('working') + 'おしごと' + CHU;
+        case 'done': return this.ico('check') + 'かんりょう！';
+        default: return '';
+      }
+    },
+    /* カードの下の1行（かかる時間・のこり・あと何が足りないか） */
+    timeHtml(t, paused) {
+      const G = window.Game;
+      if (t.status === 'done') return `かんりょう ${window.fmtClock(t.doneAt)}`;
+      if (t.status === 'active') return this.gx(`のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`);
+      if (t.status === 'gathering') {
+        if (paused) return this.gx('天気が よくなるまで まってね');
+        const miss = this.missingHtml(t.id);
+        return miss ? 'あと ' + miss : 'メンバーが むかっているよ';
+      }
+      return this.gx(`かかる時間 約${Math.ceil(G.effDur(t) - t.progress)}分`);
+    },
+    /* まだ そろっていない人・車（「[職種アイコン]ゲート×1」の形。職種・車の絵は Icons.res で出す） */
+    missingHtml(id) {
+      const G = window.Game;
+      if (!G.availableFor) return window.rubi(G.missingSummary(id));
+      return G.availableFor(id).map((r) => {
+        const m = r.kind === 'staff' ? window.RES_META.staff[r.type] : window.RES_META.vehicles[r.type];
+        return `${this.resIco(r.type)}${this.resName(m.short)}×${r.need}`;
+      }).join('・');
+    },
+    /* いま空いている人・車が足りない種類: チップを灰色+✕にし、はじめられるカードには「給油車が あと1だい たりない」を出す */
+    updateShortage(id) {
+      const s = this.state;
+      const card = this.cardEls[id];
+      if (!s || !card || !window.Game.availableFor) return;
+      const t = s.tasks[id];
+      const list = (t.status === 'ready' || t.status === 'gathering') ? window.Game.availableFor(id) : [];
+      const short = list.filter((r) => r.have < r.need);
+      card.querySelectorAll('.req-chip[data-req]').forEach((c) => {
+        const on = short.some((r) => `${r.kind}:${r.type}` === c.dataset.req);
+        if (c.classList.contains('req-short') !== on) {
+          c.classList.toggle('req-short', on);
+          c.querySelector('.req-x').classList.toggle('hidden', !on);
+        }
+      });
+      const line = t.status === 'ready' ? short.map((r) => {
+        const m = r.kind === 'staff' ? window.RES_META.staff[r.type] : window.RES_META.vehicles[r.type];
+        return `${this.resIco(r.type)}${this.resName(m.label)}が あと${this.countKana(r.kind, r.need - r.have)} たりない`;
+      }).join('、') : '';
+      const el = card.querySelector('.tc-short');
+      this.setHtml(el, line);
+      el.classList.toggle('show', !!line);
+    },
+    updateShortages() {
+      const s = this.state;
+      if (!s) return;
+      s.taskList.forEach((t) => { if (t.status !== 'done' && t.status !== 'locked') this.updateShortage(t.id); });
+    },
+    /* 人は「ひとり・ふたり」、車は「Nだい」（漢字の読みがゆれないよう、かなで書く） */
+    countKana(kind, n) {
+      if (kind === 'staff') return n === 1 ? ' ひとり' : n === 2 ? ' ふたり' : `${n}にん`;
+      return `${n}だい`;
     },
 
     /* ---------------- カード更新 ---------------- */
@@ -2039,70 +2402,63 @@
       if (!card) return;
       card.classList.remove('st-locked', 'st-ready', 'st-gathering', 'st-moving', 'st-active', 'st-done', 'st-paused', 'st-issue');
       card.classList.add('st-' + t.status);
-      const paused = window.Game.outdoorPaused() && t.def.outdoor &&
-        (t.status === 'active' || t.status === 'gathering');
+      const paused = this.isPausedTask(t);
       const issue = this.issueTask === id && t.status !== 'done';
       if (paused) card.classList.add('st-paused');
       if (issue) card.classList.add('st-issue');
       const rubi = window.rubi;
-      const stEl = card.querySelector('.tc-state');
-      const stMap = {
-        locked: '🔒 まだ', ready: 'はじめられるよ！', gathering: '🚶 あつまり中',
-        active: '⚙ おしごと中', done: '✅',
-      };
-      stEl.textContent = issue ? '⚠ トラブル！' : (paused ? '⏸ ストップ中（天気）' : (stMap[t.status] || t.status));
+      this.setHtml(card.querySelector('.tc-state'), this.stateHtml(t, paused, issue));
 
       const G = window.Game;
-      const timeEl = card.querySelector('.tc-time');
-      if (t.status === 'done') {
-        timeEl.textContent = `かんりょう ${window.fmtClock(t.doneAt)}`;
-      } else if (t.status === 'active') {
-        timeEl.textContent = (paused ? '⏸ ' : '') + `のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
-      } else if (t.status === 'gathering') {
-        const missing = G.missingSummary(id);
-        if (paused) timeEl.textContent = '⏸ 天気がよくなるまで待ってね…';
-        else if (missing) timeEl.innerHTML = 'あと ' + rubi(missing);
-        else timeEl.textContent = 'メンバーがむかっています…';
-      } else {
-        timeEl.textContent = `かかる時間 約${Math.ceil(G.effDur(t) - t.progress)}分`;
-      }
-      card.querySelector('.tc-extra').innerHTML = rubi(t.extra || '');
+      this.setHtml(card.querySelector('.tc-time'), this.timeHtml(t, paused));
+      this.setHtml(card.querySelector('.tc-extra'), this.gx(t.extra || ''));
 
       const fill = card.querySelector('.tc-fill');
       fill.style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
 
       const lockEl = card.querySelector('.tc-lockmsg');
       if (t.status === 'locked') {
-        lockEl.innerHTML = '🔒 ' + rubi(window.Game.lockReason(id));
+        this.setHtml(lockEl, this.ico('lock') + ' ' + this.gx(G.lockReason(id)));
         lockEl.classList.add('show');
       } else {
-        lockEl.textContent = '';
+        this.setHtml(lockEl, '');
         lockEl.classList.remove('show');
       }
 
       /* この作業がおわると、つぎに何が開くか（順番のつながりを見せる） */
       const unEl = card.querySelector('.tc-unlocks');
       if (unEl) {
-        const opens = window.Game.nextOpens(id).filter((d) => !d.auto);
+        const opens = G.nextOpens(id).filter((d) => !d.auto);
         if (opens.length && t.status !== 'done' && t.status !== 'locked') {
-          unEl.innerHTML = '🔓 おわると → ' + opens.map((d) => `${d.icon}${rubi(d.name)}`).join('・');
+          this.setHtml(unEl, this.ico('unlock') + ' おわると → ' + opens.map((d) => `${this.taskIco(d.id)}${rubi(d.name)}`).join('・'));
           unEl.classList.add('show');
         } else {
           unEl.classList.remove('show');
         }
       }
 
-      /* ペースの選択状態 */
+      /* ペースの選択状態と効果の1行 */
       card.querySelectorAll('.pace-btn').forEach((el) => {
-        el.classList.toggle('on', el.dataset.pace === t.pace);
+        const on = el.dataset.pace === t.pace;
+        el.classList.toggle('on', on);
+        el.setAttribute('aria-pressed', String(on));
       });
+      const effEl = card.querySelector('.pace-eff');
+      if (effEl) {
+        const show = t.pace !== 'normal';
+        this.setHtml(effEl, show ? this.paceEffText(id, t.pace) : '');
+        effEl.classList.toggle('show', show);
+      }
+
+      this.updateShortage(id);
 
       const btnStart = card.querySelector('.tc-start');
       const btnCancel = card.querySelector('.tc-cancel');
-      const gatherFilled = t.status === 'gathering' && !G.missingSummary(id);
-      btnStart.classList.toggle('hidden', t.status === 'active' || t.status === 'done' || gatherFilled);
-      btnStart.textContent = t.status === 'gathering' ? 'おまかせでそろえる' : 'はじめる';
+      const gatherFilled = t.status === 'gathering' && !(G.availableFor ? G.availableFor(id).length : G.missingSummary(id));
+      btnStart.classList.toggle('hidden', t.status === 'active' || t.status === 'done' || t.status === 'locked' || gatherFilled);
+      this.setHtml(btnStart.querySelector('.tc-start-txt'), t.status === 'gathering' ? 'のこりを よぶ' : 'はじめる');
       btnStart.disabled = false;
+      card.querySelector('.tc-issue').classList.toggle('hidden', !issue);
       const cancellable = (t.status === 'active' || t.status === 'gathering') && id !== 'pushback' && id !== 'depart';
       btnCancel.classList.toggle('hidden', !cancellable);
     },
@@ -2138,20 +2494,32 @@
       const s = this.state;
       if (!s) return;
       const w = s.weatherNow || s.stage.weather;
-      this.els['hud-weather'].textContent = `${w.icon} ${w.label}`;
+      const paused = window.Game.outdoorPaused();
+      this._wxPaused = paused;
+      const el = this.els['hud-weather'];
+      /* かみなりで そとの おしごとが止まっている間だけ、こはく色の札+かみなりのアイコン */
+      const name = paused ? 'storm' : (window.Icons.emojiName(w.icon) || ({ '\u{1F325}': 'cloud' })[String(w.icon).replace(/\uFE0F/g, '')] || 'sun');
+      const label = paused ? 'そとの おしごとは おやすみ' : w.label;
+      this.setHtml(el, this.ico(name) + `<span class="wx-label">${this.gx(label)}</span>`);
+      el.classList.toggle('wx-storm', paused);
     },
 
     updateResources() {
       const s = this.state;
       if (!s) return;
-      const stMap = { idle: 'スタンバイ', moving: 'いどう中', working: 'おしごと中', returning: 'もどり中' };
+      const CHU = '<ruby>中<rt>ちゅう</rt></ruby>';
+      const ST = { moving: 'いどう' + CHU, working: 'おしごと' + CHU, returning: 'もどり' + CHU };
+      const TITLE = { idle: 'まちあい中', moving: 'いどう中', working: 'おしごと中', returning: 'もどり中' };
       s.entities.forEach((e) => {
         const chip = this.chipEls[e.id];
         if (!chip) return;
         chip.classList.remove('rs-idle', 'rs-moving', 'rs-working', 'rs-returning');
         chip.classList.add('rs-' + e.status);
         const task = e.taskId ? s.tasks[e.taskId] : null;
-        chip.querySelector('.rc-st').textContent = stMap[e.status] + (task ? ` ${task.def.icon}` : '');
+        /* まちあい中はピルを出さない（名前だけ） */
+        const html = e.status === 'idle' ? '' : (ST[e.status] || '') + (task ? this.taskIco(task.id) : '');
+        this.setHtml(chip.querySelector('.rc-st'), html);
+        chip.title = (chip.dataset.skill ? chip.dataset.skill + '・' : '') + (TITLE[e.status] || '');
       });
       /* 選択中のエンティティが使われたら選択解除 */
       if (this.selected) {
@@ -2163,6 +2531,23 @@
         const t = s.tasks[this.spotPopTask];
         if (!t || t.status === 'done') this.closeSpotPop();
       }
+      this.updateShortages();
+      this.updateResMore();
+    },
+    /* スタッフ帯: 右に続きがあるときだけ、右はしを うすくして「›」ボタンを出す */
+    updateResMore() {
+      const rs = this.els['res-scroll'];
+      if (!rs) return;
+      const more = rs.scrollLeft + rs.clientWidth < rs.scrollWidth - 2;
+      rs.classList.toggle('has-more', more);
+      this.els['btn-res-more'].classList.toggle('hidden', !more);
+    },
+    /* スタッフ帯の高さを測って、ドロワー・ズーム・トーストの位置（--res-h）に使う */
+    measureResH() {
+      const p = this.els['panel-resources'];
+      if (!p || !p.offsetHeight || this.isNarrow()) return;
+      const h = p.offsetHeight + 'px';
+      if (this._resH !== h) { this._resH = h; this.els['game-main'].style.setProperty('--res-h', h); }
     },
 
     updateMetrics() {
@@ -2181,16 +2566,19 @@
           const span = document.createElement('span');
           span.className = 'metric-delta ' + (delta < 0 ? 'minus' : 'plus');
           span.textContent = (delta > 0 ? '+' : '') + delta;
-          bar.parentElement.parentElement.appendChild(span);
+          (bar.closest('.metric') || bar.parentElement).appendChild(span);
           setTimeout(() => span.remove(), 1500);
           bar.classList.remove('hit');
           void bar.offsetWidth;
           bar.classList.add('hit');
         }
         if (Math.abs(v - prev) >= 1) this.prevMetrics[key] = v;
-        if (num.textContent !== String(v)) num.textContent = String(v);
+        /* 40 未満は、数字も赤くして前に ⚠（色だけにしない） */
+        const low = v < 40;
+        this.setHtml(num, (low ? this.ico('alert') : '') + v);
+        num.classList.toggle('low', low);
         bar.style.width = v + '%';
-        bar.classList.toggle('low', v < 40);
+        bar.classList.toggle('low', low);
       };
       upd('safety', m.safety); upd('punct', m.punct); upd('sat', m.sat); upd('cost', m.cost);
     },
@@ -2200,16 +2588,33 @@
       if (!s) return;
       const n = s.taskList.filter((t) => t.status !== 'done').length;
       this.els['unfinished-count'].textContent = String(n);
-      /* ドロワーのバッジ: いま開始できる作業の数 */
+      /* ドロワーのバッジ: いま開始できる作業の数（「▶4」） */
       const ready = s.taskList.filter((t) => t.status === 'ready').length;
-      const badge = document.getElementById('drawer-badge');
-      badge.textContent = String(ready);
+      const badge = this.els['drawer-badge'] || document.getElementById('drawer-badge');
+      this.setHtml(badge, this.ico('play') + `<b>${ready}</b>`);
       badge.classList.toggle('hidden', ready === 0);
+      /* 閉じている間に、はじめられる数が増えたら、つまみの横に1回だけ知らせる */
+      const closed = this.els['panel-tasks'].classList.contains('closed') && !this.isNarrow();
+      if (this._lastReady != null && ready > this._lastReady && closed) this.showDrawerNudge(ready);
+      else if (ready !== this._lastReady && this.els['drawer-nudge'] && !this.els['drawer-nudge'].classList.contains('hidden')) {
+        /* 出ている吹き出しの数を いまの数にあわせる（0 になったら消す） */
+        if (ready > 0) this.els['drawer-nudge'].innerHTML = `はじめられる おしごとが ${ready}こ`;
+        else this.els['drawer-nudge'].classList.add('hidden');
+      }
+      this._lastReady = ready;
+    },
+    showDrawerNudge(n) {
+      const el = this.els['drawer-nudge'];
+      if (!el) return;
+      el.innerHTML = `はじめられる おしごとが ${n}こ`;
+      el.classList.remove('hidden');
+      clearTimeout(this._nudgeTimer);
+      this._nudgeTimer = setTimeout(() => el.classList.add('hidden'), 4000);
     },
 
-    /* 一時停止チップ */
+    /* 一時停止の帯 */
     setPausedIndicator(show) {
-      document.getElementById('pause-chip').classList.toggle('hidden', !show);
+      this.els['pause-chip'].classList.toggle('hidden', !show);
     },
 
     updateHint(force) {
@@ -2218,11 +2623,16 @@
       if (!force && now - this.hintThrottle < 800) return;
       this.hintThrottle = now;
       const el = this.els['hint-banner'];
+      /* イベント・コーチを出している間、せまいタブレットでドロワーを開いている間は、ヒントを出さない */
+      const coachOn = this.els['coach-bubble'] && !this.els['coach-bubble'].classList.contains('hidden');
+      const drawerOver = window.matchMedia('(min-width: 701px) and (max-width: 1099px)').matches &&
+        !this.els['panel-tasks'].classList.contains('closed');
+      if (this.state.activeEvent || coachOn || drawerOver) { el.classList.add('hidden'); return; }
       const hint = window.Game.getHint();
       if (hint) {
         if (this._lastHint !== hint) {
           this._lastHint = hint;
-          el.innerHTML = '💡 ' + window.rubi(hint);
+          el.innerHTML = `<span class="hb-text">${this.ico('info')} ${this.gx(hint)}</span>`;
         }
         el.classList.remove('hidden');
       } else {
@@ -2230,24 +2640,86 @@
         el.classList.add('hidden');
       }
     },
+    /* ヒントを押したら、おすすめの作業を開く（はじめられるならポップ、そうでなければカード） */
+    onHintTap() {
+      const G = window.Game;
+      const id = G.getHintTarget ? G.getHintTarget() : null;
+      const t = id && this.state && this.state.tasks[id];
+      if (!t) return;
+      if (t.status === 'ready') { this.openSpotPop(id); return; }
+      const card = this.cardEls[id];
+      if (!card) return;
+      if (!this.isNarrow() && this.els['panel-tasks'].classList.contains('closed')) this.els['panel-tasks'].classList.remove('closed');
+      card.scrollIntoView({ block: 'nearest', behavior: this.motionOk() ? 'smooth' : 'auto' });
+      card.classList.remove('just-open');
+      void card.offsetWidth;
+      card.classList.add('just-open');
+    },
 
     addLog(entry) {
       const li = document.createElement('li');
       li.className = 'lg-' + entry.cls;
-      li.innerHTML = `<span class="lg-t">${window.fmtClock(entry.t)}</span>${window.rubi(entry.msg)}`;
+      const msg = String(entry.msg);
+      /* 色だけで見分けないよう、記号のない文には先頭に記号を足す */
+      const mark = /^\p{Extended_Pictographic}/u.test(msg) ? null : ({ warn: 'alert', bad: 'alert', ok: 'check' })[entry.cls];
+      li.innerHTML = `<span class="lg-t">${window.fmtClock(entry.t)}</span>${mark ? this.ico(mark) + ' ' : ''}${this.gx(msg)}`;
       const ul = this.els['game-log'];
       ul.prepend(li);
       while (ul.children.length > 40) ul.removeChild(ul.lastChild);
     },
 
+    /* トースト: 情報（紺）・注意（こはく）・トラブル（赤）。コーチの文はふきだしに出す */
     toast(msg, type) {
+      type = type || 'info';
+      if (type === 'coach') { this.showCoach(msg); return; }
+      this.pushToast(this.gx(msg), type);
+    },
+    pushToast(html, type) {
+      const gameOn = this.els['screen-game'].classList.contains('active');
+      /* モーダルを開いている間はためておき、閉じたあとで最新の1枚だけ出す */
+      if (gameOn && this.modalKind) {
+        this._toastQ = this._toastQ || [];
+        this._toastQ.push({ html, type });
+        if (this._toastQ.length > 8) this._toastQ.shift();
+        return null;
+      }
+      const area = gameOn ? this.els['toast-area'] : this.els['toast-global'];
+      if (!area) return null;
+      /* 同時に出すのは 広い画面で2枚・スマホで1枚まで（古いものから消す） */
+      [...area.children].forEach((n) => { if (n.classList.contains('out')) n.remove(); });
+      const max = this.isNarrow() ? 1 : 2;
+      while (area.children.length >= max) area.firstElementChild.remove();
       const div = document.createElement('div');
-      div.className = 'toast toast-' + (type || 'info');
-      div.innerHTML = window.rubi(msg);
-      this.els['toast-area'].appendChild(div);
-      const life = type === 'coach' ? 7200 : 3400;
+      div.className = 'toast toast-' + type;
+      div.innerHTML = html;
+      area.appendChild(div);
+      const life = 3400;
       setTimeout(() => { div.classList.add('out'); }, life);
       setTimeout(() => { div.remove(); }, life + 500);
+      return div;
+    },
+    /* 「〜が はじめられるよ！」: 1.5秒以内に続いたら、前の1枚に足す */
+    toastOpen(ids) {
+      const now = performance.now();
+      const o = this._openToast;
+      if (o && now - o.t < 1500 && o.el && o.el.isConnected && !o.el.classList.contains('out')) {
+        ids.forEach((id) => { if (!o.ids.includes(id)) o.ids.push(id); });
+        o.el.innerHTML = this.openToastHtml(o.ids);
+        o.t = now;
+        return;
+      }
+      const el = this.pushToast(this.openToastHtml(ids), 'open');
+      this._openToast = el ? { el, ids: ids.slice(), t: now } : null;
+    },
+    openToastHtml(ids) {
+      return this.ico('unlock') + ' ' + ids.map((id) => `「${this.taskIco(id)}${window.rubi(window.TASK_MAP[id].name)}」`).join('と') + 'が はじめられるよ！';
+    },
+    flushToastQ() {
+      const q = this._toastQ || [];
+      this._toastQ = [];
+      if (!q.length) return;
+      const pick = [...q].reverse().find((x) => x.type === 'bad') || [...q].reverse().find((x) => x.type === 'warn') || q[q.length - 1];
+      this.pushToast(pick.html, pick.type);
     },
 
     /* ---------------- 時計まわり ---------------- */
@@ -2259,38 +2731,152 @@
         this.lastClockText = text;
         this.els['hud-clock'].textContent = text;
       }
-      let remainText, late = false;
+      let raw, html, late = false;
+      const split = (str) => {
+        /* 数字は大きく、単位（分・分遅れ）はルビつきで小さく */
+        const r = window.rubi(str);
+        const mm = r.match(/^(\+?\d+)([\s\S]*)$/);
+        return mm ? `<span class="rem-v">${mm[1]}</span><span class="rem-u">${mm[2]}</span>` : `<span class="rem-v">${r}</span>`;
+      };
+      const rem = s.stage.std - s.clock;
       if (s.stats.blockOff != null) {
-        remainText = 'しゅっぱつ！';
+        raw = 'go';
+        html = '<span class="rem-done">しゅっぱつ！</span>';
+      } else if (rem >= 0) {
+        raw = 'r' + Math.ceil(rem);
+        html = split(`${Math.ceil(rem)}分`);
       } else {
-        const rem = s.stage.std - s.clock;
-        if (rem >= 0) remainText = `${Math.ceil(rem)}分`;
-        else { remainText = `+${Math.ceil(-rem)}分遅れ`; late = true; }
+        late = true;
+        raw = 'l' + Math.ceil(-rem);
+        html = split(`+${Math.ceil(-rem)}分遅れ`);
       }
-      if (force || remainText !== this.lastRemainText) {
-        this.lastRemainText = remainText;
+      if (force || raw !== this.lastRemainText) {
+        this.lastRemainText = raw;
         const el = this.els['hud-remain'];
-        el.textContent = remainText;
+        el.innerHTML = html;
         el.classList.toggle('late', late);
-        const rem = s.stage.std - s.clock;
-        el.classList.toggle('soon', !late && s.stats.blockOff == null && rem <= 10);
+        const soon = !late && s.stats.blockOff == null && rem <= 10;
+        el.classList.toggle('soon', soon);
+        this.els['hud-remain-box'].classList.toggle('soon', soon);
+        this.els['hud-remain-label'].textContent = soon ? 'のこり わずか' : 'のこり';
       }
     },
 
     setSpeedUI(n) {
+      this.speedNow = n;
       document.querySelectorAll('.speed-btn').forEach((b) => {
-        b.classList.toggle('active', Number(b.dataset.speed) === n);
+        const on = Number(b.dataset.speed) === n;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
       });
+    },
+
+    /* ---- ゲーム画面の小さな道具 ---- */
+    /* 表示する日本語: ルビ → 絵文字をアイコンに。▶ もアイコンにそろえる */
+    gx(text) {
+      if (text == null || text === '') return '';
+      const fixed = String(text)
+        .replace(/([ぁ-ゖ])車(?!両)/g, '$1<ruby>車<rt>くるま</rt></ruby>')
+        .replace(/([ァ-ー])車(?!両)/g, '$1<ruby>車<rt>しゃ</rt></ruby>');
+      return window.Icons.iconize(window.rubi(fixed))
+        .replace(/\u25B6\uFE0F?/g, this.ico('play'))
+        .replace(/\u23F0\uFE0F?/g, this.ico('hourglass'))
+        .replace(/\u{1F325}\uFE0F?/gu, this.ico('cloud'));
+    },
+    ico(name) { return window.Icons.svg(name); },
+    taskIco(id) { return window.Icons.svg(window.Icons.task(id)); },
+    resIco(type) { return window.Icons.svg(window.Icons.res(type)); },
+    /* 職種・車の名前（「押す車」の車は くるま、「ケータリング車」の車は しゃ） */
+    resName(label) { return this.gx(label); },
+    /* 中身が変わったときだけ書きかえる（250ms ごとの更新でルビが ちらつかないように） */
+    setHtml(el, html) {
+      if (el && el._raw !== html) { el._raw = html; el.innerHTML = html; }
+    },
+    isNarrow() { return window.matchMedia('(max-width: 700px)').matches; },
+    motionOk() { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; },
+    setLogToggle(open) {
+      const b = this.els['btn-log-toggle'];
+      b.innerHTML = `${this.ico('log')}<span class="lt-txt">${open ? 'きろくを とじる' : 'きろく'}</span><span class="lt-caret" aria-hidden="true">${open ? '▴' : '▾'}</span>`;
+      b.setAttribute('aria-expanded', String(open));
+    },
+    /* ドロワーの開閉にあわせて: 知らせの左の空き・とじている間はカードに入れない・駐機場の見える範囲 */
+    syncDrawer() {
+      const pt = this.els['panel-tasks'];
+      if (!pt || !this.els['game-main']) return;
+      const open = !pt.classList.contains('closed');
+      const wide = !this.isNarrow();
+      this.els['game-main'].classList.toggle('drawer-open', open && wide);
+      this.els['task-list'].inert = wide && !open;
+      this.placeRail();
+      if (open && this.els['drawer-nudge']) this.els['drawer-nudge'].classList.add('hidden');
+      this.applyViewInsets();
+      if (this.state) this.updateHint(true);
+    },
+    /* 701〜1023px でドロワーを開いているときは、上の知らせをスコア板の下に出す（ドロワーとスコア板のあいだは せますぎる） */
+    placeRail() {
+      const gm = this.els['game-main'], ps = this.els['panel-status'];
+      if (!gm || !ps) return;
+      const under = window.matchMedia('(min-width: 701px) and (max-width: 1023px)').matches &&
+        !this.els['panel-tasks'].classList.contains('closed') && !ps.classList.contains('log-open');
+      const t = under ? (ps.offsetTop + ps.offsetHeight) + 'px' : '0px';
+      if (gm.style.getPropertyValue('--rail-t') !== t) gm.style.setProperty('--rail-t', t);
+    },
+    applyViewInsets() {
+      if (!Scene.setViewInsets) return;
+      const pt = this.els['panel-tasks'], aw = this.els['apron-wrap'];
+      const open = !pt.classList.contains('closed');
+      const l = (!this.isNarrow() && open) ? Math.max(0, pt.offsetLeft + pt.offsetWidth - aw.offsetLeft + 8) : 0;
+      Scene.setViewInsets({ l, r: 0, t: 0, b: 0 });
+    },
+    /* 701〜1099px: 駐機場をさわったとき・持ち場ポップを開いたときは、ドロワーをとじる */
+    autoCloseDrawer() {
+      if (window.matchMedia('(min-width: 701px) and (max-width: 1099px)').matches) {
+        const pt = this.els['panel-tasks'];
+        if (!pt.classList.contains('closed')) pt.classList.add('closed');
+      }
+    },
+    /* スマホ: パンできないとき（ぜんたいが見えている）は、駐機場の上の縦スワイプでページを動かす */
+    updateTouchAction() {
+      const cv = this.els['apron'];
+      if (!cv) return;
+      if (!this.isNarrow()) { cv.style.touchAction = ''; return; }
+      const canPan = Scene.canPan ? Scene.canPan() : true;
+      cv.style.touchAction = canPan ? 'none' : 'pan-y';
     },
 
     /* ---------------- イベントUI ---------------- */
     showEventBanner(def) {
       const b = this.els['event-banner'];
-      b.innerHTML = `${def.icon} <strong>${window.rubi(def.title)}</strong> — タップしてえらぶ！`;
+      b._raw = null;
+      this._evTs = 0;
+      this.renderEventBanner(def);
       b.classList.remove('hidden');
+      this.els['screen-game'].classList.add('has-event');
+      this.updateHint(true);
+    },
+    /* 題名 + 「えらぶ」。期限が「N分後」のものは細いバー、作業の終わりが期限のものは「（あと約N分）」 */
+    renderEventBanner(def) {
+      const s = this.state;
+      const ev = s && s.activeEvent;
+      const d = (ev && ev.def) || def;
+      if (!d) return;
+      const G = window.Game;
+      let extra = '';
+      const dt = d.deadlineTask && s && s.tasks[d.deadlineTask];
+      if (dt && dt.status === 'active') extra = `（あと約${Math.max(1, Math.ceil(G.effDur(dt) - dt.progress))}分）`;
+      const timer = d.deadlineAfter != null;
+      const b = this.els['event-banner'];
+      this.setHtml(b, this.ico('alert') + `<span class="ev-title">${this.gx(d.title + extra)}</span><span class="ev-cta">えらぶ</span>` +
+        (timer ? '<span class="ev-timer" aria-hidden="true"><i></i></span>' : ''));
+      if (timer && ev) {
+        const p = clamp(1 - (s.clock - ev.firedAt) / d.deadlineAfter, 0, 1);
+        const bar = b.querySelector('.ev-timer i');
+        if (bar) bar.style.width = (p * 100).toFixed(1) + '%';
+      }
     },
     hideEventBanner() {
       this.els['event-banner'].classList.add('hidden');
+      this.els['screen-game'].classList.remove('has-event');
       if (this.modalKind === 'event') this.closeModal();
     },
     openEventModal() {
@@ -2463,10 +3049,35 @@
       });
     },
 
-    coach(msg) { this.toast(msg, 'coach'); },
+    coach(msg) { this.showCoach(msg); },
+    /* コーチのふきだし: 上の知らせの置き場に出す。新しい文は前の文を置きかえる（積み上げない）。
+     * 文の中の {clean} などは、その作業のアイコンにする（リボン・カードの絵とむすびつける） */
+    showCoach(msg) {
+      const el = this.els['coach-bubble'];
+      if (!el) return;
+      const text = String(msg).replace(/^\s*\u{1F468}\u200D\u2708\uFE0F?\s*/u, '');
+      /* 『アイコン 作業名』は1つのかたまりにして、行のとちゅうで切らない */
+      const body = this.gx(text)
+        .replace(/『\{([a-z]+)\}([\s\S]*?)』/g, (m, id, name) => `<span class="cb-term">『${this.taskIco(id) || ''}${name}』</span>`)
+        .replace(/\{([a-z]+)\}/g, (m, id) => this.taskIco(id) || '');
+      el.innerHTML = `<span class="cb-avatar" aria-hidden="true">${this.ico('headset')}</span>` +
+        `<span class="cb-text"><span class="cb-who">コーチ</span>${body}</span>` +
+        `<button class="cb-close" type="button" aria-label="とじる">${this.ico('close')}</button>`;
+      el.querySelector('.cb-close').addEventListener('click', () => { Sfx.play('click'); this.hideCoach(); });
+      el.classList.remove('hidden');
+      this._coachLeft = 12;   // 秒（時間を止めている間は数えない）
+      this.updateHint(true);
+    },
+    hideCoach() {
+      const el = this.els['coach-bubble'];
+      this._coachLeft = 0;
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.add('hidden');
+      this.updateHint(true);
+    },
     coachBegin() {
       if (this.state && this.state.stage.hints === true) {
-        this.coach('👨‍✈️ リーダー、到着だ！まずは『降機』🚶と『取り降ろし』📤。『給油』⛽と『点検』🔍も同時に始めよう！');
+        this.coach('リーダー、とうちゃくだ！ まずは『{deboard}降機』と『{unload}取り降ろし』。『{refuel}給油』と『{inspect}点検』も 同時に はじめよう！');
       }
     },
     checkCoach() {
@@ -2476,6 +3087,9 @@
         if (!this.coachShown.has(r.id) && r.when(s)) {
           this.coachShown.add(r.id);
           this.coach(r.msg);
+          /* 同じ処理の中で来る「はじめられるよ！」のトーストは出さない（コーチが同じことを言うため） */
+          this._coachTick = true;
+          setTimeout(() => { this._coachTick = false; }, 0);
           break;
         }
       }
@@ -2756,29 +3370,41 @@
       Scene.draw(s, dtReal, this);
       if (!s) return;
       this.updateClock();
+      /* コーチのふきだしは12秒で消す（時間を止めている間は数えない） */
+      if (this._coachLeft > 0 && (this.speedNow || 0) > 0) {
+        this._coachLeft -= dtReal;
+        if (this._coachLeft <= 0) this.hideCoach();
+      }
+      /* モーダルを開いた瞬間にトーストを片づけ、閉じたら ためていた最新の1枚を出す */
+      const mk = this.modalKind || null;
+      if (mk !== this._prevModal) {
+        if (mk && !this._prevModal) this.els['toast-area'].innerHTML = '';
+        else if (!mk && this._prevModal) this.flushToastQ();
+        this._prevModal = mk;
+      }
       const now = performance.now();
       if (now - this.domThrottle > 250) {
         this.domThrottle = now;
         const G = window.Game;
-        const outPaused = G.outdoorPaused();
         s.taskList.forEach((t) => {
+          const card = this.cardEls[t.id];
+          if (!card) return;
           if (t.status === 'active') {
-            const card = this.cardEls[t.id];
-            if (!card) return;
             card.querySelector('.tc-fill').style.width = `${clamp((t.progress / G.effDur(t)) * 100, 0, 100)}%`;
-            const timeEl = card.querySelector('.tc-time');
-            const txt = (outPaused && t.def.outdoor ? '⏸ ' : '') +
-              `のこり 約${Math.max(1, Math.ceil(G.effDur(t) - t.progress))}分`;
-            if (timeEl.textContent !== txt) timeEl.textContent = txt;
+            this.setHtml(card.querySelector('.tc-time'), this.timeHtml(t, this.isPausedTask(t)));
           } else if (t.status === 'locked') {
             /* 「あと約N分でおわったら〜」のカウントダウンを更新 */
-            const card = this.cardEls[t.id];
-            if (!card) return;
-            const lockEl = card.querySelector('.tc-lockmsg');
-            const html = '🔒 ' + window.rubi(G.lockReason(t.id));
-            if (lockEl._raw !== html) { lockEl._raw = html; lockEl.innerHTML = html; }
+            this.setHtml(card.querySelector('.tc-lockmsg'), this.ico('lock') + ' ' + this.gx(G.lockReason(t.id)));
+          }
+          if (t.status === 'active' || t.status === 'gathering') {
+            /* かみなりで おやすみ（あと約N分）の札を更新 */
+            const paused = this.isPausedTask(t);
+            if (card.classList.contains('st-paused') !== paused) card.classList.toggle('st-paused', paused);
+            this.setHtml(card.querySelector('.tc-state'), this.stateHtml(t, paused, this.issueTask === t.id && t.status !== 'done'));
           }
         });
+        if (this._wxPaused !== G.outdoorPaused()) this.updateWeatherHud();
+        if (s.activeEvent && now - (this._evTs || 0) > 500) { this._evTs = now; this.renderEventBanner(); }
         this.updateHint();
       }
     },
@@ -2799,9 +3425,9 @@
           }
           break;
         case 'unlocked':
-          /* 次に進めるようになった瞬間を、音+トースト+カード/リボン/持ち場の光りで知らせる */
+          /* 次に進めるようになった瞬間を、音+トースト+カード/リボン/持ち場の光りで知らせる（光りは1〜2回だけ） */
           Sfx.play('unlock');
-          this.toast('🔓 ' + payload.ids.map((id) => `「${window.TASK_MAP[id].icon}${window.TASK_MAP[id].name}」`).join('と') + 'が はじめられるよ！', 'open');
+          if (!this._coachTick) this.toastOpen(payload.ids);
           payload.ids.forEach((id) => {
             const card = this.cardEls[id];
             if (card) {
@@ -2837,12 +3463,18 @@
           this.issueTask = null;
           this.hideEventBanner();
           if (prev) this.updateCard(prev);
+          this.updateWeatherHud();
+          this.updateHint(true);
           break;
         }
         case 'stage-end':
           this.selected = null;
           this.closeSpotPop();
+          this.closeStaffPick();
           this.hideEventBanner();
+          this.hideCoach();
+          this.hideRibbonTip();
+          this._toastQ = [];
           this.setPausedIndicator(false);
           if (this.modalKind && this.modalKind !== 'tutorial') this.closeModal();
           break;
