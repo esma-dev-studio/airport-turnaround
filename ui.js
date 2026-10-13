@@ -146,8 +146,8 @@
   /* 作業ごとの持ち場（x, y, [車両の向きdeg]）。人や車が翼・エンジンに重ならないように置く。
    * 同時に出ることのある持ち場どうしは、サークル（半径25）と札が重ならないよう50px以上はなす */
   const SLOTS = {
-    deboard:   { staff: [[744, 186]] },                      // 搭乗橋の入口のそば（ターミナル側）
-    board:     { staff: [[744, 186]] },                      // 降機と同じ場所（同時には出ない）
+    deboard:   { staff: [[722, 198]] },                      // 搭乗橋のロタンダの左（持ち場の輪が橋にかからない所）
+    board:     { staff: [[722, 198]] },                      // 降機と同じ場所（同時には出ない）
     doorclose: { staff: [[836, 294]] },                      // L1ドアのよこ（搭乗橋のキャブの右）
     clean:     { staff: [[783, 230], [795, 256]] },          // 搭乗橋の通路を通って機内へ
     unload:    { staff: [[800, 440], [889, 465]], vehicles: { beltloader: [[ux(DOOR_U.fwdCargo), BELT_Y, -90]], cart: [[835, 460, 0]] } },
@@ -160,6 +160,10 @@
     depart:    {},
   };
   const TUG_SLOT = SLOTS.pushback.vehicles.pushback[0];
+  /* 持ち場の印（輪・進み具合・タップ）を、人の立つ所とは別の所に出す作業。
+   * 清掃の人は搭乗橋の通路の中を歩いて機内へ入るので、輪は橋の右の地面に出す（橋の上に輪を重ねない）。
+   * 機内食の輪は、積みこみ（load）の輪と同時に出るので、小さい画面で輪が大きくなっても重ならないよう少し左上に */
+  const SPOT_AT = { clean: [830, 222], catering: [544, 406] };
   /* 点検スタッフが機体を一周する経路（機首→左側→左エンジンの前→左の主脚→尾翼→右側→右の主脚→右エンジン→機首）。
    * 搭乗橋の下や翼・胴体の下をくぐるところは、上から見るとかくれる（うすいかげだけ出す） */
   /* 尾翼のところは、水平尾翼の先と尾のうしろのコーンの外を回りこむ（尾翼の上を歩かない） */
@@ -185,8 +189,11 @@
   const BRIDGE_PATH = [[ux(DOOR_U.L1), L1_EDGE - 1], [ux(DOOR_U.L1), L1_EDGE - 14], [770, 198], [770, 132]];
   const PAX_SIGN = [880, 169];             // 降機・搭乗の人数カウンターの位置
 
-  /* ---------- 背景キャッシュの範囲（左右にはみ出して描く。プッシュバック・出発で機体が左のはしをこえても地面がつづく） ---------- */
-  const BG_X0 = -260, BG_X1 = SCENE_W + 220;
+  /* ---------- 背景キャッシュの範囲（左右にはみ出して描く。プッシュバック・出発で機体が左のはしをこえても地面がつづく）。
+   * 出発は機体が x≈−260 まで走ってから消えるので、カメラが追っても左のはしが出ないよう −700 まで描く ---------- */
+  const BG_X0 = -700, BG_X1 = SCENE_W + 220;
+  /* 誘導路の下の路肩（舗装）の下のはし。プッシュバックで尾がふれても芝に出ないはば。その下は芝 */
+  const SHOULDER_Y1 = 726;
   /* カメラがはじめに入れる範囲: 制限区域と、そのまわりの待機所・車のおきば・押す車 */
   const FOCUS = { x0: 288, x1: 1054, y0: 144, y1: 562 };
   /* 場内の人の大きさ（ずかんの絵は 1 のまま）。機体が実寸の比率なので、人も実寸に近い 0.72（身長約1.9m）にする。
@@ -256,13 +263,15 @@
       shadowA: 0.6, shadowL: 0.85, move: 'rgba(40,60,90,.11)', wet: true, cloud: 'rgba(228,236,242,.85)',
     }),
     dusk: Object.assign({}, LIGHT_DAY, {
-      name: 'dusk', sky: ['#3e5480', '#f2a066', '#ffd9a6'],
-      sun: { x: 40, y: 26, r: 11, col: '#ff8a3d', glow: '255,150,80', gr: 58 }, cloudBand: null,
+      name: 'dusk', sky: ['#3e5480', '#f2a066', '#ffd9a6'], skyMid: [[0.45, '#7d6a96'], [0.75, '#c98a86']],
+      /* 太陽は看板（左上のスクリーン層の札）にかくれない位置 */
+      sun: { x: 140, y: 26, r: 11, col: '#ff8a3d', glow: '255,150,80', gr: 58 }, cloudBand: null,
       facade: ['#eadfd5', '#d2c6bc'], roof: '#ada19b', roofEdge: '#cfc3b9', tower: '#d9cdc3', towerCab: '#6d6a78',
       win: ['#f3cf92', '#d9a464'], winSheen: 'rgba(255,240,210,.25)', winGlow: 'rgba(255,196,110,.30)',
       apron: ['#b6b2ae', '#a29c98'], apronTint: 'rgba(255,140,70,.07)', warm: 'rgba(255,170,110,.12)',
       taxi: ['#999189', '#8b837c'], shoulder: '#a49c95', grass: '#77805f',
-      shadowA: 1.05, shadowL: 1.7, shadowCol: '40,30,50', move: 'rgba(255,130,60,.07)', flood: true, cloud: 'rgba(255,214,186,.9)',
+      shadowA: 1.05, shadowL: 1.7, shadowCol: '40,30,50', move: 'rgba(255,130,60,.10)', flood: true, cloud: 'rgba(255,214,186,.9)',
+      planeTint: 'rgba(255,160,100,.13)',   // 機体の絵に1回だけ焼きこむ夕日の色（白い胴体だけ昼のままに見えないように）
     }),
   };
   function lightOf(state) {
@@ -360,10 +369,12 @@
    * トーイングカーが機首を押して、誘導線にそってまっすぐうしろ（左）へ → しっぽを下（南）へふって機首を上に向ける
    * → そのまま下がって誘導路へ → しっぽを右（東）へふって、機首を出発の方向（左＝西）に向けて止まる。
    * 出発: 誘導路を左へ走り去る（車両おきば・スタッフのまちあいの前は通らない） */
-  const PUSH_R2 = 40;
+  /* 2つめの曲がり（しっぽを東へふる）は大きな半径で、早めに曲がりはじめる。尾が誘導路の下の路肩（y≤SHOULDER_Y1）から
+   * 芝へ出ないようにするため。押しおわる位置（主脚 x=PUSH_X）は今までと同じにして、縦の部分を左（x=PUSH_X−PUSH_R2）へよせる */
+  const PUSH_R2 = 140, PUSH_X = 100;
   let _push = null, _depart = null;
   const pushPath = () => _push || (_push = taxiPath(PIVOT_X, PLANE_CY, 180, [
-    { L: PIVOT_X - (LEAD_X + LEAD_R) }, { R: LEAD_R, a: -90 },
+    { L: PIVOT_X - (PUSH_X - PUSH_R2 + LEAD_R) }, { R: LEAD_R, a: -90 },
     { L: TAXI_Y - PUSH_R2 - (PLANE_CY + LEAD_R) }, { R: PUSH_R2, a: -90 },
   ]));
   const pushEnd = () => { const p = pushPath(); return p[p.length - 1]; };
@@ -559,6 +570,8 @@
       this._tween = null;
       this._follow = null;
       this._followOff = false;
+      this._hold = false;
+      this._relax = false;
     },
 
     /* 到着シネマティック: 誘導路からスポットへ入ってくる（動きを減らす設定では、すぐ駐機した形にする） */
@@ -663,10 +676,16 @@
       const R = this.camRange(z, false);
       return { zoom: z, cx: clamp(600, R.x[0], R.x[1]), cy: clamp(330, R.y[0], R.y[1]) };
     },
-    /* GAME から: ドロワーの開け閉めなどで、安全な範囲が変わったら呼ぶ（{l,r,t,b} はキャンバスの画面座標の余白px） */
+    /* GAME から: ドロワーの開け閉めなどで、安全な範囲が変わったら呼ぶ（{l,r,t,b} はキャンバスの画面座標の余白px）。
+     * 約束: わたした辺だけを、その値にする。わたさなかった辺は、ひきつづき DOM の欄（スコア・スタッフ・ズームのボタン）を測る。
+     * どれか1辺でもわたしたら、作業カードのドロワー（panel-tasks）は GAME が知らせるものとして測らない。
+     * 4辺ともわたすと、DOM は測らない（ズームのボタンなどの欄も GAME の値にふくめること）。 */
     setViewInsets(ins) {
-      this._insetsSet = true;
-      this._applyInsets(ins || {}, true);
+      const g = {};
+      ['l', 'r', 't', 'b'].forEach((s) => { if (ins && ins[s] != null && isFinite(+ins[s])) g[s] = Math.max(0, +ins[s]); });
+      this._given = g;
+      this._insetsSet = ['l', 'r', 't', 'b'].every((s) => g[s] != null);
+      this.pollInsets(0, true);
     },
     _applyInsets(ins, animate) {
       const n = { l: Math.max(0, +ins.l || 0), r: Math.max(0, +ins.r || 0), t: Math.max(0, +ins.t || 0), b: Math.max(0, +ins.b || 0) };
@@ -679,8 +698,10 @@
       this._endTween();
       const from = { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy, ins: { ...this.insets } };
       this.insets = n;
-      /* はじめの画角・ぜんたいのままなら、新しい範囲で決めなおす。自分で動かしたあとは、見ていた所を新しい範囲の中心に */
-      const to = this.camMode === 'fit' ? this.fitTarget() : this.camMode === 'all' ? this.allTarget()
+      /* はじめの画角・ぜんたいのままなら、新しい範囲で決めなおす。自分で動かしたあとは、見ていた所を新しい範囲の中心に。
+       * 出発しきったあとの余韻のあいだ（_hold）は、カメラを動かさない */
+      const to = this._hold ? { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy }
+        : this.camMode === 'fit' ? this.fitTarget() : this.camMode === 'all' ? this.allTarget()
         : (() => { const R = this.camRange(this.cam.zoom, !!this._relax); return { zoom: this.cam.zoom, cx: clamp(this.cam.cx, R.x[0], R.x[1]), cy: clamp(this.cam.cy, R.y[0], R.y[1]) }; })();
       to.ins = n;
       this.insets = from.ins;
@@ -706,14 +727,44 @@
       this.insets = { ...w.to.ins };
       Object.assign(this.cam, { zoom: w.to.zoom, cx: w.to.cx, cy: w.to.cy });
     },
-    /* setViewInsets が呼ばれないあいだは、DOM の欄を測って安全な範囲にする（0.4秒ごと） */
+    /* 安全な範囲を決める（0.4秒ごと）。setViewInsets でわたされた辺はその値、わたされていない辺は DOM の欄を測った値 */
     pollInsets(dt, force) {
-      if (this._insetsSet || !this.cw) return;
+      if (!this.cw) return;
+      const g = this._given || {};
+      if (this._insetsSet) {
+        if (force) this._applyInsets(g, true);
+        return;
+      }
       this._pollT = (this._pollT || 0) - dt;
       if (this._pollT > 0 && !force) return;
       this._pollT = 0.4;
-      const f = this.freeRect();
-      this._applyInsets({ l: f.l, r: this.cw - f.r, t: f.t, b: this.ch - f.b }, true);
+      const f = this.freeRect(Object.keys(g).length > 0);
+      const m = { l: f.l, r: this.cw - f.r, t: f.t, b: this.ch - f.b };
+      const n = {};
+      ['l', 'r', 't', 'b'].forEach((s) => { n[s] = g[s] != null ? g[s] : m[s]; });
+      this._applyInsets(n, true);
+    },
+    /* キャンバスの上にときどき出る DOM（ストップ中の札・ヒント・知らせ・ズームのボタン・作業のタブなど）の矩形を測る（0.4秒ごと）。
+     * 案内板（看板・GATE・区画の名前）は、これに重なるときは描かない（半分かくれた案内板を出さない） */
+    pollCovers(dt) {
+      this._coverT = (this._coverT || 0) - dt;
+      if (this._coverT > 0 || !this.canvas || !this.canvas.getBoundingClientRect) return;
+      this._coverT = 0.4;
+      const cv = this.canvas.getBoundingClientRect(), out = [];
+      const els = ['pause-chip', 'hint-banner', 'event-banner', 'zoom-ctrl', 'spot-pop', 'btn-drawer-tasks'].map((id) => document.getElementById(id));
+      const ta = document.getElementById('toast-area');
+      if (ta) els.push(...ta.children);
+      els.forEach((el) => {
+        if (!el || el.classList.contains('hidden')) return;
+        const q = el.getBoundingClientRect();
+        if (q.width < 1 || q.height < 1) return;
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return;
+        const r = { l: q.left - cv.left, t: q.top - cv.top, r: q.right - cv.left, b: q.bottom - cv.top };
+        if (r.r <= 0 || r.b <= 0 || r.l >= this.cw || r.t >= this.ch) return;
+        out.push(r);
+      });
+      this._covers = out;
     },
     /* 自分でズーム・パンしたら、機体を追うのをやめる */
     _userCam(mode) {
@@ -747,7 +798,10 @@
       }
       const push = state.tasks.pushback.status, dep = state.tasks.depart.status;
       const phase = push === 'active' || (push === 'done' && dep !== 'done') || dep === 'active';
-      this._relax = phase || !!this._tween;   // 補間のあいだは、ゆるい範囲のまま（はしでとばない）
+      /* 出発しきったあと（結果の画面までの余韻）は、カメラをその場で止める。ゆるい範囲のままにして、はしでとばない */
+      const hold = dep === 'done';
+      this._hold = hold;
+      this._relax = phase || hold || !!this._tween;   // 補間のあいだは、ゆるい範囲のまま（はしでとばない）
       this._follow = phase && !this._followOff && tr.alpha > 0.05 ? true : null;
       if (!this._follow || this._tween) return;
       const m = this.transformPoint(PLANE_MID[0], PLANE_MID[1], tr);
@@ -757,38 +811,47 @@
       this.cam.cx += (tx - this.cam.cx) * k;
       this.cam.cy += (ty - this.cam.cy) * k;
     },
-    /* キャンバスのうち、上にのっているDOMの欄（右のスコア・下のスタッフ・左の作業カード）をのぞいた、
+    /* キャンバスのうち、上にのっているDOMの欄（右のスコア・下のスタッフ・左の作業カード・右下のズームのボタン）をのぞいた、
      * 見えている範囲（キャンバスの画面座標）。欄が大きすぎるときはキャンバス全体を返す。
-     * setViewInsets が呼ばれないときだけ使う */
-    freeRect() {
+     * skipDrawer=true のときは、作業カードのドロワーを測らない（GAME が setViewInsets で知らせる） */
+    freeRect(skipDrawer) {
       const full = { l: 0, t: 0, r: this.cw, b: this.ch };
       if (!this.canvas || !this.canvas.getBoundingClientRect) return full;
       const cv = this.canvas.getBoundingClientRect();
       const f = { ...full };
-      const boxes = [];
-      ['panel-status', 'panel-resources', 'panel-tasks'].forEach((id) => {
+      const boxOf = (id) => {
         const el = document.getElementById(id);
-        if (!el || el.classList.contains('closed')) return;   // とじた作業カード（とじる途中のアニメーションも）は数えない
+        if (!el || el.classList.contains('closed') || el.classList.contains('hidden')) return null;   // とじた作業カード（とじる途中のアニメーションも）は数えない
         const q = el.getBoundingClientRect();
         const b = { x0: q.left - cv.left, x1: q.right - cv.left, y0: q.top - cv.top, y1: q.bottom - cv.top };
-        if (q.width < 1 || q.height < 1 || b.x1 <= 0 || b.x0 >= this.cw || b.y1 <= 0 || b.y0 >= this.ch) return;
+        if (q.width < 1 || q.height < 1 || b.x1 <= 0 || b.x0 >= this.cw || b.y1 <= 0 || b.y0 >= this.ch) return null;
         b.wide = b.x1 - b.x0 > this.cw * 0.6;
-        boxes.push(b);
-      });
+        return b;
+      };
+      const boxes = ['panel-status', 'panel-resources'].concat(skipDrawer ? [] : ['panel-tasks']).map(boxOf).filter(Boolean);
       /* 横に長い欄（下のスタッフ欄など）は上か下の余白 */
       boxes.filter((b) => b.wide).forEach((b) => {
         if (b.y0 > this.ch / 2) f.b = Math.min(f.b, b.y0); else f.t = Math.max(f.t, b.y1);
       });
-      /* 横の欄（作業カード・スコア）は、左右の余白にするか、上下の余白にするかを、
+      /* 横の欄（作業カード・スコア・ズームのボタン）は、左右の余白にするか、上下の余白にするかを、
        * はじめの画角（FOCUS）が大きく入るほうにする（縦長の画面で右上だけにある欄は上の余白に） */
       const fit = (r) => Math.min((r.r - r.l) / (FOCUS.x1 - FOCUS.x0), (r.b - r.t) / (FOCUS.y1 - FOCUS.y0));
-      boxes.filter((b) => !b.wide).forEach((b) => {
+      const small = (r) => r.r - r.l < this.cw * 0.45 || r.b - r.t < this.ch * 0.45;
+      const addBox = (b) => {
         const side = { ...f }, vert = { ...f };
         if (b.x0 > this.cw / 2) side.r = Math.min(side.r, b.x0); else side.l = Math.max(side.l, b.x1);
         if (b.y0 + b.y1 < this.ch) vert.t = Math.max(vert.t, b.y1); else vert.b = Math.min(vert.b, b.y0);
-        Object.assign(f, fit(vert) > fit(side) * 1.08 ? vert : side);
-      });
-      if (f.r - f.l < this.cw * 0.45 || f.b - f.t < this.ch * 0.45) return full;
+        return fit(vert) > fit(side) * 1.08 ? vert : side;
+      };
+      boxes.filter((b) => !b.wide).forEach((b) => Object.assign(f, addBox(b)));
+      if (small(f)) return full;
+      /* ズームのボタン（右下）: 車のおきばがボタンの下にかくれないよう、ボタンも余白にする。
+       * そのせいで安全な範囲がせまくなりすぎるときは、ボタンだけあきらめる */
+      const z = boxOf('zoom-ctrl');
+      if (z && z.x1 > f.l && z.x0 < f.r && z.y1 > f.t && z.y0 < f.b) {
+        const g = addBox(z);
+        if (!small(g)) Object.assign(f, g);
+      }
       return f;
     },
     zoomAt(factor, px, py) {
@@ -856,6 +919,7 @@
     },
     /* 作業スポットの代表点（リング・バッジ・タップ判定に使う） */
     anchorOf(taskId) {
+      if (SPOT_AT[taskId]) return SPOT_AT[taskId];
       const slots = SLOTS[taskId] || {};
       if (slots.staff && slots.staff[0]) return slots.staff[0];
       if (slots.vehicles) {
@@ -949,13 +1013,15 @@
 
     /* 人・車の当たり判定の中心（シーン座標）。人は体の中ほど、車は車体の外形のまん中 */
     hitCenter(e, rec) {
-      if (e.kind === 'staff') return [rec.pos.x, rec.pos.y - PERSON_MID];
+      if (e.kind === 'staff') return [rec.pos.x, rec.pos.y - PERSON_MID * this.personK()];
       const ex = VEH_EXT[e.type] || [-40, 40, -12, 12];
       const mx = (ex[0] + ex[1]) / 2, a = rec.drawAngle != null ? rec.drawAngle : rec.angle;
       return [rec.pos.x + Math.cos(a) * mx, rec.pos.y + Math.sin(a) * mx];
     },
     /* 小さい画面で持ち場・予告・進行リング・スキルの印だけを大きくする倍率（人と車には掛けない） */
     spotK() { const S = this.scale() || 1; return Math.min(2, Math.max(1, 0.6 / S)); },
+    /* 小さい画面（S<0.6）では、人も少し大きく描く（見つけやすく・押しやすく。最大1.6倍）。当たり判定・選択リングの中心も合わせる */
+    personK() { const S = this.scale() || 1; return S < 0.6 ? Math.min(1.6, 0.6 / S) : 1; },
 
     /* タップ判定: 人・車のいちばん近いものと、持ち場のいちばん近いものを両方求めて、近いほうを返す。
      * 距離は「画面上のピクセル」で比べる。押せる範囲は見た目とは別に、人は半径24px・車は22px以上（小学2年生の指でも押せる）。
@@ -997,37 +1063,41 @@
       return ent || spot;
     },
 
-    /* ---------- 演出（パーティクル・浮き文字） ---------- */
-    burst(x, y, n, colors) {
+    /* ---------- 演出（パーティクル・浮き文字） ----------
+     * 粒はスクリーン座標（画面px）で持つ。k は画面の大きさに合わせた倍率 */
+    burst(x, y, n, colors, k) {
+      k = k || 1;
       for (let i = 0; i < n; i++) {
         const a = Math.random() * TAU;
-        const sp = 40 + Math.random() * 90;
+        const sp = (40 + Math.random() * 90) * k;
         this.fx.parts.push({
           x, y,
-          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 50,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 50 * k,
           life: 0.9 + Math.random() * 0.5,
           age: 0,
-          size: 2.5 + Math.random() * 3,
+          g: 160 * k,
+          size: (2.5 + Math.random() * 3) * k,
           color: colors[i % colors.length],
         });
       }
     },
-    /* 知らせの札（スクリーン層に、白い角丸の札で出す。上へは動かさない） */
-    float(x, y, text, color) {
-      this.fx.floats.push({ x, y, text, color: color || '#1e3a5f', life: 2.2, age: 0 });
+    /* 知らせの札（スクリーン層に、白い角丸の札で出す。上へは動かさない）。
+     * scr=true の札は、シーンではなく安全な範囲（DOM の欄をのぞいた所）のまん中より少し上に出す */
+    float(x, y, text, color, scr) {
+      this.fx.floats.push({ x, y, text, color: color || '#1e3a5f', life: 2.2, age: 0, scr: !!scr });
     },
     /* 作業がおわったとき: ふだんは静かに（持ち場で緑の輪が1回広がり、「かんりょう」の札が1.2秒）。
-     * 紙ふぶきの粒は、出発してクリアしたときだけ */
+     * 紙ふぶきの粒は、出発してクリアしたときだけ。出発の札と粒は、カメラではなく安全な範囲を基準に置く
+     * （出発しきったあとカメラは止まるが、欄が開け閉めされても札と粒が欄の下に入らない） */
     celebrate(state, taskId) {
       if (taskId === 'depart') {
         const clear = !(state.flags && state.flags.critical);
-        if (clear && !reduceMotion()) {
+        if (clear && !reduceMotion() && this.cw) {
           const colors = ['#ffd166', '#57c98a', '#3bb0f2', '#f2544a', '#b07fe6'];
-          const v = this.screenToScene(this.viewCenter().x, this.viewCenter().y);
-          for (let i = 0; i < 5; i++) this.burst(v.x - 260 + i * 130, v.y - 20, 12, colors);
+          const I = this.insets, w = this.safeW(), h = this.safeH(), k = clamp(this.scale(), 0.6, 1.3);
+          for (let i = 0; i < 5; i++) this.burst(I.l + w * (0.18 + i * 0.16), I.t + h * 0.42, 12, colors, k);
         }
-        const v = this.screenToScene(this.viewCenter().x, this.viewCenter().y);
-        this.float(v.x, v.y - 60, clear ? 'いってらっしゃい！' : 'しゅっぱつ', '#0b5f78');
+        this.float(0, 0, clear ? 'いってらっしゃい！' : 'しゅっぱつ', '#0b5f78', true);
         return;
       }
       let a = this.anchorOf(taskId);
@@ -1040,19 +1110,22 @@
       this.spotFx['done:' + taskId] = 0;
       this.doneTags.push({ id: taskId, x: a[0], y: a[1], age: 0, life: 1.2 });
     },
-    /* 粒（クリアのときだけ）。シーン座標で描く */
-    drawFx(dtReal) {
-      const c = this.ctx;
+    /* 粒（クリアのときだけ）。スクリーン座標で、安全な範囲の中だけに描く（drawLabelsScreen から呼ぶ） */
+    drawFxScreen(dtReal) {
       this.fx.parts = this.fx.parts.filter((p) => (p.age += dtReal) < p.life);
+      if (!this.fx.parts.length) return;
+      const c = this.ctx, I = this.insets;
+      c.save();
+      c.beginPath(); c.rect(I.l, I.t, this.safeW(), this.safeH()); c.clip();
       this.fx.parts.forEach((p) => {
         p.x += p.vx * dtReal;
         p.y += p.vy * dtReal;
-        p.vy += 160 * dtReal;
+        p.vy += p.g * dtReal;
         c.globalAlpha = clamp(1 - p.age / p.life, 0, 1);
         c.fillStyle = p.color;
         c.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       });
-      c.globalAlpha = 1;
+      c.restore();
     },
 
     /* ---------- 描画ヘルパー ---------- */
@@ -1082,6 +1155,7 @@
       /* カメラ: 安全な範囲を決め（setViewInsets がなければ DOM を測る）、はじめの画角・補間・機体を追う */
       if (this.cw && this.ch) {
         this.pollInsets(dtReal, this._needFit);
+        this.pollCovers(dtReal);
         if (this._needFit) {
           this._needFit = false;
           this.camMode = 'fit';
@@ -1106,17 +1180,20 @@
 
       this.ensureBg(state);
       this.drawOutside();
-      c.drawImage(this.bgCanvas, BG_X0, 0, BG_X1 - BG_X0, SCENE_H);
+      this.drawBgVisible();
       this.drawSkyLife(state);
       this.addSignLabels(state);
+      this._spotDiscs = [];
       if (state) {
         this.updateBridge(state, dtReal);
         this._planeHome = this.arrivalT == null && Math.abs(tr.x) + Math.abs(tr.y) + Math.abs(tr.rot) < 0.5;
         const ents = this.layoutEntities(state, gt, tr, dtReal);
+        /* 雨の地面の波紋は地面の層（機体・車・人・持ち場の輪の下）に描く */
+        this.drawRainGround(state);
         /* 到着してくるあいだは、持ち場のサークルより機体を上に（走ってくる機体の下にかくれる） */
         const arriving = this.arrivalT != null;
         if (arriving) this.drawSpotLayer(state, ui, dtReal);
-        /* 重なり順: 地面の物（コーン・搭乗橋の影）→ 機体の下にいる物 → 機体 → 搭乗橋の下をくぐる人
+        /* 重なり順: 地面の物（雨の波紋・コーン・搭乗橋の影）→ 機体の下にいる物 → 機体 → 搭乗橋の下をくぐる人
          * → 搭乗橋の床 → 搭乗橋の中の人・乗客 → ガラスの屋根 → そのほか */
         this.drawCones(state);
         this.drawBridgeShadow();
@@ -1132,17 +1209,25 @@
         this.drawEntityLayer(state, ents, 'over', gt);
         this.drawPlaneOverlay(state, tr);
         this.drawGhosts(state, ents, gt);
-        /* 照明の色（夕方の暖色・雨の寒色）を、動く物の上に1回だけかぶせる。持ち場の印・リング・文字はこのあと */
+        /* 照明の色（夕方の暖色・雨の寒色）を、動く物の上に1回だけかぶせる。
+         * 持ち場の輪とアイコンの所はぬかす（契約の色のまま）。スキルの印・選択・進み具合の輪・文字はこのあと */
         this.drawMoveTint();
         this.drawBadges(state, ents);
         this.drawSelection(state, ents, ui);
         this.drawRings(state, tr);
         this.drawPaxCounter(state);
-        this.drawFx(dtReal);
         this.drawRain(state);
       }
       c.restore();
       this.drawLabelsScreen(state, dtReal);
+    },
+    /* 背景キャッシュのうち、画面に見えている所だけを貼る */
+    drawBgVisible() {
+      const B = this.viewBounds();
+      const x0 = Math.max(BG_X0, Math.floor(B.x0) - 2), x1 = Math.min(BG_X1, Math.ceil(B.x1) + 2);
+      const y0 = Math.max(0, Math.floor(B.y0) - 2), y1 = Math.min(SCENE_H, Math.ceil(B.y1) + 2);
+      if (x1 <= x0 || y1 <= y0) return;
+      this.ctx.drawImage(this.bgCanvas, (x0 - BG_X0) * 2, y0 * 2, (x1 - x0) * 2, (y1 - y0) * 2, x0, y0, x1 - x0, y1 - y0);
     },
 
     /* いま画面に見えている範囲（シーン座標） */
@@ -1158,30 +1243,51 @@
         const key = 'sky:' + L.name;
         this._grad = this._grad || {};
         if (!this._grad[key]) {
+          /* 上が濃く、y=0 で背景の空の色につながる。夕方は青→紫→ばら色→だいだいと、とちゅうの色を入れて茶色にくすませない */
           const g = c.createLinearGradient(0, -620, 0, 0);
-          g.addColorStop(0, L.sky[0]); g.addColorStop(1, L.sky[1]);
+          g.addColorStop(0, L.sky[0]);
+          (L.skyMid || []).forEach(([p, col]) => g.addColorStop(p, col));
+          g.addColorStop(1, L.sky[1]);
           this._grad[key] = g;
         }
         c.fillStyle = this._grad[key];
         c.fillRect(x0, B.y0 - 4, x1 - x0, -B.y0 + 4.5);
       }
       if (B.y1 > SCENE_H) {
+        /* 誘導路の下の路肩（舗装。プッシュバックで尾がふれても芝に出ない広さ）→ 芝 */
+        const sh = SHOULDER_Y1;
         c.fillStyle = L.shoulder;
-        c.fillRect(x0, SCENE_H - 0.5, x1 - x0, 14.5);
+        c.fillRect(x0, SCENE_H - 0.5, x1 - x0, sh - SCENE_H + 0.5);
         c.fillStyle = L.grass;
-        c.fillRect(x0, SCENE_H + 14, x1 - x0, B.y1 - SCENE_H - 10);
+        c.fillRect(x0, sh, x1 - x0, Math.max(0, B.y1 - sh + 4));
         if (!this._noisePat) this._noisePat = c.createPattern(this.noiseTile(), 'repeat');
         c.save();
         c.globalAlpha = 0.9;
         c.fillStyle = this._noisePat;
         c.fillRect(x0, SCENE_H - 0.5, x1 - x0, B.y1 - SCENE_H + 4);
         c.restore();
-        /* 芝のふち（路肩との境の陰）と、ところどころの濃い草 */
-        c.fillStyle = 'rgba(30,45,30,.18)';
-        c.fillRect(x0, SCENE_H + 14, x1 - x0, 2.5);
+        const h01 = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+        /* 路肩の黄色いしま（使わない路肩のしるし）。誘導灯のあいだに、うすく */
+        c.strokeStyle = L.yel; c.globalAlpha = 0.42; c.lineWidth = 2.2;
+        c.beginPath();
+        for (let x = Math.floor((x0 - 90) / 180) * 180 + 90; x < x1; x += 180) { c.moveTo(x, SCENE_H + 4); c.lineTo(x, sh - 7); }
+        c.stroke();
+        c.globalAlpha = 1;
+        /* 路肩と芝の境（芝がわに陰） */
+        c.fillStyle = 'rgba(30,45,30,.20)';
+        c.fillRect(x0, sh, x1 - x0, 2.5);
+        c.fillStyle = 'rgba(255,255,255,.10)';
+        c.fillRect(x0, sh - 1.5, x1 - x0, 1.2);
+        /* ところどころの濃い草（大きさ・向き・位置をばらつかせる） */
         c.fillStyle = 'rgba(40,60,35,.10)';
-        for (let x = Math.floor(x0 / 90) * 90; x < x1; x += 90) {
-          c.beginPath(); c.ellipse(x + 30, SCENE_H + 40 + ((x / 90) % 3) * 22, 34, 7, 0, 0, TAU); c.fill();
+        for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) {
+          const i = Math.round(x / 70);
+          for (let j = 0; j < 2; j++) {
+            const a = h01(i, j + 1), b = h01(i, j + 7), d = h01(i, j + 13);
+            c.beginPath();
+            c.ellipse(x + a * 70, sh + 18 + b * 64 + j * 30, 14 + d * 30, 4 + a * 6, (b - 0.5) * 0.5, 0, TAU);
+            c.fill();
+          }
         }
       }
       const H2 = this.bgCanvas.height, W2 = this.bgCanvas.width;
@@ -1192,13 +1298,17 @@
       if (x0 < BG_X0) { c.drawImage(this.bgCanvas, 0, 0, 1, H2, x0, 0, BG_X0 - x0 + 0.5, SCENE_H); side(x0, BG_X0); }
       if (x1 > BG_X1) { c.drawImage(this.bgCanvas, W2 - 1, 0, 1, H2, BG_X1 - 0.5, 0, x1 - BG_X1 + 0.5, SCENE_H); side(BG_X1, x1); }
     },
-    /* 動く物にかぶせる照明の色（夕方・雨・くもり・かみなり） */
+    /* 動く物にかぶせる照明の色（夕方・雨・くもり・かみなり）。
+     * 持ち場の輪（drawSoonSpots・drawSpots が _spotDiscs におぼえた円）は、くりぬいて色をかけない（契約の色を守る） */
     drawMoveTint() {
       const L = this.light;
       if (!L.move) return;
       const c = this.ctx, B = this.viewBounds();
       c.fillStyle = L.move;
-      c.fillRect(B.x0 - 2, B.y0 - 2, B.x1 - B.x0 + 4, B.y1 - B.y0 + 4);
+      c.beginPath();
+      c.rect(B.x0 - 2, B.y0 - 2, B.x1 - B.x0 + 4, B.y1 - B.y0 + 4);
+      (this._spotDiscs || []).forEach(([x, y, r]) => { c.moveTo(x + r, y); c.arc(x, y, r, 0, TAU); });
+      c.fill('evenodd');
     },
 
     /* ============ 背景（照明つき・静的部分はオフスクリーンに1回だけ描く） ============
@@ -1247,6 +1357,8 @@
       const X0 = BG_X0, X1 = BG_X1, W = X1 - X0;
       const shA = L.shadowA, shL = L.shadowL;
       const h01 = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+      /* くり返しの模様（窓・板・誘導灯など）の左はしの開始位置。base を通る step きざみのうち、X0 より左の最初の位置 */
+      const from = (base, step) => base - step * Math.ceil((base - X0) / step);
       /* --- 空（グラデーション）と太陽・雲の帯 --- */
       const sky = c.createLinearGradient(0, 0, 0, 30);
       sky.addColorStop(0, L.sky[1]); sky.addColorStop(1, L.sky[2]);
@@ -1266,7 +1378,7 @@
       if (L.cloudBand) {
         /* くもり・雨・かみなり: 太陽のかわりに空をおおう雲。かみなりは太陽の位置にとくに暗い雲 */
         c.fillStyle = L.cloudBand;
-        for (let x = X0 - 20; x < X1 + 40; x += 44) {
+        for (let x = from(-280, 44); x < X1 + 40; x += 44) {
           const k = h01(x, 3);
           c.beginPath(); c.ellipse(x, 7 + k * 12, 32 + k * 20, 7 + k * 4, 0, 0, TAU); c.fill();
         }
@@ -1286,7 +1398,7 @@
       c.fillRect(X0, 38, W, 88);
       const win = c.createLinearGradient(0, 52, 0, 106);
       win.addColorStop(0, L.win[0]); win.addColorStop(1, L.win[1]);
-      for (let x = 48 - 46 * 5; x < X1 - 60; x += 46) {
+      for (let x = from(48, 46); x < X1 - 60; x += 46) {
         if (L.winGlow) { c.fillStyle = L.winGlow; this.rr(x - 4, 48, 36, 62, 6); c.fill(); }
         c.fillStyle = win;
         c.fillRect(x, 52, 28, 54);
@@ -1328,7 +1440,7 @@
       c.fillStyle = ap;
       c.fillRect(X0, 138, W, SCENE_H - 138);
       const rows = [138, 230, 360, 490, 574];
-      for (let gx = 120 - 150 * 3; gx < X1; gx += 150) {
+      for (let gx = from(120, 150); gx < X1; gx += 150) {
         for (let r = 0; r < rows.length - 1; r++) {
           const h = h01(gx, rows[r]) - 0.5;   // ±3%
           c.fillStyle = h > 0 ? `rgba(255,255,255,${(h * 0.12).toFixed(3)})` : `rgba(20,28,36,${(-h * 0.06).toFixed(3)})`;
@@ -1369,7 +1481,7 @@
         });
       }
       /* コンクリートのつなぎ目（影＋ハイライトの2重線で彫りを出す） */
-      for (let x = 120 - 150 * 3; x < X1; x += 150) {
+      for (let x = from(120, 150); x < X1; x += 150) {
         c.strokeStyle = 'rgba(55,65,75,.14)'; c.lineWidth = 1.5;
         c.beginPath(); c.moveTo(x, 138); c.lineTo(x, 574); c.stroke();
         c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
@@ -1390,10 +1502,19 @@
         g.addColorStop(0, 'rgba(36,44,54,0)'); g.addColorStop(0.5, 'rgba(36,44,54,.045)'); g.addColorStop(1, 'rgba(36,44,54,0)');
         c.fillStyle = g; c.fillRect(x - 11, y, 22, 492 - y);
       });
-      /* 路面のよごれ・エンジンの下の油じみ・タイヤあと */
-      c.fillStyle = 'rgba(50,60,70,.07)';
-      [[210, 320, 60, 20], [1030, 260, 56, 18], [400, 462, 40, 12], [980, 440, 52, 16], [300, 210, 70, 16]].forEach(([x, y, w, h]) => {
-        c.beginPath(); c.ellipse(x, y, w, h, 0.3, 0, TAU); c.fill();
+      /* 路面のよごれ（ふちをぼかした、形の不ぞろいなうすいしみ。いくつかの小さなにじみを重ねる）・エンジンの下の油じみ・タイヤあと */
+      [[210, 320, 60, 20], [1030, 260, 56, 18], [980, 440, 52, 16], [300, 210, 70, 16]].forEach(([x, y, w, h], i) => {
+        for (let j = 0; j < 4; j++) {
+          const a = h01(i + 3, j), b = h01(i + 9, j), d = h01(i + 17, j);
+          const bx = x + (a - 0.5) * w * 0.9, by = y + (b - 0.5) * h * 0.9, bw = w * (0.35 + d * 0.4);
+          c.save();
+          c.translate(bx, by); c.rotate(0.3 + (a - 0.5) * 0.6); c.scale(1, (h / w) * (0.8 + b * 0.5));
+          const sg = c.createRadialGradient(0, 0, 0, 0, 0, bw);
+          sg.addColorStop(0, 'rgba(50,60,70,.045)'); sg.addColorStop(0.55, 'rgba(50,60,70,.025)'); sg.addColorStop(1, 'rgba(50,60,70,0)');
+          c.fillStyle = sg;
+          c.beginPath(); c.arc(0, 0, bw, 0, TAU); c.fill();
+          c.restore();
+        }
       });
       [[730, PLANE_CY - ENG_V * PK], [730, PLANE_CY + ENG_V * PK]].forEach(([x, y]) => {
         c.fillStyle = 'rgba(26,30,36,.11)';
@@ -1453,7 +1574,7 @@
       c.strokeStyle = L.yel; c.lineWidth = 2.6;
       c.beginPath(); c.moveTo(X0, TAXI_Y); c.lineTo(X1, TAXI_Y); c.stroke();
       const lamp = L.flood || L.name === 'storm';
-      for (let x = X0 + 20; x < X1; x += 60) {
+      for (let x = from(-240, 60); x < X1; x += 60) {
         [571.5, 633.5].forEach((y) => {
           if (lamp) {
             const gl = c.createRadialGradient(x, y, 0, x, y, 7);
@@ -1694,7 +1815,8 @@
       const L = lit > 0 ? 1 : -1;
       /* 解像度: 最大ズーム(2.6倍)×devicePixelRatio に合わせて2〜6倍 */
       const q = clamp(Math.ceil(this.baseScale() * this.dpr * 2.6 - 0.15), 2, 6);
-      const key = q + '|' + (wet ? 1 : 0);
+      const tint = this.light.planeTint || null;
+      const key = q + '|' + (wet ? 1 : 0) + '|' + (tint || '');
       const G = planeGeometry();
       const mk = (w, h) => { const cv = document.createElement('canvas'); cv.width = Math.ceil(w); cv.height = Math.ceil(h); return cv; };
       if (!this._plane || this._plane.key !== key) {
@@ -1719,6 +1841,14 @@
         const g = body.getContext('2d');
         g.setTransform(qq, 0, 0, qq, -SPR.x0 * qq, -SPR.y0 * qq);
         this.renderPlaneBody(g, G, wet, L);
+        if (tint) {
+          /* 夕方: 機体の絵（不透明な所だけ）に夕日の色を1回だけかさねる */
+          g.setTransform(1, 0, 0, 1, 0, 0);
+          g.globalCompositeOperation = 'source-atop';
+          g.fillStyle = tint;
+          g.fillRect(0, 0, body.width, body.height);
+          g.globalCompositeOperation = 'source-over';
+        }
         P.body[L] = body;
       }
       return { body: P.body[L], shadow: P.shadow, ao: P.ao };
@@ -2435,13 +2565,14 @@
         if (rest == null) return;
         const a = this.anchorOf(t.id);
         if (!a) return;
+        (this._spotDiscs || (this._spotDiscs = [])).push([a[0], a[1], 21.5 * k]);
         c.save();
         c.translate(a[0], a[1]); c.scale(k, k);
         this.spotRing(18.5, C.soon, true, 'rgba(255,255,255,.55)', 3);
         this.spotIcon(t.id, 10, '#5f6f82', '#8796a8', 14);
         this.spotMark(9, 8.5, 'lock');
         c.restore();
-        this.pushLabel({ prio: 4, sx: a[0], sy: a[1] + 23 * k, ay: 't', dy: 3, parts: [{ t: `あと${rest}${funPun(rest)}` }], base: 10, style: 'soon', minS: 0.55 });
+        this.pushLabel({ prio: 4, sx: a[0], sy: a[1] + 23 * k, ay: 't', dy: 3, parts: [{ t: `あと${rest}${funPun(rest)}` }], base: 10, style: 'soon', minS: 0.55, ring: [a[0], a[1], 21.5 * k] });
       });
     },
 
@@ -2455,6 +2586,7 @@
         const a = this.anchorOf(t.id);
         if (!a) return;
         const acceptable = selected && G.canAccept(t.id, selected);
+        (this._spotDiscs || (this._spotDiscs = [])).push([a[0], a[1], 26 * k]);
         c.save();
         c.translate(a[0], a[1]); c.scale(k, k);
         if (acceptable) this.spotRing(23, C.accept, false, 'rgba(255,255,255,.6)', 4);
@@ -2467,7 +2599,7 @@
         /* あと何人・何台（アイコン+数字） */
         if (t.status === 'gathering') {
           const missing = G.missingIcons(t.id);
-          if (missing) this.pushLabel({ prio: 3, sx: a[0], sy: a[1] + 27 * k, ay: 't', dy: 2, parts: this.iconTextParts('あと ' + missing), base: 10, style: 'gather' });
+          if (missing) this.pushLabel({ prio: 3, sx: a[0], sy: a[1] + 27 * k, ay: 't', dy: 2, parts: this.iconTextParts('あと ' + missing), base: 10, style: 'gather', ring: [a[0], a[1], 26 * k] });
         }
       });
     },
@@ -2514,48 +2646,76 @@
     drawLabelsScreen(state, dt) {
       const c = this.ctx;
       if (!c || !this.cw) return;
-      const S = this.scale();
+      const S = this.scale(), I = this.insets;
+      /* 安全な範囲（キャンバスから DOM の欄をのぞいた所）。札はこの中に描く（欄の下に半分かくれない） */
+      const SR = { l: I.l, t: I.t, r: Math.max(I.l + 40, this.cw - I.r), b: Math.max(I.t + 40, this.ch - I.b) };
       /* 知らせの札（到着・出発）と、かんりょうの札（上へは動かさない） */
       this.fx.floats = this.fx.floats.filter((f) => (f.age += dt) < f.life);
       this.fx.floats.forEach((f) => {
         const a = clamp((f.life - f.age) / 0.5, 0, 1);
-        this.pushLabel({ prio: 0, sx: f.x, sy: f.y, parts: [{ t: f.text }], base: 16, min: 15, style: 'float', alpha: a });
+        if (f.scr) {
+          /* 出発の札: 安全な範囲のまん中より少し上（カメラが動いてもずれない） */
+          const hh = SR.b - SR.t;
+          this.pushLabel({ prio: 0, scr: true, sx: (SR.l + SR.r) / 2, sy: SR.t + hh / 2 - Math.min(60 * S, hh * 0.18), parts: [{ t: f.text }], base: 16, min: 15, style: 'float', alpha: a });
+        } else {
+          this.pushLabel({ prio: 0, sx: f.x, sy: f.y, parts: [{ t: f.text }], base: 16, min: 15, style: 'float', alpha: a });
+        }
       });
       this.doneTags = this.doneTags.filter((d) => (d.age += dt) < d.life);
       if (state) {
         const k = this.spotK();
         this.doneTags.forEach((d) => {
           const a = clamp((d.life - d.age) / 0.4, 0, 1);
-          this.pushLabel({ prio: 2.5, sx: d.x, sy: d.y - 30 * k, ay: 'b', parts: [{ i: 'check' }, { t: 'かんりょう' }], base: 11, style: 'done', alpha: a });
+          this.pushLabel({ prio: 2.5, sx: d.x, sy: d.y - 30 * k, ay: 'b', tx: d.x, ty: d.y, parts: [{ i: 'check' }, { t: 'かんりょう' }], base: 11, style: 'done', alpha: a });
         });
       }
       const list = (this._labels || []).slice().sort((p, q) => p.prio - q.prio);
       const placed = [];
+      const outOf = (q, m) => q.x < SR.l - m || q.x > SR.r + m || q.y < SR.t - m || q.y > SR.b + m;
       c.save();
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      /* 粒（クリアのときだけ）は札の下に */
+      this.drawFxScreen(dt);
       c.textBaseline = 'middle'; c.textAlign = 'left';
       list.forEach((L) => {
         if (L.minS && S < L.minS) return;
+        const p = L.scr ? { x: L.sx, y: L.sy } : this.sceneToScreen(L.sx, L.sy);
+        /* 札が指す物（持ち場・人・人数の看板）が欄の下にあるときは、札も出さない（はしへ寄せて、物とはなれた所に出さない） */
+        if (!L.scr && L.prio > 0 && L.prio < 8) {
+          const tp = L.ring ? this.sceneToScreen(L.ring[0], L.ring[1]) : L.tx != null ? this.sceneToScreen(L.tx, L.ty) : p;
+          if (outOf(tp, 2)) return;
+        }
         const fs = Math.max(L.min || 13, L.base * S);
         c.font = `bold ${fs.toFixed(1)}px ${CF}`;
         const pad = fs * 0.55, gap = fs * 0.22, isz = fs * 1.08;
         let w = 0;
-        L.parts.forEach((p, i) => { w += p.i ? isz : c.measureText(p.t).width; if (i) w += gap; });
+        L.parts.forEach((q, i) => { w += q.i ? isz : c.measureText(q.t).width; if (i) w += gap; });
         const bw = w + pad * 2, bh = Math.round(fs * 1.55);
-        const p = this.sceneToScreen(L.sx, L.sy);
         const x = p.x + (L.dx || 0), y = p.y + (L.dy || 0);
         const left = L.ax === 'l' ? x : x - bw / 2;
         const top = L.ay === 't' ? y : L.ay === 'b' ? y - bh : y - bh / 2;
         const R = { l: left, t: top, r: left + bw, b: top + bh };
-        if (R.r < 0 || R.l > this.cw || R.b < 0 || R.t > this.ch) return;
-        /* 案内板は、はしで切れるなら描かない。ほかの札は画面の中へずらす */
-        const out = R.l < 2 || R.t < 2 || R.r > this.cw - 2 || R.b > this.ch - 2;
+        if (R.r < SR.l || R.l > SR.r || R.b < SR.t || R.t > SR.b) return;
+        /* 案内板は、安全な範囲に全部入らなければ描かない。ほかの札は安全な範囲の中へずらす */
+        const out = R.l < SR.l + 2 || R.t < SR.t + 2 || R.r > SR.r - 2 || R.b > SR.b - 2;
         if (out && L.prio >= 8) return;
+        /* ときどき出る DOM（ストップ中の札・ヒント・知らせなど）の下に入る札は描かない（半分かくれた札を出さない） */
+        const covered = (Q) => (this._covers || []).some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
+        if (L.prio >= 8 && covered(R)) return;
         if (out) {
-          const dx = R.l < 4 ? 4 - R.l : R.r > this.cw - 4 ? this.cw - 4 - R.r : 0;
-          const dy = R.t < 4 ? 4 - R.t : R.b > this.ch - 4 ? this.ch - 4 - R.b : 0;
+          const dx = R.l < SR.l + 4 ? SR.l + 4 - R.l : R.r > SR.r - 4 ? Math.max(SR.l + 4 - R.l, SR.r - 4 - R.r) : 0;
+          const dy = R.t < SR.t + 4 ? SR.t + 4 - R.t : R.b > SR.b - 4 ? Math.max(SR.t + 4 - R.t, SR.b - 4 - R.b) : 0;
           R.l += dx; R.r += dx; R.t += dy; R.b += dy;
+          /* ずらした札が自分の持ち場の輪にかかるときは、輪の上へ置き直す（輪とアイコンをかくさない） */
+          if (L.ring) {
+            const rc = this.sceneToScreen(L.ring[0], L.ring[1]), rr = L.ring[2] * S;
+            if (R.l < rc.x + rr && R.r > rc.x - rr && R.t < rc.y + rr && R.b > rc.y - rr) {
+              R.t = rc.y - rr - 3 - bh; R.b = R.t + bh;
+              if (R.t < SR.t + 2) return;
+            }
+          }
         }
+        if (L.prio > 0 && covered(R)) return;
         if (placed.some((q) => R.l < q.r && R.r > q.l && R.t < q.b && R.b > q.t)) return;
         placed.push(R);
         this.drawLabelBox(c, L, R, fs, pad, gap, isz);
@@ -3081,7 +3241,7 @@
       const top = this.drawPerson(x, y, {
         color: meta.color,
         type: e.type,
-        scale: PERSON_K,
+        scale: PERSON_K * this.personK(),
         moving,
         working,
         ghost,
@@ -3097,7 +3257,7 @@
       ents.forEach((it) => {
         const e = it.e;
         if (e.kind !== 'staff' || (e.skill !== 'vet' && e.skill !== 'rookie') || it.layer === 'under' || it.layer === 'bridge') return;
-        const top = it.top != null ? it.top : it.y - 24 * PERSON_K;
+        const top = it.top != null ? it.top : it.y - 24 * PERSON_K * this.personK();
         c.save();
         c.translate(it.x, top - 4.5); c.scale(k, k);
         c.fillStyle = 'rgba(16,26,40,.25)'; c.beginPath(); c.arc(0.8, 1.2, 4.6, 0, TAU); c.fill();
@@ -3121,7 +3281,8 @@
         cx = it.x + Math.cos(it.ang) * mx; cy = it.y + Math.sin(it.ang) * mx;
         r = (ex[1] - ex[0]) / 2 + 5;
       } else {
-        cx = it.x; cy = it.y - PERSON_MID; r = 12.5;
+        const pk = this.personK();
+        cx = it.x; cy = it.y - PERSON_MID * pk; r = 12.5 * pk;
       }
       c.strokeStyle = '#fff'; c.lineWidth = 3.5;
       c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.stroke();
@@ -3136,7 +3297,7 @@
       if (e.skill === 'vet') parts.push({ i: 'vet' }, { t: 'はやい' });
       else if (e.skill === 'rookie') parts.push({ i: 'rookie' }, { t: 'ゆっくり' });
       parts.push({ t: '─ いきさきを タップ！' });
-      this.pushLabel({ prio: 1, sx: cx, sy: cy - r - 3, ay: 'b', dy: -3, parts, base: 11, style: 'sel' });
+      this.pushLabel({ prio: 1, sx: cx, sy: cy - r - 3, ay: 'b', dy: -3, tx: cx, ty: cy, parts, base: 11, style: 'sel' });
     },
 
     /* 駐機中のシーン座標の点が、いまの機体の姿勢でどこにあるか（中心=主脚） */
@@ -3242,11 +3403,36 @@
     },
 
     /* 雨（雷雨イベント中はつよく、雨のステージはずっとよわく）。すじは動く向き（右下へ）にそろえ、
-     * 地面に小さな波紋。画面に見えている範囲ぜんぶに降らせる */
-    drawRain(state) {
+     * 画面に見えている範囲ぜんぶに降らせる。地面の波紋は drawRainGround（地面の層）で描く */
+    rainMode(state) {
       const storm = state.outdoorPauseUntil != null && state.clock < state.outdoorPauseUntil;
       const always = !!(state.stage && state.stage.rainAll);
-      if (!storm && !always) return;
+      return storm ? 'storm' : always ? 'rain' : null;
+    },
+    /* 地面の波紋（20個。広がりながらうすくなる）。機体・車・人・持ち場の輪より前（下）に描くので、それらの上には出ない */
+    drawRainGround(state) {
+      const mode = this.rainMode(state);
+      if (!mode) return;
+      const storm = mode === 'storm';
+      const c = this.ctx, B = this.viewBounds(), T = this.time;
+      const gy0 = Math.max(150, B.y0), gy1 = Math.min(SCENE_H, B.y1);
+      if (gy1 <= gy0) return;
+      c.lineWidth = 0.9;
+      c.strokeStyle = storm ? 'rgba(220,234,248,.55)' : 'rgba(220,234,248,.45)';
+      c.beginPath();
+      for (let i = 0; i < 20; i++) {
+        const ph = T * 1.6 + i * 0.37, f = ph % 1, cyc = Math.floor(ph);
+        const hx = Math.sin(i * 12.9898 + cyc * 78.233) * 43758.5453, hy = Math.sin(i * 39.346 + cyc * 11.135) * 24634.6345;
+        const rx = B.x0 + (hx - Math.floor(hx)) * (B.x1 - B.x0), ry = gy0 + (hy - Math.floor(hy)) * (gy1 - gy0);
+        const r = 1 + f * 5;
+        c.moveTo(rx + r, ry); c.ellipse(rx, ry, r, r * 0.42, 0, 0, TAU);
+      }
+      c.stroke();
+    },
+    drawRain(state) {
+      const mode = this.rainMode(state);
+      if (!mode) return;
+      const storm = mode === 'storm';
       const c = this.ctx, B = this.viewBounds(), T = this.time;
       const W = B.x1 - B.x0 + 120, H = B.y1 - B.y0 + 60;
       const L = storm ? 24 : 18;
@@ -3262,21 +3448,6 @@
         c.lineTo(x - 0.44 * L, y - 0.9 * L);
       }
       c.stroke();
-      /* 地面の波紋（20個。広がりながらうすくなる） */
-      const gy0 = Math.max(150, B.y0), gy1 = Math.min(SCENE_H, B.y1);
-      if (gy1 > gy0) {
-        c.lineWidth = 0.9;
-        c.strokeStyle = storm ? 'rgba(220,234,248,.55)' : 'rgba(220,234,248,.45)';
-        c.beginPath();
-        for (let i = 0; i < 20; i++) {
-          const ph = T * 1.6 + i * 0.37, f = ph % 1, cyc = Math.floor(ph);
-          const hx = Math.sin(i * 12.9898 + cyc * 78.233) * 43758.5453, hy = Math.sin(i * 39.346 + cyc * 11.135) * 24634.6345;
-          const rx = B.x0 + (hx - Math.floor(hx)) * (B.x1 - B.x0), ry = gy0 + (hy - Math.floor(hy)) * (gy1 - gy0);
-          const r = 1 + f * 5;
-          c.moveTo(rx + r, ry); c.ellipse(rx, ry, r, r * 0.42, 0, 0, TAU);
-        }
-        c.stroke();
-      }
       c.lineCap = 'butt';
     },
   };
