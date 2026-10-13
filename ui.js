@@ -3527,10 +3527,10 @@
       this.bindCanvasInput();
 
       this.els['modal-backdrop'].addEventListener('click', (ev) => {
-        if (ev.target === this.els['modal-backdrop'] && this.modalDismissible) this.closeModal();
+        if (ev.target === this.els['modal-backdrop'] && this.modalKind && this.modalDismissible) this.closeModal();
       });
       document.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Escape' && this.modalDismissible) this.closeModal();
+        if (ev.key === 'Escape' && this.modalKind && this.modalDismissible) this.closeModal();
       });
       document.addEventListener('pointerdown', () => Sfx.ensure(), { once: true });
     },
@@ -3779,33 +3779,75 @@
     },
 
     showScreen(name) {
-      document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
-      $('#screen-' + name).classList.add('active');
+      /* 紙ふぶきは結果画面だけ。ほかの画面へ移ったら、すぐ消す */
+      if (name !== 'result') document.querySelectorAll('.confetti-box').forEach((c) => c.remove());
+      document.querySelectorAll('.screen').forEach((s) => { s.classList.remove('active'); s.inert = false; });
+      const el = $('#screen-' + name);
+      el.classList.add('active');
+      el.scrollTop = 0;
+      /* モーダルが開いたままなら、新しい画面もモーダルの裏として操作できないようにする */
+      if (this.modalKind) { el.inert = true; this._inertEl = el; }
     },
 
     /* ---------------- ステージ選択 ---------------- */
     renderStageSelect(save, isUnlocked) {
+      const rubi = window.rubi;
+      const ic = (n, o) => (window.Icons ? window.Icons.svg(n, o) : '');
       const wrap = this.els['stage-list'];
       wrap.innerHTML = '';
+      const TEN = '<ruby>点<rt>てん</rt></ruby>';
+      /* むずかしさは表示だけ かなにする（データの 初級/中級/上級 は変えない） */
+      const DIFF = { 初級: ['やさしい', 'easy'], 中級: ['ふつう', 'mid'], 上級: ['むずかしい', 'hard'] };
+      /* 空の色の枠: ステージの天気（データの絵文字）ごとの空。晴れ=青→白 / くもり=灰 / かみなりが来るかも=青→暗い灰 / 夕方=紺→橙 / 雨=寒色の灰青 */
+      const SKY = { '☀': 'clear', '⛅': 'cloudy', '🌦': 'storm', '🌇': 'dusk', '🌧': 'rain' };
+      const skyOf = (e) => SKY[String(e || '').replace(/️/g, '')] || 'clear';
+      const best0 = (id) => save.best && save.best[id];
+      const nextId = (window.STAGES.find((st) => isUnlocked(st.id) && !(best0(st.id) && best0(st.id).cleared)) || {}).id;
       window.STAGES.forEach((st) => {
-        const best = save.best && save.best[st.id];
+        const best = best0(st.id);
         const unlocked = isUnlocked(st.id);
-        const stars = best && best.cleared ? (best.stars != null ? best.stars : (best.score >= 95 ? 3 : best.score >= 80 ? 2 : 1)) : 0;
-        const starHtml = `<span class="sc-stars">${[1, 2, 3].map((i) => `<i class="${i <= stars ? 'on' : ''}">★</i>`).join('')}</span>`;
+        const cleared = !!(best && best.cleared);
+        const stars = cleared ? (best.stars != null ? best.stars : (best.score >= 95 ? 3 : best.score >= 80 ? 2 : 1)) : 0;
+        const starHtml = `<span class="sc-stars" role="img" aria-label="スター ${stars} / 3">${[1, 2, 3].map((i) =>
+          ic(i <= stars ? 'star' : 'star-outline', { cls: i <= stars ? 'on' : 'off' })).join('')}</span>`;
+        const parts = st.name.split('　');
+        const num = parts[0];
+        const title = parts.slice(1).join('　');
+        const diff = DIFF[st.difficulty] || [st.difficulty, 'mid'];
+        const wx = (window.Icons && window.Icons.emojiName(st.weather.icon)) || 'sun';
+        const sky = skyOf(st.weather.icon);
+        /* 空の枠の印: 「はれ→かみなりくるかも」は 太陽 → かみなり の2つで見せる（くもりと同じ印にしない） */
+        const skyIco = sky === 'storm'
+          ? `${ic('sun', { cls: 'sky-from' })}${ic('chevron-right', { cls: 'sky-arrow' })}${ic('storm', { cls: 'sky-to' })}`
+          : ic(wx);
+        const pb = (s) => this.tightRuby(this.phraseBreaks(rubi(s)));
+        /* つぎの★まで: いまの★が1なら 80点、2なら 95点 */
+        let toNext = '';
+        if (cleared && stars < 3) {
+          const n = (stars === 1 ? 80 : 95) - best.score;
+          if (n > 0) toNext = `<span class="sc-next">あと ${n}${TEN}で ${ic('star')}${stars + 1}</span>`;
+        }
         const card = document.createElement('button');
-        card.className = 'stage-card' + (unlocked ? '' : ' locked');
+        card.className = 'stage-card' + (unlocked ? '' : ' locked') + (st.id === nextId ? ' next' : '');
+        if (!unlocked) card.setAttribute('aria-disabled', 'true');
         card.innerHTML = `
-          <div class="sc-row1">
-            <span class="sc-name">${window.rubi(st.name)}</span>
-            <span class="sc-diff diff-${st.difficulty === '上級' ? 'hard' : st.difficulty === '中級' ? 'mid' : 'easy'}">${window.rubi(st.difficulty)}</span>
-          </div>
-          <div class="sc-sub">${window.rubi(st.subtitle)}</div>
-          <div class="sc-row2">
-            <span>${st.weather.icon} ${window.rubi(st.weather.label)}</span>
-            ${!unlocked
-              ? `<span class="sc-soon">🔒 ステージ${st.id - 1}をクリアするとあそべるよ</span>`
-              : (best ? `<span class="sc-best">${starHtml} ベスト ${best.score}点（${best.rank}）</span>` : `<span class="sc-best sc-best-none">${starHtml} まだクリアしていない</span>`)}
-          </div>`;
+          <span class="sc-sky sky-${sky}" aria-hidden="true">${skyIco}</span>
+          <span class="sc-body">
+            <span class="sc-row1">
+              <span class="sc-name"><span class="sc-num">${num}</span><span class="sc-title">${pb(title)}</span></span>
+              ${unlocked ? `<span class="sc-diff diff-${diff[1]}">${diff[0]}</span>` : `<span class="sc-lockbadge" aria-hidden="true">${ic('lock')}</span>`}
+            </span>
+            <span class="sc-sub">${pb(st.subtitle)}</span>
+            <span class="sc-row2">
+              <span class="sc-wx">${rubi(st.weather.label)}</span>
+              ${!unlocked
+                ? `<span class="sc-lock">${ic('lock')}ステージ${st.id - 1}を クリアすると あそべるよ</span>`
+                : (cleared
+                  ? `<span class="sc-best">${starHtml}${toNext}<span class="sc-score">ベスト ${best.score}${TEN}（${best.rank}）</span></span>`
+                  : `<span class="sc-best sc-best-none">${starHtml}<span>まだ クリアしていない</span></span>`)}
+            </span>
+          </span>
+          ${st.id === nextId ? '<span class="sc-nexttag">つぎは ここ</span>' : ''}`;
         if (unlocked) {
           card.addEventListener('click', () => { Sfx.play('select'); this.cb.onSelectStage(st.id); });
         } else {
@@ -4010,18 +4052,30 @@
 
     openTaskDetail(id) {
       const rubi = window.rubi;
+      const I = window.Icons;
       const t = this.state.tasks[id];
+      /* 作業・職種・車のアイコンは Icons.task / Icons.res で出す（作業の絵文字は iconize にわたさない） */
       const reqs = window.taskReqList(t.def).map((r) =>
-        `<span class="req-chip" style="--c:${r.color}">${r.icon}${rubi(r.label)}×${r.n}</span>`).join('') || 'なし';
+        `<span class="req-chip" style="--c:${r.color}">${I.svg(I.res(r.type))}<span>${rubi(r.label)}×${r.n}</span></span>`).join('') || 'なし';
+      /* はじめられる作業は「▶ はじめる」。あつまり中は、まだ たりない人や車が いるときだけ「▶ のこりを よぶ」
+       * （ぜんいん むかっているときは出さない。押しても「到着を待ちましょう」になるだけなので）。ボタンで閉じてから onStartTask */
+      const gathering = t.status === 'gathering';
+      const canStart = t.status === 'ready' || (gathering && !window.Game.reqsFilled(t));
+      const buttons = [{ label: 'とじる', cls: 'btn-ghost' }];
+      if (canStart) buttons.push({ label: `${I.svg('play')} ${gathering ? 'のこりを よぶ' : 'はじめる'}`, cls: 'btn-primary', onClick: () => this.cb.onStartTask(t.id) });
       this.openModal({
-        title: `${t.def.icon} ${rubi(t.def.name)}`,
+        kind: 'detail',
+        title: `${I.svg(I.task(t.id))} ${rubi(t.def.name)}`,
         body: `
-          <p>${rubi(t.def.desc)}</p>
-          ${t.def.why ? `<p class="zk-why">💡 <strong>なぜやるの？</strong> — ${rubi(t.def.why)}</p>` : ''}
-          <p class="modal-kv"><strong>かかる${rubi('時間')}:</strong> ${rubi(`約${Math.ceil(t.def.dur)}分`)}　<strong>ひつような人と車:</strong> ${reqs}</p>
-          <p class="modal-kv"><strong>はじめられるのは:</strong> ${rubi(t.def.depNote)}</p>
-          ${t.def.note ? `<p class="modal-note">🦺 <strong>${rubi('安全')}メモ:</strong> ${rubi(t.def.note)}</p>` : ''}`,
-        buttons: [{ label: 'とじる', cls: 'btn-ghost' }],
+          <p>${this.phraseBreaks(rubi(t.def.desc))}</p>
+          <dl class="td-kv">
+            <dt>かかる${rubi('時間')}</dt><dd>${rubi(`約${Math.max(1, Math.ceil(window.Game.effDur(t)))}分`)}</dd>
+            <dt>ひつような<ruby>人<rt>ひと</rt></ruby>と<ruby>車<rt>くるま</rt></ruby></dt><dd>${reqs}</dd>
+            <dt>はじめられるのは</dt><dd>${rubi(t.def.depNote)}</dd>
+          </dl>
+          ${t.def.why ? `<p class="zk-why">${I.svg('info')} <strong>なぜやるの？</strong> ${this.phraseBreaks(rubi(t.def.why))}</p>` : ''}
+          ${t.def.note ? `<p class="modal-note">${I.svg('shield')} <strong>${rubi('安全')}メモ</strong> ${this.phraseBreaks(rubi(t.def.note))}</p>` : ''}`,
+        buttons,
         dismissible: true,
       });
     },
@@ -4190,19 +4244,45 @@
       const s = this.state;
       if (!s || !s.activeEvent) return;
       const rubi = window.rubi;
+      const I = window.Icons;
       const def = s.activeEvent.def;
       const choicesHtml = def.choices.map((ch, i) => `
         <button class="event-choice" data-i="${i}">
-          <span class="ec-label">${rubi(ch.label)}</span>
+          <span class="ec-top"><span class="ec-label">${rubi(ch.label)}</span>${i === def.defaultChoice ? `<span class="ec-default">${I.svg('hourglass')} えらばないと これ</span>` : ''}</span>
           <span class="ec-hint">${rubi(ch.hint)}</span>
-          <span class="ec-tags">${(ch.tags || []).map((t) => `<em>${rubi(t)}</em>`).join('')}</span>
+          ${ch.critical ? `<span class="ec-crit">${I.svg('alert')}<span>${rubi('大きなペナルティ')}</span></span>` : ''}
+          ${this.eventChoiceGrid(ch)}
         </button>`).join('');
+      /* 期限: 時間で決まるイベントは「あと約N分」、作業で決まるイベントは「〇〇が おわるまで」（その作業がおしごと中なら のこりの分も）。
+       * 開いている間も ゲームの時間は進むので、下の setInterval で 書きなおす */
+      const deadlineOf = () => {
+        const st = this.state;
+        if (!st || !st.activeEvent || st.activeEvent.def !== def) return '';
+        if (def.deadlineAfter != null) {
+          const left = Math.max(1, Math.ceil(def.deadlineAfter - (st.clock - st.activeEvent.firedAt)));
+          return `えらべるのは あと約${left}分`;
+        }
+        if (def.deadlineTask && st.tasks[def.deadlineTask]) {
+          const dt = st.tasks[def.deadlineTask];
+          let d = `「${dt.def.name}」が おわるまでに えらんでね`;
+          if (dt.status === 'active') d += `（あと約${Math.max(1, Math.ceil(window.Game.effDur(dt) - dt.progress))}分）`;
+          return d;
+        }
+        return '';
+      };
+      const deadline = deadlineOf();
+      /* 見出しの印: かみなり（天気のイベント）は storm。データの絵文字（🌧）は雨なので、id で決める */
+      const nm = def.id === 'weather' ? 'storm' : I.emojiName(def.icon);
+      const titleIcon = nm && !/^(task|staff|veh)-/.test(nm) ? nm : 'alert';
       this.openModal({
         kind: 'event',
-        title: `${def.icon} ${rubi(def.title)}`,
-        body: `<p>${rubi(def.desc)}</p><div class="event-choices">${choicesHtml}</div>
-               <p class="modal-note">⏳ ${rubi(def.deadlineHint)}</p>`,
-        buttons: [{ label: 'あとできめる', cls: 'btn-ghost' }],
+        title: `${I.svg(titleIcon)} ${rubi(def.title)}`,
+        body: `<p>${rubi(def.desc)}</p>
+               <p class="ev-legend" aria-hidden="true"><span><b class="up">▲</b> よくなる</span><span><b class="down">▼</b> わるくなる</span><span>— かわらない</span></p>
+               <div class="event-choices">${choicesHtml}</div>
+               ${deadline ? `<p class="modal-note">${I.svg('hourglass')} <span class="ev-dl">${rubi(deadline)}</span></p>` : ''}
+               <p class="modal-info" style="margin-top:8px;">${I.svg('info')} よんでいる あいだも じかんは すすむよ。とめたいときは『あとで きめる』で とじて ${I.svg('pause')} を おしてね</p>`,
+        buttons: [{ label: 'あとで きめる', cls: 'btn-ghost' }],
         dismissible: true,
       });
       this.els['modal'].querySelectorAll('.event-choice').forEach((btn) => {
@@ -4211,79 +4291,207 @@
           this.cb.onEventChoice(Number(btn.dataset.i));
         });
       });
+      /* 期限の文を、開いている間も 0.5秒ごとに書きなおす（変わったときだけ）。closeModal で止める */
+      let last = deadline;
+      if (this._evTimer) clearInterval(this._evTimer);
+      this._evTimer = setInterval(() => {
+        const el = this.els['modal'].querySelector('.ev-dl');
+        const now = this.modalKind === 'event' && el ? deadlineOf() : '';
+        if (!now) { clearInterval(this._evTimer); this._evTimer = null; return; }
+        if (now !== last) { last = now; el.innerHTML = I.iconize(rubi(now)); }
+      }, 500);
     },
 
     openSafetyModal() {
       const rubi = window.rubi;
+      const I = window.Icons;
       this.openModal({
         kind: 'safety',
-        title: '🦺 ' + rubi('プッシュバック前の安全確認'),
-        body: `<p>${rubi('押す車が飛行機の前に着きました。動かす前に、まわりに')}<strong>${rubi('人・車・置きわすれた道具')}</strong>${rubi('がのこっていないかたしかめます。どうする？')}</p>`,
+        title: `${I.svg('shield')} ${rubi('プッシュバック前の安全確認')}`,
+        body: `<p>${rubi('押す車が飛行機の前に着きました。動かす前に、まわりに')}<strong><ruby>人<rt>ひと</rt></ruby>・<ruby>車<rt>くるま</rt></ruby>・${rubi('置きわすれた道具')}</strong>${rubi('がのこっていないかたしかめます。どうする？')}</p>`,
         buttons: [
-          { label: '✅ ' + rubi('しっかり確認する（+1分）'), cls: 'btn-primary', onClick: () => this.cb.onSafetyChoice(true) },
-          { label: '⚠ ' + rubi('確認をとばして急ぐ（大きなペナルティ）'), cls: 'btn-danger', onClick: () => this.cb.onSafetyChoice(false) },
+          /* 安全な主ボタンを先頭に。危ない選択は枠だけの赤（塗らない） */
+          { label: `${I.svg('shield')} ` + rubi('しっかり確認する（+1分）'), cls: 'btn-primary btn-big', onClick: () => this.cb.onSafetyChoice(true) },
+          { label: `${I.svg('alert')} ` + rubi('確認をとばして急ぐ（大きなペナルティ）'), cls: 'btn-dangerghost', onClick: () => this.cb.onSafetyChoice(false) },
         ],
         dismissible: false,
       });
     },
 
-    /* ---------------- モーダル共通 ---------------- */
-    openModal({ kind, title, body, buttons, dismissible }) {
+    /* 作業の短い名前（結果のタイムライン・イベントのマスで使う。正式な名前は TASK_MAP の name） */
+    SHORT_NAMES: {
+      deboard: '降機', unload: '取り降ろし', clean: '清掃', catering: '機内食', refuel: '給油', inspect: '点検',
+      load: '積み込み', board: '搭乗', bagmatch: '照合', doorclose: 'ドアクローズ', pushback: 'プッシュバック', depart: '出発',
+    },
+
+    /* イベントの選択肢ごとの4つのマス（あんぜん・じかん・まんぞく・おかね）。データ（effects・taskDelta）から作る。
+     * ▲=よくなる / ▼=わるくなる。大きさは記号の数（1〜5 は1つ、6〜10 は2つ、11 以上は3つ）。0 やキーがないときは「—」 */
+    eventChoiceGrid(ch) {
       const rubi = window.rubi;
+      const I = window.Icons;
+      const eff = ch.effects || {};
+      const marks = (v) => (v > 0 ? '▲' : '▼').repeat(Math.abs(v) >= 11 ? 3 : Math.abs(v) >= 6 ? 2 : 1);
+      const cell = (icon, key, cls, val) =>
+        `<span class="ec-cell ${cls}">${I.svg(icon)}<span class="ec-k">${key}</span><span class="ec-v">${val}</span></span>`;
+      const metric = (icon, key, k) => {
+        const v = Math.round(eff[k] || 0);
+        return v ? cell(icon, key, v > 0 ? 'up' : 'down', `<span class="sym" aria-label="${v > 0 ? 'よくなる' : 'わるくなる'}">${marks(v)}</span>`)
+          : cell(icon, key, 'none', '—');
+      };
+      /* じかん: 作業がのびる(+)=わるくなる / ちぢむ(-)=よくなる。外のおしごとのおやすみも わるくなる */
+      const SHORT = this.SHORT_NAMES;
+      const tparts = [];
+      let better = false, worse = false;
+      Object.entries(ch.taskDelta || {}).forEach(([id, d]) => {
+        if (!d) return;
+        const nm = SHORT[id] || (window.TASK_MAP[id] ? window.TASK_MAP[id].name : id);
+        tparts.push(`${rubi(nm)} ${d > 0 ? '+' : '-'}${rubi(Math.abs(d) + '分')}`);
+        if (d > 0) worse = true; else better = true;
+      });
+      if (ch.pauseOutdoor) { tparts.push(`そとの おしごと ${rubi(ch.pauseOutdoor + '分')} おやすみ`); worse = true; }
+      /* よくなる所と わるくなる所が まざるときは、両方の記号を出す（どちらか1つに まとめない） */
+      const tdir = better && worse ? ['mix', '<b class="up">▲</b><b class="down">▼</b>', 'よくなる ところと わるくなる ところが ある']
+        : better ? ['up', '▲', 'よくなる'] : ['down', '▼', 'わるくなる'];
+      const timeCell = tparts.length
+        ? cell('clock', 'じかん', tdir[0], `<span class="sym" aria-label="${tdir[2]}">${tdir[1]}</span> ${tparts.join('・')}`)
+        : cell('clock', 'じかん', 'none', '—');
+      return `<span class="ec-grid">${metric('shield', 'あんぜん', 'safety')}${timeCell}${metric('smile', 'まんぞく', 'sat')}${metric('coin', 'おかね', 'cost')}</span>`;
+    },
+
+    /* ---------------- モーダル共通 ---------------- */
+    /* openModal({kind, title, body, buttons, dismissible, cls, foot})
+     *   ・見出し・本文・ボタンの3段（本文だけスクロール）。dismissible なら見出しの右に「とじる」(44x44)
+     *   ・cls と data-kind は毎回付け直す（前のモーダルのクラスを残さない）
+     *   ・buttons[].silent=true のボタンは、閉じても onModalClosed を呼ばない（チュートリアルのページ送りなど）
+     *   ・開いている間は、うしろの画面を inert にして、閉じたら元のボタンへフォーカスを戻す */
+    openModal({ kind, title, body, buttons, dismissible, cls, foot }) {
+      /* ルビをふってから、親文字より広いルビのすきまを つめる（tightRuby） */
+      const rubi = (h) => this.tightRuby(window.rubi(h));
+      const ize = (h) => (window.Icons ? window.Icons.iconize(h) : h);
+      const m = this.els['modal'];
+      const wasOpen = !!this.modalKind;
+      if (!wasOpen && !this._modalReturn) this._modalReturn = document.activeElement;
+      if (this._evTimer) { clearInterval(this._evTimer); this._evTimer = null; }
+      /* Tab でモーダルの外へ出ない（最後の部品の次は最初へ、最初の前は最後へ）。登録は1回だけ */
+      if (!this._trapBound) {
+        this._trapBound = true;
+        m.addEventListener('keydown', (ev) => {
+          if (ev.key !== 'Tab' || !this.modalKind) return;
+          const f = [...m.querySelectorAll('button:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])')]
+            .filter((el) => el.getClientRects().length > 0);
+          if (!f.length) return;
+          const first = f[0], last = f[f.length - 1];
+          if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+          else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+        });
+      }
       this.modalKind = kind || 'generic';
       this.modalDismissible = dismissible !== false;
+      m.className = 'modal' + (cls ? ' ' + cls : '');
+      m.dataset.kind = this.modalKind;
       const btns = (buttons || []).map((b, i) =>
-        `<button class="btn ${b.cls || 'btn-ghost'}" data-mb="${i}">${rubi(b.label)}</button>`).join('');
-      this.els['modal'].innerHTML = `
-        <div class="modal-title">${rubi(title)}</div>
-        <div class="modal-body">${rubi(body)}</div>
+        `<button class="btn ${b.cls || 'btn-ghost'}" data-mb="${i}">${ize(rubi(b.label))}</button>`).join('');
+      const x = this.modalDismissible
+        ? `<button class="modal-x" type="button" aria-label="とじる" title="とじる">${window.Icons ? window.Icons.svg('close') : '×'}</button>` : '';
+      m.innerHTML = `
+        <div class="modal-head"><h2 class="modal-title" id="modal-title">${ize(rubi(title))}</h2>${x}</div>
+        <div class="modal-body">${ize(rubi(body))}</div>
+        ${foot ? `<div class="modal-foot">${ize(rubi(foot))}</div>` : ''}
         <div class="modal-btns">${btns}</div>`;
       (buttons || []).forEach((b, i) => {
-        this.els['modal'].querySelector(`[data-mb="${i}"]`).addEventListener('click', () => {
-          this.closeModal();
+        m.querySelector(`[data-mb="${i}"]`).addEventListener('click', () => {
+          this.closeModal({ silent: !!b.silent });
           if (b.onClick) b.onClick();
         });
       });
+      const xb = m.querySelector('.modal-x');
+      if (xb) xb.addEventListener('click', () => { Sfx.play('click'); this.closeModal(); });
       this.els['modal-backdrop'].classList.remove('hidden');
+      m.scrollTop = 0;
+      const bodyEl = m.querySelector('.modal-body');
+      if (bodyEl) bodyEl.scrollTop = 0;
+      /* うしろの画面は操作できないようにする（Tab でモーダルの外へ出ない） */
+      const scr = document.querySelector('.screen.active');
+      if (scr) { scr.inert = true; this._inertEl = scr; }
+      /* 最初の選択肢か主ボタンへフォーカス（ずかんのタブを切りかえたときは、えらんだタブへ） */
+      const first = m.querySelector('.zk-tab.on') || m.querySelector('.event-choice') ||
+        m.querySelector('.modal-btns .btn-primary') || m.querySelector('.modal-btns .btn') || xb;
+      if (first) { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } }
     },
-    closeModal() {
-      this.els['modal-backdrop'].classList.add('hidden');
-      this.els['modal'].innerHTML = '';
+    /* closeModal({silent}): silent のときは onModalClosed を呼ばず、フォーカスの戻り先も覚えたまま（つぎのモーダルへ移るとき）。
+     *   silent のときは幕（backdrop）を すぐには消さない。すぐに つぎのモーダルが開くと、板は出てくる動き（modal-rise）を
+     *   やりなおさず、その場で中身だけ かわる（チュートリアルのページ送りで ボタンが動かない・板がすけない）。
+     *   つぎが開かなかったときだけ、マイクロタスクで幕を消して、戻り先も わすれる */
+    closeModal(opts) {
+      const silent = !!(opts && opts.silent === true);
+      const m = this.els['modal'];
+      if (this._evTimer) { clearInterval(this._evTimer); this._evTimer = null; }
+      if (!silent) this.els['modal-backdrop'].classList.add('hidden');
+      m.innerHTML = '';
+      m.className = 'modal';
+      delete m.dataset.kind;
+      if (this._inertEl) { this._inertEl.inert = false; this._inertEl = null; }
       const k = this.modalKind;
       this.modalKind = null;
+      if (silent) {
+        queueMicrotask(() => {
+          if (this.modalKind) return;
+          this.els['modal-backdrop'].classList.add('hidden');
+          this._modalReturn = null;
+        });
+        return;
+      }
+      const back = this._modalReturn;
+      this._modalReturn = null;
+      if (back && back.isConnected && typeof back.focus === 'function' && back !== document.body) {
+        try { back.focus({ preventScroll: true }); } catch (e) { /* フォーカスできない要素は そのまま */ }
+      }
       if (this.cb.onModalClosed) this.cb.onModalClosed(k);
     },
 
     /* ---------------- ながれマップ・ずかん・コーチ ---------------- */
     buildFlowHtml(live) {
       const s = live ? this.state : null;
+      const rubi = window.rubi;
+      const I = window.Icons;
+      /* 作業の状態 → 見た目（契約: かんりょう=緑✓ / おしごと中=青緑ぬり+輪 / はじめられる=白+青緑わく+▶ / あつまり中=こはく+… / まだ=灰の点線+鍵） */
+      const ST = {
+        done: ['fc-done', 'check', 'かんりょう'], active: ['fc-active', 'working', 'おしごと<ruby>中<rt>ちゅう</rt></ruby>'],
+        ready: ['fc-ready', 'play', 'はじめられる'], gathering: ['fc-wait', 'dots', 'あつまり<ruby>中<rt>ちゅう</rt></ruby>'],
+        moving: ['fc-wait', 'dots', 'あつまり<ruby>中<rt>ちゅう</rt></ruby>'], locked: ['fc-locked', 'lock', 'まだ'],
+      };
       const chip = (id) => {
         const def = window.TASK_MAP[id];
-        let cls = '';
-        if (s) {
-          const st = s.tasks[id].status;
-          cls = st === 'done' ? ' fc-done' : st === 'active' ? ' fc-active'
-            : (st === 'ready' || st === 'gathering') ? ' fc-ready' : ' fc-locked';
-        }
-        return `<span class="flow-chip${cls}">${def.icon} ${def.name}</span>`;
+        /* 文字とルビは1つの <span> に（flex の gap が 語のあいだに入らないように） */
+        const name = `${I.svg(I.task(id))}<span>${rubi(def.name)}</span>`;
+        if (!s) return `<span class="flow-chip flat">${name}</span>`;
+        /* ゲーム中だけ押せるボタン（押すと、とじてから持ち場の案内へ） */
+        const st = ST[s.tasks[id].status] || ST.locked;
+        return `<button type="button" class="flow-chip ${st[0]}" data-task="${id}">${name}${I.svg(st[1], { cls: 'fc-st' })}</button>`;
       };
-      /* ステップ見出し: 番号を丸で見せ、プレイ中は「いまここ！」を付ける */
-      const stepHead = (r) => {
-        let cls = '', here = '';
+      /* いまここ: 進行中の作業がある、番号がいちばん大きいステップ1か所だけ */
+      const busy = (x) => x === 'ready' || x === 'gathering' || x === 'moving' || x === 'active';
+      const rows = window.FLOW_ROWS;
+      let front = -1;
+      if (s) rows.forEach((r, i) => { if (r.tasks.some((id) => busy(s.tasks[id].status))) front = i; });
+      const stepHead = (r, i) => {
+        let cls = '', tags = '';
         if (s) {
           const sts = r.tasks.map((id) => s.tasks[id].status);
           if (sts.every((x) => x === 'done')) cls = ' fs-done';
-          else if (sts.some((x) => x === 'ready' || x === 'gathering' || x === 'active')) {
-            cls = ' fs-now';
-            here = '<span class="flow-here">👉 いまここ！</span>';
-          }
+          if (i === front) { cls = ' fs-now'; tags += `<span class="flow-tag flow-here">${I.svg('pin')} いまここ</span>`; }
+          if (sts.some((x) => x === 'ready')) tags += `<span class="flow-tag ft-ready">${I.svg('play')} はじめられる</span>`;
+          else if (i < front && sts.some((x) => x === 'active')) tags += `<span class="flow-tag ft-working">${I.svg('working')}<span>おしごと<ruby>中<rt>ちゅう</rt></ruby></span></span>`;
         }
-        return `<div class="flow-step${cls}"><span class="flow-stepnum" data-step="${r.step}">${r.step}</span><div class="flow-note">${r.note}</div>${here}</div>`;
+        const note = String(r.note || '').replace(/^\u{1F447}\s*/u, '');   // 先頭の「下をさす手」の絵文字は出さない（データは変えない）
+        return `<div class="flow-step${cls}"><span class="flow-stepnum" style="--sc:var(--s${r.step})">${r.step}</span><div class="flow-note">${rubi(note)}</div>${tags}</div>`;
       };
-      return '<div class="flow-map">' + window.FLOW_ROWS.map((r) =>
-        stepHead(r) + `<div class="flow-row">${r.tasks.map(chip).join('')}</div>`).join('') +
-        (s ? '<div class="flow-legend"><span class="fc-done">✓ 完了</span><span class="fc-active">作業中</span><span class="fc-ready">開始できる</span><span class="fc-locked">まだ</span></div>' : '') +
-        '</div>';
+      const legend = s ? '<div class="flow-legend">' +
+        [ST.done, ST.active, ST.ready, ST.gathering, ST.locked].map((x) => `<span class="${x[0]}">${I.svg(x[1])}<span>${x[2]}</span></span>`).join('') +
+        '</div>' : '';
+      return '<div class="flow-map">' + rows.map((r, i) =>
+        `<div class="flow-block${i === rows.length - 1 ? ' fb-last' : ''}">${stepHead(r, i)}<div class="flow-row">${r.tasks.map(chip).join('')}</div></div>`).join('') +
+        legend + '</div>';
     },
 
     openFlowMap() {
@@ -4292,10 +4500,19 @@
         kind: 'flow',
         title: '🗺 出発準備のながれ',
         body: this.buildFlowHtml(live) +
-          '<p class="modal-note" style="margin-top:10px;">じゅんばんを守りながら、同時にできる作業をどれだけ重ねられるかがコツ！</p>',
+          `<p class="modal-info" style="margin-top:10px;">${window.Icons.svg('info')} じゅんばんを守りながら、同時にできる作業をどれだけ重ねられるかがコツ！</p>`,
         buttons: [{ label: 'とじる', cls: 'btn-primary' }],
         dismissible: true,
       });
+      if (live) {
+        this.els['modal'].querySelectorAll('button.flow-chip').forEach((b) => {
+          b.addEventListener('click', () => {
+            Sfx.play('click');
+            this.closeModal();
+            this.onRibbonChip(b.dataset.task);
+          });
+        });
+      }
     },
 
     /* タイトル画面の「スター・バッジ」進捗表示 */
@@ -4306,46 +4523,158 @@
       const earned = Object.keys(p.earned || {}).length;
       if (!earned && !p.totalStars) { el.classList.add('hidden'); return; }
       el.classList.remove('hidden');
-      el.innerHTML = `🌟 スター ${p.totalStars}/${p.maxStars}　🏅 バッジ ${earned}/${p.badgeDefs.length}`;
+      const I = window.Icons;
+      el.innerHTML = `${I.svg('star')} スター ${p.totalStars}/${p.maxStars}<span class="tp-gap"></span>${I.svg('medal')} バッジ ${earned}/${p.badgeDefs.length}`;
+    },
+
+    /* 絵文字を「絵文字のまま」出す（バッジの絵文字は今回は残す。iconize が SVG に置きかえないよう、文字参照にしておく） */
+    emojiRaw(str) {
+      /* ⏱・🛡 のように「ふだんは白黒の文字の形」の絵文字には U+FE0F（絵文字の形で出す印）を足して、ほかのバッジと同じカラーの形にそろえる */
+      const chars = Array.from(String(str || ''));
+      const out = [];
+      chars.forEach((ch, i) => {
+        out.push(ch);
+        if (/\p{Extended_Pictographic}/u.test(ch) && !/\p{Emoji_Presentation}/u.test(ch) && chars[i + 1] !== '️') out.push('️');
+      });
+      return out.map((ch) => `&#x${ch.codePointAt(0).toString(16)};`).join('');
+    },
+
+    /* ずかん「なかまたち」の絵: 駐機場と同じ Scene.drawPerson / Scene.vehicleBody で、72x72（2倍の解像度）に1回だけ描いてキャッシュする */
+    crewArt(kind, type) {
+      this._crewArt = this._crewArt || {};
+      const key = kind + ':' + type;
+      if (this._crewArt[key]) return this._crewArt[key];
+      const SIZE = 144;                       // 72px を 2倍で描く
+      const W = 360, H = 240;                 // 下書き（大きめに描いてから、絵のある所だけ切り出す）
+      const draft = document.createElement('canvas');
+      draft.width = W; draft.height = H;
+      const g = draft.getContext('2d');
+      const prev = Scene.ctx;
+      Scene.ctx = g;                          // drawPerson・vehicleBody は this.ctx に描くので、一時的に差しかえる
+      try {
+        g.save();
+        if (kind === 'staff') {
+          const meta = window.RES_META.staff[type];
+          g.translate(W / 2, H / 2 + 60);
+          g.scale(5, 5);                        // 全長約24 → 120px（72px の箱で 2.5倍）
+          Scene.drawPerson(0, 0, { color: meta.color, type, moving: false, working: false, phase: 0, sway: 0 });
+        } else {
+          g.translate(W / 2, H / 2);
+          g.scale(1.6, 1.6);
+          Scene.vehicleBody(type, false, 0, false);
+        }
+        g.restore();
+      } catch (e) {
+        g.restore();
+      } finally {
+        Scene.ctx = prev;                     // かならず元に戻す
+      }
+      /* 絵のある範囲を測る */
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      try {
+        const px = g.getImageData(0, 0, W, H).data;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            if (px[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          }
+        }
+      } catch (e) { x0 = 0; y0 = 0; x1 = W - 1; y1 = H - 1; }
+      if (x1 < 0) { x0 = 0; y0 = 0; x1 = W - 1; y1 = H - 1; }
+      const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      const out = document.createElement('canvas');
+      out.width = SIZE; out.height = SIZE;
+      const o = out.getContext('2d');
+      const pad = kind === 'staff' ? 14 : 12;
+      const k = Math.min((SIZE - pad * 2) / bw, (SIZE - pad * 2) / bh);
+      const dw = bw * k, dh = bh * k;
+      if (kind !== 'staff') {
+        /* 車は右下へ落ちる影をつける（光源は左上。人は drawPerson が足もとの影を描く） */
+        o.shadowColor = 'rgba(30, 40, 54, 0.32)';
+        o.shadowBlur = 5; o.shadowOffsetX = 4; o.shadowOffsetY = 5;
+      }
+      o.drawImage(draft, x0, y0, bw, bh, (SIZE - dw) / 2, (SIZE - dh) / 2, dw, dh);
+      let url = '';
+      try { url = out.toDataURL('image/png'); } catch (e) { url = ''; }
+      this._crewArt[key] = url;
+      return url;
     },
 
     openZukan(tab) {
       tab = tab || 'flow';
-      const tabs = [['flow', '🗺 ながれ'], ['tasks', '🛠 おしごと'], ['crew', '🧑‍✈️ なかまたち'], ['badge', '🏅 バッジ']];
-      const tabBtns = '<div class="zk-tabs">' + tabs.map(([k, l]) =>
-        `<button class="zk-tab ${k === tab ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('') + '</div>';
+      const rubi = window.rubi;
+      const I = window.Icons;
+      const tabs = [['flow', 'flow', 'ながれ'], ['tasks', 'list', 'おしごと'], ['crew', 'people', 'なかまたち'], ['badge', 'medal', 'バッジ']];
+      const tabBtns = '<div class="zk-tabs" role="tablist">' + tabs.map(([k, ico, l]) =>
+        `<button type="button" role="tab" aria-selected="${k === tab}" class="zk-tab ${k === tab ? 'on' : ''}" data-tab="${k}">${I.svg(ico)}${l}</button>`).join('') + '</div>';
       let body = '';
+      /* ずかんはどのタブも同じ広い板（タブを切りかえても幅が変わらない） */
       if (tab === 'flow') {
         body = this.buildFlowHtml(false);
       } else if (tab === 'tasks') {
-        body = '<div class="zk-list">' + window.TASK_DEFS.map((d) => `
-          <div class="zk-item">
-            <div class="zk-head"><span class="zk-step" data-step="${d.step || ''}">ステップ${d.step || '-'}</span>${d.icon} ${d.name}${d.ruby ? `<small>（${d.ruby}）</small>` : ''}</div>
-            <p>${d.desc}</p>
-            <p class="zk-why">💡 なぜ必要？ — ${d.why}</p>
-            ${d.note ? `<p class="zk-note">🦺 ${d.note}</p>` : ''}
-          </div>`).join('') + '</div>';
+        /* ステップ1〜7 の見出しでまとめる。カードは名前と1行の説明。なぜ・安全メモは「くわしく」の中（最初のカードだけ開いておく） */
+        let first = true;
+        body = '<div class="zk-list zk-cards">' + window.FLOW_ROWS.map((r) => {
+          const head = `<h3 class="zk-stephead"><span class="flow-stepnum" style="--sc:var(--s${r.step})">${r.step}</span><span>${rubi(r.title)}</span></h3>`;
+          return head + r.tasks.map((id) => {
+            const d = window.TASK_MAP[id];
+            const desc = String(d.desc || '');
+            const cut = desc.indexOf('。');
+            const lead = cut >= 0 && cut < desc.length - 1 ? desc.slice(0, cut + 1) : desc;
+            const rest = lead.length < desc.length ? desc.slice(lead.length) : '';
+            const open = first ? ' open' : '';
+            first = false;
+            /* データの文は文節で折り返す（「（ボーディングブリッジ）｜を」のように 助詞から行がはじまらない） */
+            const pb = (t) => this.phraseBreaks(rubi(t));
+            return `<div class="zk-item">
+              <div class="zk-head">${I.svg(I.task(id))}<span>${rubi(d.name)}</span></div>
+              <p>${pb(lead)}</p>
+              <details class="zk-more"${open}><summary>${I.svg('chevron-right')}くわしく</summary>
+                ${rest ? `<p>${pb(rest)}</p>` : ''}
+                <p class="zk-why">${I.svg('info')} <strong>なぜ必要？</strong> ${pb(d.why)}</p>
+                ${d.note ? `<p class="zk-note">${I.svg('shield')} <strong>${rubi('安全')}メモ</strong> ${pb(d.note)}</p>` : ''}
+              </details>
+            </div>`;
+          }).join('');
+        }).join('') + '</div>';
       } else if (tab === 'badge') {
         const p = this.cb.getProgress ? this.cb.getProgress() : { badgeDefs: [], earned: {}, totalStars: 0, maxStars: 15 };
         const earned = Object.keys(p.earned || {}).length;
-        body = `<p class="zk-badge-sum">🌟 スター ${p.totalStars}/${p.maxStars}　🏅 バッジ ${earned}/${p.badgeDefs.length}</p>` +
-          '<div class="zk-list">' + p.badgeDefs.map((b) => {
+        body = `<p class="zk-badge-sum"><span>${I.svg('star')} スター ${p.totalStars}/${p.maxStars}</span><span>${I.svg('medal')} バッジ ${earned}/${p.badgeDefs.length}</span></p>` +
+          '<div class="zk-list badges">' + p.badgeDefs.map((b) => {
             const got = !!p.earned[b.id];
+            /* 未獲得も文字はふつうの濃さ。メダルだけ灰のシルエット＋鍵。説明の前に「とりかた：」 */
             return `<div class="zk-item badge-item ${got ? 'bd-got' : 'bd-notyet'}">
-              <div class="zk-head">${got ? b.icon : '❔'} ${window.rubi(b.name)}${got ? ' <span class="bd-mark">GET!</span>' : ''}</div>
-              <p>${window.rubi(b.desc)}</p>
+              <span class="medal${got ? '' : ' off'}" aria-hidden="true">${got ? this.emojiRaw(b.icon) : I.svg('lock')}</span>
+              <div>
+                <div class="zk-head"><span>${this.phraseBreaks(rubi(b.name))}</span>${got ? ' <span class="bd-mark">もらった！</span>' : ''}</div>
+                <p>${got ? '' : '<span class="bd-how">とりかた：</span>'}${this.phraseBreaks(rubi(b.desc))}</p>
+              </div>
             </div>`;
           }).join('') + '</div>';
       } else {
-        body = '<div class="zk-list"><h4 class="zk-cat">スタッフ</h4>' +
-          Object.values(window.RES_META.staff).map((m) =>
-            `<div class="zk-item"><div class="zk-head">${m.icon} ${m.label}</div><p>${m.desc}</p></div>`).join('') +
-          '<h4 class="zk-cat">はたらく車（GSE）</h4>' +
-          Object.values(window.RES_META.vehicles).map((m) =>
-            `<div class="zk-item"><div class="zk-head">${m.icon} ${m.label}</div><p>${m.desc}</p></div>`).join('') + '</div>';
+        /* なかまたち: 駐機場と同じ絵 + 見た目の手がかり（描いた服・車の色と合わせる。「めじるし：」のあとに もう一度「めじるし」と書かない）
+         *   人: ランプ=きいろのベスト・手荷物=オレンジのベスト（どちらも白いヘルメット）・清掃=みどりのベストと帽子・
+         *       整備=紺のつなぎに 胸の赤い帯・ゲート=あおいベストと紺の帽子（Scene.drawPerson の職種の描き分け） */
+        const LOOK = {
+          ramp: 'きいろの ベスト', baggage: 'オレンジの ベスト', cleaning: 'みどりの ベストと ぼうし',
+          maintenance: 'こんいろの つなぎに あかい せん', gate: 'あおい ベストと こんいろの ぼうし',
+          beltloader: 'ながい ベルトが ついている', cart: 'にもつを のせた だいしゃを つなげて ひっぱる',
+          fuel: 'しろい タンクに あかい せん', catering: 'しろい はこの 荷台', pushback: 'きいろで ひくく、ひらべったい',
+        };
+        const item = (kind, type, m) => {
+          const url = this.crewArt(kind, type);
+          return `<div class="zk-item crew">${url ? `<img class="zk-art" src="${url}" width="72" height="72" alt="">` : '<span class="zk-art"></span>'}
+            <div><div class="zk-head">${I.svg(I.res(type))}<span>${rubi(m.label)}</span></div>
+            <p>${this.phraseBreaks(rubi(m.desc))}</p>${LOOK[type] ? `<p class="zk-look">めじるし：${this.phraseBreaks(rubi(LOOK[type]))}</p>` : ''}</div></div>`;
+        };
+        body = '<div class="zk-list zk-cards"><h3 class="zk-cat">スタッフ</h3>' +
+          Object.keys(window.RES_META.staff).map((k) => item('staff', k, window.RES_META.staff[k])).join('') +
+          '<h3 class="zk-cat">はたらく<ruby>車<rt>くるま</rt></ruby>（GSE）</h3>' +
+          Object.keys(window.RES_META.vehicles).map((k) => item('veh', k, window.RES_META.vehicles[k])).join('') + '</div>';
       }
       this.openModal({
         kind: 'zukan',
+        cls: 'wide',
         title: '📖 空港ずかん',
         body: tabBtns + body,
         buttons: [{ label: 'とじる', cls: 'btn-primary' }],
@@ -4375,62 +4704,97 @@
     },
 
     /* ---------------- チュートリアル ---------------- */
-    openTutorial(onDone) {
+    openTutorial(onDone, opts) {
+      const I = window.Icons;
+      const rubi = window.rubi;
+      const kind = (opts && opts.kind) || 'tutorial';
+      /* 画面の見方は、スマホと PC で並びがちがうので、開いたときの幅で文を分ける */
+      const phone = window.matchMedia && window.matchMedia('(max-width: 700px)').matches;
       const steps = [
         {
-          title: '✈ ようこそ、地上作業リーダー！',
-          body: `<p>飛行機が空港に着いてから次に出発するまでの作業を<strong>ターンアラウンド</strong>といいます。</p>
-                 <p>あなたの仕事は、たくさんの作業をスタッフと車両にわりあてて、<strong>45分後の出発</strong>に間に合わせること！</p>`,
+          title: `${I.svg('plane')} ようこそ、地上作業リーダー！`,
+          body: `<p class="tut-lead">飛行機が 空港に ついてから、つぎに 出発するまでの じゅんびを <strong>ターンアラウンド</strong>と いうよ。</p>
+                 <div class="tut-timeline" aria-hidden="true">
+                   <span class="tl-ico tl-arr">${I.svg('plane')}</span><span class="tl-bar"></span><span class="tl-ico tl-dep">${I.svg('plane')}</span>
+                   <span class="tl-lbl">とうちゃく</span><span class="tl-lbl tl-len">45分</span><span class="tl-lbl">出発</span>
+                 </div>
+                 <p>きみの しごとは、スタッフと <ruby>車<rt>くるま</rt></ruby>に おしごとを わりあてて、<strong>45分 あとの 出発</strong>に まにあわせること！</p>
+                 <div class="tut-crew" aria-hidden="true">
+                   <span class="tc-group"><span class="tc-icons">${Object.keys(window.RES_META.staff).map((k) => I.svg(I.res(k))).join('')}</span><span class="tc-cap">スタッフ</span></span>
+                   <span class="tc-group"><span class="tc-icons">${Object.keys(window.RES_META.vehicles).map((k) => I.svg(I.res(k))).join('')}</span><span class="tc-cap">はたらく <ruby>車<rt>くるま</rt></ruby></span></span>
+                 </div>`,
         },
         {
-          title: '🗺 出発準備のながれ',
-          body: `<p>作業には<strong>じゅんばん</strong>があるよ。<strong>ステップ1→7</strong>の順にすすむよ。同じステップの作業は、どんどん同時に進めよう！</p>` +
-            this.buildFlowHtml(false) +
-            `<p style="margin-top:8px;">ゲーム中も右上の<strong>🗺ボタン</strong>でいつでも見られるよ。</p>`,
+          title: `${I.svg('flow')} 出発準備の ながれ`,
+          body: `<p class="tut-lead">おしごとには <strong>じゅんばん</strong>が あるよ。ステップ1から 7へ。おなじ ステップは 同時に すすめよう！</p>
+                 <ol class="tut-steps">${window.FLOW_ROWS.map((r) => `<li><span class="tut-num" style="--sc:var(--s${r.step})">${r.step}</span><span>${rubi(r.title)}</span><span class="tut-ico" aria-hidden="true">${r.tasks.map((id) => I.svg(I.task(id))).join('')}</span></li>`).join('')}</ol>
+                 <p class="modal-info">${I.svg('book')} くわしくは ずかんの「ながれ」で みられるよ。</p>`,
         },
         {
-          title: '🗺 画面の見方',
-          body: `<ul class="tut-list">
-                 <li><strong>画面ぜんたい：</strong>駐機場のようす（ドラッグで移動、ホイールやピンチ、右下の＋−でズーム）</li>
-                 <li><strong>上のながれバー：</strong>作業のじゅんばん（ステップ1→7）。緑✓＝おわった、はねている＝いまできる！</li>
-                 <li><strong>左の📋タブ：</strong>作業カードのひらけ・とじ</li>
-                 <li><strong>右上：</strong>安全性などの管理指標</li>
-                 <li><strong>下：</strong>スタッフと車両の状態</li></ul>`,
+          title: `${I.svg('help')} 画面の 見方`,
+          body: (phone
+            ? `<ul class="tut-list">
+                 <li><span class="tut-where">うえ</span><span>じこくと はやさ</span></li>
+                 <li><span class="tut-where">まんなか</span><span>駐機場（ゆびで うごかせるよ）</span></li>
+                 <li><span class="tut-where">その した</span><span>スコアと スタッフ</span></li>
+                 <li><span class="tut-where">さらに した</span><span>作業カード（したに スクロール）</span></li></ul>`
+            : `<ul class="tut-list">
+                 <li><span class="tut-where">${I.svg('list')} ひだり</span><span>おしごと タブ（作業カード）</span></li>
+                 <li><span class="tut-where">みぎうえ</span><span>スコアのもと</span></li>
+                 <li><span class="tut-where">した</span><span>スタッフと <ruby>車<rt>くるま</rt></ruby></span></li></ul>`) +
+            `<p class="tut-lead"><strong>ながれバーの しるし</strong></p>
+             <ul class="tut-list tut-marks"><li><span class="tut-mark ready">${I.svg('play')}</span><span>の わく ＝ いま はじめられる</span></li><li><span class="tut-mark done">${I.svg('check')}</span><span>＝ おわった</span></li></ul>
+             <p class="tut-lead"><strong>駐機場の 持ち場の いろ</strong></p>
+             <div class="tut-swatches" aria-hidden="true">
+               <span class="tut-sw"><span class="tsw tsw-ready"></span><span>はじめられる</span></span>
+               <span class="tut-sw"><span class="tsw tsw-wait"></span><span>あつまり<ruby>中<rt>ちゅう</rt></ruby></span></span>
+               <span class="tut-sw"><span class="tsw tsw-target"></span><span>えらんだ <ruby>人<rt>ひと</rt></ruby>が いける ところ</span></span>
+               <span class="tut-sw"><span class="tsw tsw-soon"></span><span>もうすぐ</span></span>
+             </div>`,
         },
         {
-          title: '🛠 作業のすすめ方（2つのやり方）',
-          body: `<p><strong>① おまかせ：</strong>作業カードの「開始」を押すと、必要なメンバーが自動で移動します。</p>
-                 <p><strong>② 自分で配置：</strong>駐機場の<strong>スタッフや車両をタップ</strong>して選び、<strong>緑に光る持ち場</strong>をタップして送りこみます。必要な人数がそろうと作業開始！</p>
-                 <p><strong>⭐ベテラン</strong>は作業が速く、<strong>🔰新人</strong>はゆっくり。だれを送るかも作戦のうち！</p>
-                 <p>🔒がついた作業は順番の条件があります（例：清掃はお客さんが降りてから）。<strong>🔓はじめられるよ！</strong>のお知らせが出たら、次にすすめる合図だよ。</p>`,
+          title: `${I.svg('list')} おしごとの すすめかた`,
+          body: `<p><strong>① おまかせ</strong>：作業カードの「${I.svg('play')} はじめる」を おすと、ひつような 人と車が じぶんで うごくよ。</p>
+                 <p><strong>② 自分で 配置</strong>：駐機場の スタッフや <ruby>車<rt>くるま</rt></ruby>を タップして えらび、<strong>みどりの ふとい わ</strong>の 持ち場を タップ。そろうと はじまるよ。</p>
+                 <p>${I.svg('vet')} ベテランは はやい、${I.svg('rookie')} 新人は ゆっくり。だれを おくるかも 作戦だよ。</p>
+                 <p>${I.svg('lock')} は まだ はじめられない しるし。${I.svg('unlock')}「はじめられるよ！」の おしらせが 合図だよ。</p>`,
         },
         {
-          title: '⏱ 時間と采配レバー',
-          body: `<p>画面上の <strong>⏸／▶／⏩</strong>で時間の速さを変えられます。まよったら⏸で作戦タイム。</p>
-                 <p>各作業は<strong>🐢ていねい／ふつう／🚀急ぐ</strong>を選べます。急ぐと速いけれど、満足度や安全性が下がることも…。使いどころが腕の見せどころ！</p>`,
+          title: `${I.svg('clock')} 時間と すすめかた`,
+          body: `<p>うえの ボタンで 時間の はやさを かえられるよ。まよったら とめて 作戦タイム！</p>
+                 <div class="tut-fig hud" aria-hidden="true"><span class="tut-key">${I.svg('pause')} とめる</span><span class="tut-key on">${I.svg('play')} ふつう</span><span class="tut-key">${I.svg('fast')} はやい</span></div>
+                 <p>おしごとごとに <strong>すすめかた</strong>を えらべるよ。いそぐと はやいけど、まんぞくや 安全が 下がることも。</p>
+                 <div class="tut-scale" aria-hidden="true"><span class="ts-pt">${I.svg('gauge-slow')}<span>ていねい</span></span><span class="ts-pt">${I.svg('gauge-mid')}<span>ふつう</span></span><span class="ts-pt">${I.svg('gauge-fast')}<span>いそぐ</span></span></div>
+                 <p>ここぞ という ときだけ いそぐのが コツ！</p>`,
         },
         {
-          title: '🦺 安全がいちばん！',
-          body: `<p>とちゅうで<strong>突発イベント</strong>が起きたら、黄色い通知をタップして対応を選ぼう。</p>
-                 <p>急いでいても、<strong>安全確認は絶対に省略しないこと</strong>。それがプロの仕事です。</p>
-                 <p>それでは、よいフライトを！</p>`,
+          title: `${I.svg('shield')} 安全が いちばん！`,
+          body: `<p>とちゅうで <strong>トラブル</strong>が おきたら、${phone ? 'したの' : 'うえの'} きいろい おしらせを タップして、どうするか えらぼう。</p>
+                 <div class="tut-ex" aria-hidden="true"><span class="tut-ex-cap">れい</span><span class="tut-evb">${I.svg('alert')}<span class="tut-evb-t">手荷物が 1個 見つからない</span><span class="tut-evb-cta">えらぶ</span></span></div>
+                 <p>いそいでいても、<strong>安全確認は ぜったいに とばさない</strong>。それが プロの しごとだよ。</p>
+                 <p>それでは、よい フライトを！</p>`,
         },
       ];
       let idx = 0;
+      const done = () => { if (onDone) onDone(); };
       const render = () => {
         const st = steps[idx];
+        const last = idx === steps.length - 1;
         const dots = steps.map((_, i) => `<span class="tut-dot ${i === idx ? 'on' : ''}"></span>`).join('');
+        /* ボタンの並び: とばす（左はしの文字リンク）→ まえへ → つぎへ（主ボタンはいつも右はし）。ページ送りは silent で閉じる */
+        const buttons = [];
+        if (!last) buttons.push({ label: 'とばす', cls: 'btn-link btn-skip', onClick: done });
+        if (idx > 0) buttons.push({ label: '← まえへ', cls: 'btn-ghost', silent: true, onClick: () => { idx--; render(); } });
+        buttons.push(last
+          ? { label: 'とじる', cls: 'btn-primary', onClick: done }
+          : { label: 'つぎへ →', cls: 'btn-primary', silent: true, onClick: () => { idx++; render(); } });
         this.openModal({
-          kind: 'tutorial',
+          kind,
+          cls: 'tut',
           title: st.title,
-          body: st.body + `<div class="tut-dots">${dots}</div>`,
-          buttons: [
-            ...(idx > 0 ? [{ label: '← 前へ', cls: 'btn-ghost', onClick: () => { idx--; render(); } }] : []),
-            idx < steps.length - 1
-              ? { label: '次へ →', cls: 'btn-primary', onClick: () => { idx++; render(); } }
-              : { label: 'とじる', cls: 'btn-primary', onClick: () => { if (onDone) onDone(); } },
-            ...(idx < steps.length - 1 ? [{ label: 'とばす', cls: 'btn-ghost', onClick: () => { if (onDone) onDone(); } }] : []),
-          ],
+          body: `<div class="tut-page">${this.rubyWords(rubi(st.body))}</div>`,
+          foot: `<div class="tut-foot" aria-label="${idx + 1} / ${steps.length} ページ"><div class="tut-dots" aria-hidden="true">${dots}</div><span class="tut-count">${idx + 1} / ${steps.length}</span></div>`,
+          buttons,
           dismissible: false,
         });
       };
@@ -4440,44 +4804,63 @@
     /* ---------------- 設定 ---------------- */
     openSettings(opts) {
       const { sound, bgm, inGame } = opts;
+      const sw = (id, label, on) => `
+          <div class="set-row sw-row" data-sw="${id}">
+            <span id="lbl-${id}">${label}</span>
+            <button type="button" role="switch" class="switch" id="${id}" aria-checked="${on ? 'true' : 'false'}" aria-labelledby="lbl-${id}"><span class="sw-track"><span class="sw-knob"></span></span><span class="sw-txt">${on ? 'オン' : 'オフ'}</span></button>
+          </div>`;
       this.openModal({
         kind: 'settings',
-        title: '⚙ 設定',
+        title: '⚙ せってい',
         body: `
-          <label class="set-row">
-            <span>🔊 効果音</span>
-            <input type="checkbox" id="set-sound" ${sound ? 'checked' : ''}>
-          </label>
-          <label class="set-row">
-            <span>🎵 おんがく（BGM）</span>
-            <input type="checkbox" id="set-bgm" ${bgm !== false ? 'checked' : ''}>
-          </label>
+          ${sw('set-sound', '効果音', !!sound)}
+          ${sw('set-bgm', 'おんがく（BGM）', bgm !== false)}
           <div class="set-row">
-            <span>📖 あそびかたをもう一度見る</span>
+            <span>あそびかたを もう一度 みる</span>
             <button class="btn btn-sm btn-ghost" id="set-tutorial">ひらく</button>
           </div>
           ${inGame ? `
           <div class="set-row">
-            <span>🏳 このステージをやめる</span>
-            <button class="btn btn-sm btn-warnghost" id="set-quit">ステージ選択へ</button>
+            <span>このステージを やめる</span>
+            <button class="btn btn-sm btn-warnghost" id="set-quit">やめる</button>
           </div>` : `
           <div class="set-row">
-            <span>🗑 セーブデータをけす</span>
-            <button class="btn btn-sm btn-warnghost" id="set-reset">初期化</button>
+            <span>セーブデータを けす</span>
+            <button class="btn btn-sm btn-warnghost" id="set-reset">けす</button>
           </div>`}`,
         buttons: [{ label: 'とじる', cls: 'btn-primary' }],
         dismissible: true,
       });
-      $('#set-sound').addEventListener('change', (ev) => this.cb.onSoundToggle(ev.target.checked));
-      $('#set-bgm').addEventListener('change', (ev) => this.cb.onBgmToggle(ev.target.checked));
-      $('#set-tutorial').addEventListener('click', () => { this.closeModal(); this.openTutorial(null); });
+      /* スイッチ: 押すたびにオン/オフ（行のどこを押してもよい） */
+      const bindSwitch = (id, fn) => {
+        const b = $('#' + id);
+        b.addEventListener('click', () => {
+          const on = b.getAttribute('aria-checked') !== 'true';
+          b.setAttribute('aria-checked', on ? 'true' : 'false');
+          b.querySelector('.sw-txt').textContent = on ? 'オン' : 'オフ';
+          fn(on);
+        });
+        const row = b.closest('.set-row');
+        row.addEventListener('click', (ev) => { if (!ev.target.closest('.switch')) b.click(); });
+      };
+      bindSwitch('set-sound', (on) => this.cb.onSoundToggle(on));
+      bindSwitch('set-bgm', (on) => this.cb.onBgmToggle(on));
+      /* せっていから開くモーダルは kind='settings-sub'。せっていは silent で閉じる（その間にゲームの時間が進まない） */
+      $('#set-tutorial').addEventListener('click', () => {
+        Sfx.play('click');
+        this.closeModal({ silent: true });
+        this.openTutorial(null, { kind: 'settings-sub' });
+      });
       const quit = $('#set-quit');
       if (quit) quit.addEventListener('click', () => {
-        this.closeModal();
+        Sfx.play('click');
+        this.closeModal({ silent: true });
         this.openModal({
-          title: '確認', body: '<p>このステージをやめてステージ選択にもどりますか？<br>進み具合は保存されません。</p>',
+          kind: 'settings-sub',
+          title: 'かくにん', body: '<p>このステージを やめて、ステージえらびに もどりますか？<br>すすみぐあいは のこりません。</p>',
           buttons: [
-            { label: 'やめて選択画面へ', cls: 'btn-danger', onClick: () => this.cb.onGotoSelect() },
+            /* silent: 閉じたときに速度を元にもどさない（すぐにステージえらびへ移るので） */
+            { label: 'やめて ステージえらびへ', cls: 'btn-danger', silent: true, onClick: () => this.cb.onGotoSelect() },
             { label: 'つづける', cls: 'btn-primary' },
           ],
           dismissible: true,
@@ -4485,20 +4868,24 @@
       });
       const reset = $('#set-reset');
       if (reset) reset.addEventListener('click', () => {
-        this.closeModal();
+        Sfx.play('click');
+        this.closeModal({ silent: true });
         this.openModal({
-          title: '確認', body: '<p>クリア記録とベストスコアをすべてけしますか？</p>',
+          kind: 'settings-sub',
+          title: 'かくにん', body: '<p>クリアの 記録と ベストスコアを ぜんぶ けしますか？</p>',
           buttons: [
+            /* 「やめる」は ゲーム中の「このステージを やめる」と まぎれるので、ここは「けさない」 */
             { label: 'けす', cls: 'btn-danger', onClick: () => this.cb.onResetData() },
-            { label: 'やめる', cls: 'btn-primary' },
+            { label: 'けさない', cls: 'btn-primary' },
           ],
           dismissible: true,
         });
       });
     },
 
-    /* 紙ふぶき（クリア演出。数秒でひとりでに消える） */
+    /* 紙ふぶき（クリア演出。数秒でひとりでに消える。動きをへらす設定の人には出さない） */
     dropConfetti(n) {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const old = document.querySelector('.confetti-box');
       if (old) old.remove();
       const box = document.createElement('div');
@@ -4519,9 +4906,122 @@
       setTimeout(() => box.remove(), 5600);
     },
 
+    /* 文節ごとに改行する: 文を文節（ひらがな・句読点のあと → 漢字・カタカナ・ルビ・かっこ の前、と空白で切る）に分け、
+     * 1つずつ <span class="phr"> で包む。「定刻ど｜おり」「急｜いで」のような語の途中の改行をなくす
+     * （body の word-break:auto-phrase はルビの入った文では効かず、ルビの前後はいつでも改行できてしまうため）。
+     * .phr は inline-block（nowrap にすると、Chrome が「出発まで｜40分しかない！」のように 入るはずの文節まで次の行へ送るため）。
+     * 文節が 欄より長いときだけ、その中で折り返す（はみ出さない）。
+     * 入力は rubi()・iconize() のあとの HTML。<ruby> と <svg> はまるごと1つの文節の中に入れる。
+     *   ・「、。！？・…」のあとで切れる。とじかっこ「」』）」のあとの ひらがな（助詞）は はなさない（「（ランプ）｜で」にしない）
+     *   ・ルビの語が 助詞で終わるとき（中での）は、つぎの漢字の前で切れる（少ない・大きな は つぎの語と はなさない）
+     *   ・漢字・カタカナのあとの「を・が・は」は、うしろに ひらがなが3字以上つづくとき、そのあとで切れる（作業が｜ゆっくり） */
+    phraseBreaks(html) {
+      const HIRA = /[ぁ-ゖ]/;
+      const PUNCT = /[、。！？・…]/;
+      const CLOSE = /[」』）]/;
+      const OPEN = /[「『（]/;
+      const WORD = /[一-鿿々ァ-ヺ0-9A-Za-z０-９]/;
+      const SPACE = /[\s　]/;
+      const PARTICLE = /[をがは]/;
+      let prev = '';
+      let out = '';
+      let cur = '';
+      const flush = () => { if (cur) out += `<span class="phr">${cur}</span>`; cur = ''; };
+      String(html).split(/(<ruby>[\s\S]*?<\/ruby>|<[^>]+>)/g).forEach((seg) => {
+        if (!seg) return;
+        if (seg.startsWith('<ruby>')) {
+          if (prev === 'H' || prev === 'P') flush();
+          cur += seg;
+          const base = seg.replace(/<rt[\s\S]*?<\/rt>/g, '').replace(/<[^>]+>/g, '');
+          prev = /[のでにをがはともて]$/.test(base) ? 'H' : 'W';   // 助詞で終わる語（中での）は つぎの漢字の前で切る。少ない・大きな は つぎの語と はなさない
+          return;
+        }
+        if (seg.startsWith('<')) { cur += seg; return; }   // svg などのタグは、いまの文節に入れる
+        const chars = [...seg];
+        chars.forEach((c, i) => {
+          if (SPACE.test(c)) { flush(); out += c; prev = 'S'; return; }
+          let cls = 'X';
+          if (HIRA.test(c)) cls = 'H';
+          else if (PUNCT.test(c)) cls = 'P';
+          else if (CLOSE.test(c)) cls = 'C';
+          else if (OPEN.test(c)) cls = 'O';
+          else if (WORD.test(c)) cls = 'W';
+          else if (c === 'ー') cls = prev;                       // のばす音は前の字と同じあつかい
+          if (((prev === 'H' || prev === 'P' || prev === 'C') && (cls === 'W' || cls === 'O')) || (prev === 'P' && cls === 'H')) flush();
+          cur += c;
+          /* 漢字・カタカナのすぐあとの助詞「を・が・は」: うしろに ひらがなが3字以上あれば、そこで切る（がんばる・がっかり は切らない） */
+          if (cls === 'H' && prev === 'W' && PARTICLE.test(c) && !(c === 'が' && /[んっ]/.test(chars[i + 1] || ''))) {
+            let n = 0;
+            while (HIRA.test(chars[i + 1 + n] || '')) n++;
+            if (n >= 3) flush();
+          }
+          prev = cls;
+        });
+      });
+      flush();
+      return out;
+    },
+
+    /* わかち書きの文（チュートリアル）で、ルビの語と、空白までの となりの字を 1つの <span class="phr"> にまとめる。
+     * keep-all でも Chrome はルビの前後で改行してしまう（「作戦｜タイム！」「時間｜の」）ため。タグはまたがない。
+     * 入力は rubi() のあとの HTML */
+    rubyWords(html) {
+      const RB = '<ruby>[\\s\\S]*?<\\/ruby>';
+      const re = new RegExp(`[^\\s<>　]*${RB}(?:[^\\s<>　]*${RB})*[^\\s<>　]*`, 'g');
+      return String(html).replace(re, (m) => `<span class="phr">${m}</span>`);
+    },
+
+    /* ルビが親文字より広いとき、となりが かな・記号（ルビのない字）なら、ルビを そちらへ少し はみ出させて、
+     * 親文字のまわりの すきま（「おしごと 中」「定刻出発 を」）をなくす。はみ出しは 片がわ ルビ1字ぶんまで。
+     * となりが ルビの語・アイコン・改行・文のはじめ/おわり なら、そちらへは はみ出さない（ルビどうしが重ならない）。
+     * 文節の <span>・<strong> などのタグは とびこえて、となりの字を見る。
+     * 入力は rubi() のあとの HTML。<rt> に margin を足すだけなので、rubi()・phraseBreaks() に もう一度とおしても こわれない */
+    tightRuby(html) {
+      const NB = /[ぁ-ゖァ-ヺー、。！？・…「」『』（）]/;
+      const STOP = /^<\/?(ruby|rt|svg|img|br|use|p|div|li|ul|ol|h\d|dt|dd)\b/i;   // ここで止める（となりの字とは みなさない）
+      const wid = (s) => [...s].reduce((a, c) => a + (/[\x20-\x7e]/.test(c) ? 0.5 : 1), 0);
+      const before = (str, i) => {
+        let j = i - 1;
+        while (j >= 0 && str[j] === '>') {
+          const k = str.lastIndexOf('<', j);
+          if (k < 0 || STOP.test(str.slice(k, j + 1))) return '';
+          j = k - 1;
+        }
+        return j >= 0 ? str[j] : '';
+      };
+      const after = (str, i) => {
+        let j = i;
+        while (j < str.length && str[j] === '<') {
+          const k = str.indexOf('>', j);
+          if (k < 0 || STOP.test(str.slice(j, k + 1))) return '';
+          j = k + 1;
+        }
+        return j < str.length ? str[j] : '';
+      };
+      return String(html).replace(/<ruby>([^<]+)<rt>([^<]+)<\/rt><\/ruby>/g, (m, base, read, off, str) => {
+        const ex = wid(read) - 2 * wid(base);          // ルビ1字 = 親文字の半分。はみ出す幅（ルビの字数）
+        if (ex <= 0) return m;
+        const L = NB.test(before(str, off));
+        const R = NB.test(after(str, off + m.length));
+        if (!L && !R) return m;
+        const l = L ? Math.min(R ? ex / 2 : ex, 1) : 0;
+        const r = R ? Math.min(L ? ex / 2 : ex, 1) : 0;
+        return `<ruby>${base}<rt style="margin-left:${-l}em;margin-right:${-r}em">${read}</rt></ruby>`;
+      });
+    },
+
     /* ---------------- 結果画面 ---------------- */
     renderResult(res, isBest, nextStageId, prevBest, extras) {
       extras = extras || { stars: 0, newBadges: [], nextGoal: '' };
+      const rubi = window.rubi;
+      const I = window.Icons;
+      const ize = (h) => I.iconize(h);
+      const pb = (s) => this.tightRuby(this.phraseBreaks(ize(rubi(s))));
+      const TEN = '<ruby>点<rt>てん</rt></ruby>';
+      const fail = !res.cleared;
+      const inner = document.querySelector('#screen-result .result-inner');
+      if (inner) inner.classList.toggle('is-fail', fail);
+
       const nextBtn = document.getElementById('btn-next-stage');
       const retryBtn = document.getElementById('btn-retry');
       nextBtn.classList.toggle('hidden', !nextStageId);
@@ -4529,41 +5029,29 @@
       retryBtn.classList.toggle('btn-primary', !nextStageId);
       retryBtn.classList.toggle('btn-ghost', !!nextStageId);
 
-      /* ★の獲得表示（1つずつ順番に光る） */
-      const starsEl = document.getElementById('result-stars');
-      starsEl.innerHTML = [1, 2, 3].map((i) =>
-        `<i class="${i <= extras.stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</i>`).join('');
-
-      /* 新しくとれたバッジ */
-      const badgeEl = document.getElementById('result-badges');
-      if (extras.newBadges && extras.newBadges.length) {
-        badgeEl.classList.remove('hidden');
-        badgeEl.innerHTML = '<span class="rb-title">🎉 あたらしいバッジ！</span>' +
-          extras.newBadges.map((b) => `<span class="badge-chip">${b.icon} ${window.rubi(b.name)}</span>`).join('');
-      } else {
-        badgeEl.classList.add('hidden');
-        badgeEl.innerHTML = '';
-      }
-
-      /* つぎの目標 */
-      const goalEl = document.getElementById('result-goal');
-      goalEl.innerHTML = extras.nextGoal ? '🎯 ' + window.rubi(extras.nextGoal) : '';
-      goalEl.classList.toggle('hidden', !extras.nextGoal);
-
-      const rubi = window.rubi;
+      /* 見出し（2段: 「クリア！」「クリアならず」と、その下の短い文）。失格でも赤にしない */
       const flag = this.els['result-flag'];
+      let head, sub, fcls;
       if (!res.departed) {
-        flag.innerHTML = rubi('⏰ 時間内に出発できなかった…');
-        flag.className = 'result-flag bad';
+        head = 'クリアならず'; sub = '時間までに 出発できなかった…'; fcls = 'bad';
       } else if (res.critical) {
-        flag.innerHTML = rubi('⚠ 出発はできたけど、安全のもんだいがあってクリアならず…');
-        flag.className = 'result-flag bad';
+        head = 'クリアならず'; sub = '出発は できたけど、安全の もんだいが あった…'; fcls = 'bad';
       } else if (res.delay != null && res.delay > 0.5) {
-        flag.innerHTML = rubi(`✈ 出発しました（${Math.ceil(res.delay)}分遅れ）— クリア！`);
-        flag.className = 'result-flag ok';
+        head = 'クリア！'; sub = `✈ 出発しました（${Math.ceil(res.delay)}分 おくれ）`; fcls = 'ok';
       } else {
-        flag.innerHTML = rubi('🎉 時間ぴったりに出発！おみごと！— クリア！');
-        flag.className = 'result-flag great';
+        head = 'クリア！'; sub = '✈ 時間ぴったりに 出発！ おみごと！'; fcls = 'great';
+      }
+      flag.className = 'result-flag ' + fcls;
+      flag.innerHTML = `<h2 class="result-head">${head}</h2><p class="result-sub">${pb(sub)}</p>`;
+
+      /* クリアするには（失格・時間切れのとき。見出しのすぐ下） */
+      const howEl = document.getElementById('result-howto');
+      if (fail && extras.nextGoal) {
+        howEl.innerHTML = `<span class="rh-label">クリアするには</span>${pb(extras.nextGoal)}`;
+        howEl.classList.remove('hidden');
+      } else {
+        howEl.innerHTML = '';
+        howEl.classList.add('hidden');
       }
 
       const rankEl = this.els['result-rank'];
@@ -4579,68 +5067,136 @@
         if (p < 1) this._scoreAnim = requestAnimationFrame(tick);
       };
       this._scoreAnim = requestAnimationFrame(tick);
+      /* じこベスト: 点数の横のピル。まえのベストは点数の下に小さく（★の字は使わない） */
+      document.getElementById('result-newbest').classList.toggle('hidden', !isBest);
+      const prevEl = document.getElementById('result-prevbest');
+      prevEl.innerHTML = prevBest != null ? `まえのベスト ${prevBest}${TEN}` : '';
+      prevEl.classList.toggle('hidden', prevBest == null);
+
+      /* ★の獲得表示（取った★は金で1つずつ光る。取っていない☆は灰の線） */
+      const starsEl = document.getElementById('result-stars');
+      starsEl.setAttribute('role', 'img');
+      starsEl.setAttribute('aria-label', `スター ${extras.stars} / 3`);
+      starsEl.innerHTML = [1, 2, 3].map((i) => (i <= extras.stars
+        ? `<i class="on" style="animation-delay:${0.1 + i * 0.15}s">${I.svg('star')}</i>`
+        : `<i>${I.svg('star-outline')}</i>`)).join('');
+
+      /* 新しくとれたバッジ（クリアできなかった回は祝わない: しずかな見た目・🎉なし・はんこの動きなし） */
+      const badgeEl = document.getElementById('result-badges');
+      if (extras.newBadges && extras.newBadges.length) {
+        badgeEl.classList.remove('hidden');
+        badgeEl.classList.toggle('quiet', fail);
+        /* 見出しの印は SVG のメダル（カラーの絵文字はバッジそのものだけにする） */
+        badgeEl.innerHTML = `<span class="rb-title">${fail ? 'バッジを ゲットしたよ' : `${I.svg('medal')} あたらしいバッジ！`}</span>` +
+          extras.newBadges.map((b) => `<span class="badge-chip">${this.emojiRaw(b.icon)} ${rubi(b.name)}</span>`).join('');
+      } else {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('quiet');
+        badgeEl.innerHTML = '';
+      }
+
+      /* つぎの目標（クリアしたとき。★のすぐ下のカード） */
+      const goalEl = document.getElementById('result-goal');
+      if (!fail && extras.nextGoal) {
+        goalEl.innerHTML = `<span class="rg-label">${rubi('つぎの目標')}</span>${pb(extras.nextGoal)}` +
+          (extras.goalNote ? `<span class="rg-note">${pb(extras.goalNote)}</span>` : '');
+        goalEl.classList.remove('hidden');
+      } else {
+        goalEl.innerHTML = '';
+        goalEl.classList.add('hidden');
+      }
+
       /* クリアしたら紙ふぶき */
       if (res.cleared) this.dropConfetti(res.rank === 'S' ? 56 : 36);
 
+      /* 点数の内訳（50% 未満・安全のもんだいは、赤のしま + ⚠ で色以外でも分かるように） */
       const bd = this.els['result-breakdown'];
       bd.innerHTML = '';
       Object.entries(res.breakdown).forEach(([key, b]) => {
         const li = document.createElement('li');
         const pct = (b.got / b.max) * 100;
-        li.innerHTML = `<span class="rb-label">${rubi(b.label)}</span>
-          <span class="rb-bar"><span class="rb-fill fill-${key}" style="width:${pct}%"></span></span>
-          <span class="rb-num">${b.got} / ${b.max}点</span>`;
+        const low = pct < 50 || (res.critical && key === 'safety');
+        li.innerHTML = `<span class="rb-label">${ize(rubi(b.label))}</span>
+          <span class="rb-bar"><span class="rb-fill fill-${key}${low ? ' low' : ''}" style="width:${pct}%"></span></span>
+          <span class="rb-num">${low ? I.svg('alert') : ''}${b.got} / ${b.max}${TEN}</span>`;
         bd.appendChild(li);
       });
 
+      /* 時刻（時刻だけ。じこベストは点数の横へ移した） */
       const times = this.els['result-times'];
-      const bestNote = isBest ? '　★ じぶんのさいこうきろく！' :
-        (prevBest != null ? `　（これまでのベスト ${prevBest}点）` : '');
       if (res.blockOff != null) {
         const d = Math.ceil(Math.max(0, res.blockOff - res.std));
-        times.innerHTML = rubi(`出発予定 ${window.fmtClock(res.std)} → ほんとうの出発 ${window.fmtClock(res.blockOff)}` +
-          (d > 0 ? `（${d}分遅れ）` : `（時間ぴったり）`) + bestNote);
+        times.innerHTML = pb(`出発予定 ${window.fmtClock(res.std)} → ほんとうの出発 ${window.fmtClock(res.blockOff)}` +
+          (d > 0 ? `（${d}分 おくれ）` : '（時間ぴったり）'));
       } else {
-        times.innerHTML = rubi(`出発予定 ${window.fmtClock(res.std)} → 出発できず` + bestNote);
+        times.innerHTML = pb(`出発予定 ${window.fmtClock(res.std)} → 出発できず`);
       }
-      this.els['result-advice'].innerHTML = rubi(res.advice);
 
-      /* 作業タイムライン（どれだけ並行できたか） */
+      /* ふりかえり: 「つぎに 気をつけること」（先に）と「よかったこと」の2つに分ける */
+      const adv = this.els['result-advice'];
+      const parts = res.adviceParts || [];
+      if (parts.length) {
+        const fix = parts.filter((p) => p.kind !== 'good');
+        const good = parts.filter((p) => p.kind === 'good');
+        const list = (arr) => '<ul class="adv-list">' + arr.map((p) => `<li>${pb(String(p.text).replace(/^一方で、/, ''))}</li>`).join('') + '</ul>';
+        adv.innerHTML =
+          (fix.length ? `<div class="adv-group adv-fix"><h4>${I.svg('alert')}<span>つぎに <ruby>気<rt>き</rt></ruby>を つけること</span></h4>${list(fix)}</div>` : '') +
+          (good.length ? `<div class="adv-group adv-good"><h4>よかったこと</h4>${list(good)}</div>` : '');
+      } else {
+        adv.innerHTML = `<p>${pb(res.advice)}</p>`;
+      }
+
+      /* 作業タイムライン（どれだけ並行できたか）。最初はたたんでおく */
+      const more = document.getElementById('result-more');
+      if (more) more.open = false;
       const gantt = document.getElementById('result-gantt');
       gantt.innerHTML = '';
       if (res.timeline) {
-        const t0 = res.arrival;
-        const tEnd = Math.max(res.std + 4, t0 + 46, ...res.timeline.map((t) => t.doneAt || 0));
-        const span = tEnd - t0;
-        const pct = (m) => clamp(((m - t0) / span) * 100, 0, 100);
+        const ta = res.arrival;
+        const tEnd = Math.max(res.std + 4, ta + 46, ...res.timeline.map((t) => t.doneAt || 0));
+        const span = tEnd - ta;
+        const pct = (m) => clamp(((m - ta) / span) * 100, 0, 100);
         const stdPct = pct(res.std);
         res.timeline.forEach((t) => {
           const row = document.createElement('div');
           row.className = 'gr';
-          const nm = t.name.length > 7 ? t.name.slice(0, 7) + '…' : t.name;
-          let bars = `<i class="gr-stdline" style="left:${stdPct}%"></i>`;
-          if (t.startedAt != null && t.activeAt != null) {
-            bars += `<i class="gr-gather" style="left:${pct(t.startedAt)}%;width:${Math.max(0.5, pct(t.activeAt) - pct(t.startedAt))}%"></i>`;
+          const stp = (window.TASK_MAP[t.id] && window.TASK_MAP[t.id].step) || 0;
+          const short = this.SHORT_NAMES[t.id] || t.name;
+          const label = `<span class="gr-label" title="${String(t.name).replace(/"/g, '&quot;')}">` +
+            (stp ? `<span class="gr-step" style="--sc:var(--s${stp})">${stp}</span>` : '') +
+            `${I.svg(I.task(t.id))}<span>${rubi(short)}</span></span>`;
+          if (t.startedAt == null) {
+            row.innerHTML = label + '<span class="gr-none">はじめられなかった</span>';
+          } else {
+            let bars = `<i class="gr-stdline" style="left:${stdPct}%"></i>`;
+            if (t.activeAt != null) {
+              bars += `<i class="gr-gather" style="left:${pct(t.startedAt)}%;width:${Math.max(0.5, pct(t.activeAt) - pct(t.startedAt))}%"></i>`;
+            }
+            if (t.activeAt != null && t.doneAt != null) {
+              /* ながれリボンと同じステップ色でぬる（順番の学びとつなげる） */
+              const col = stp ? `background:var(--s${stp});` : '';
+              bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%;${col}"></i>`;
+            }
+            row.innerHTML = label + `<span class="gr-track">${bars}</span>`;
           }
-          if (t.activeAt != null && t.doneAt != null) {
-            /* ながれリボンと同じステップ色でぬる（順番の学びとつなげる） */
-            const stp = (window.TASK_MAP[t.id] && window.TASK_MAP[t.id].step) || 0;
-            const col = stp ? `background:var(--s${stp});` : '';
-            bars += `<i class="gr-work" style="left:${pct(t.activeAt)}%;width:${Math.max(1, pct(t.doneAt) - pct(t.activeAt))}%;${col}"></i>`;
-          }
-          row.innerHTML = `<span class="gr-label" title="${t.name}">${t.icon}${rubi(nm)}</span>` +
-            `<span class="gr-track">${t.startedAt == null ? '<span class="gr-none">できなかった…</span>' : bars}</span>`;
           gantt.appendChild(row);
         });
         const axis = document.createElement('div');
         axis.className = 'gr-axis';
         axis.innerHTML = `<span></span><span class="gr-axis-track">` +
-          `<span style="left:2%">${window.fmtClock(t0)} ${rubi('到着')}</span>` +
-          `<span class="ax-std" style="left:${stdPct}%">${rubi('出発予定')} ${window.fmtClock(res.std)}</span>` +
+          `<span class="ax-left" style="left:0">${window.fmtClock(ta)} ${rubi('到着')}</span>` +
+          `<span class="ax-std${stdPct > 80 ? ' ax-right' : ''}" style="left:${stdPct}%">${rubi('出発予定')} ${window.fmtClock(res.std)}</span>` +
           `</span>`;
         gantt.appendChild(axis);
+        /* 色の凡例（色に1つの意味） */
+        const lg = document.createElement('p');
+        lg.className = 'gr-legend';
+        lg.innerHTML = this.tightRuby('<span class="lg"><i class="lg-sw lg-steps"></i>いろ＝ステップ1〜7</span>' +
+          '<span class="lg"><i class="lg-sw lg-gather"></i><span>しましま＝あつまり<ruby>中<rt>ちゅう</rt></ruby></span></span>' +
+          `<span class="lg"><i class="lg-sw lg-std"></i><span>あかい せん＝${rubi('出発予定')}</span></span>`);
+        gantt.appendChild(lg);
       }
-      document.getElementById('result-trivia').innerHTML = '💡 まめちしき: ' + rubi(pickTrivia());
+      document.getElementById('result-trivia').innerHTML = ize('💡 まめちしき: ' + rubi(pickTrivia()));
     },
 
     /* ---------------- 毎フレーム ---------------- */

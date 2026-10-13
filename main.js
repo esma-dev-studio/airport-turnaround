@@ -136,11 +136,13 @@
         onResetData: () => {
           this.save = { sound: this.save.sound, bgm: this.save.bgm, tutorialSeen: false, best: {}, badges: {} };
           this.persist();
-          UI.toast('セーブデータを初期化しました', 'info');
+          UI.updateTitleProgress();   // タイトルのスター・バッジの数も、すぐ0にもどす
+          UI.toast('セーブデータを けしました', 'info');
         },
         onModalClosed: (kind) => {
-          /* 設定・ながれマップを閉じたら速度を元にもどす（ゲーム中のみ） */
-          if ((kind === 'settings' || kind === 'flow') && this.inGame() && this.begun && !this.ending && !Game.state.ended) {
+          /* 設定・ながれマップ・設定から開いたモーダル(settings-sub)を閉じたら速度を元にもどす（ゲーム中のみ）。
+           * 設定から別のモーダルへ移るときは silent で閉じるので、ここは呼ばれない（あいだに時間が進まない） */
+          if ((kind === 'settings' || kind === 'flow' || kind === 'settings-sub') && this.inGame() && this.begun && !this.ending && !Game.state.ended) {
             this.setSpeed(this.prevSpeed || 1);
           }
         },
@@ -341,18 +343,38 @@
       });
       this.persist();
 
-      /* つぎの目標（リプレイをうながす一言） */
+      /* つぎの目標（リプレイをうながす一言）
+       *   失格・時間切れ: 「クリアするには」— 安全確認をとばした / ほかの安全の選択 / 出発できなかった で文を分ける
+       *   クリア: つぎのステージ → まだ取っていないバッジ → いまの★の文。★がまだ3つでなければ、その文を下に小さく足す */
+      const nextId = result.cleared && window.STAGE_MAP[result.stageId + 1] ? result.stageId + 1 : null;
+      const TEN = '<ruby>点<rt>てん</rt></ruby>';
       let nextGoal = '';
-      if (!result.cleared) nextGoal = 'まずはクリアをめざそう！';
-      else if (stars < 3) nextGoal = `★${stars + 1}つまで あと${(stars === 1 ? 80 : 95) - result.score}点！`;
-      else if (result.score < 100) nextGoal = `パーフェクト100点まで あと${100 - result.score}点！`;
-      else nextGoal = 'かんぺき！つぎのステージや、まだ取っていないバッジにちょうせんしよう！';
+      let goalNote = '';
+      let starGoal = '';
+      if (stars < 3) starGoal = `スター${stars + 1}つまで あと${(stars === 1 ? 80 : 95) - result.score}${TEN}！`;
+      else if (result.score < 100) starGoal = `パーフェクト100${TEN}まで あと${100 - result.score}${TEN}！`;
+      if (!result.cleared) {
+        if (result.safetySkipped) nextGoal = 'プッシュバックの まえの しゅうへん かくにんで『しっかり確認する』を えらぼう';
+        else if (result.critical) nextGoal = 'あんぜんを とばす えらびかたは しないでおこう';
+        else nextGoal = 'とうちゃくしたら すぐ 4つの作業を 同時に はじめよう';
+      } else {
+        const notYet = BADGES.find((b) => !this.save.badges[b.id]);
+        if (nextId) {
+          const nm = window.STAGE_MAP[nextId].name.split('　');
+          nextGoal = `つぎは ${nm[0]}『${nm.slice(1).join('　')}』`;
+          goalNote = starGoal;
+        } else if (notYet) {
+          nextGoal = `バッジ「${notYet.name}」: ${notYet.desc}`;
+          goalNote = starGoal;
+        } else {
+          nextGoal = starGoal || 'かんぺき！ つぎのステージや、まだ取っていないバッジに ちょうせんしよう！';
+        }
+      }
 
       /* 出発アニメの余韻を見せてから結果画面へ */
-      const nextId = result.cleared && window.STAGE_MAP[result.stageId + 1] ? result.stageId + 1 : null;
       setTimeout(() => {
         this.stopLoop();
-        UI.renderResult(result, isBest, nextId, prevBest, { stars, newBadges, nextGoal });
+        UI.renderResult(result, isBest, nextId, prevBest, { stars, newBadges, nextGoal, goalNote });
         UI.showScreen('result');
       }, result.departed ? 1600 : 800);
     },
