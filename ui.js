@@ -1959,8 +1959,14 @@
       if (!wrap || !rec || !rec.el) return;
       if (performance.now() - (this._ribbonUserTs || -1e9) < 3000) return;
       if (wrap.scrollWidth <= wrap.clientWidth + 1) return;
-      const left = wrap.scrollLeft + (rec.el.getBoundingClientRect().left - wrap.getBoundingClientRect().left) - 8;
+      const left = clamp(wrap.scrollLeft + (rec.el.getBoundingClientRect().left - wrap.getBoundingClientRect().left) - 8,
+        0, wrap.scrollWidth - wrap.clientWidth);
       wrap.scrollTo({ left, behavior: this.motionOk() ? 'smooth' : 'auto' });
+      /* 画面の更新がおそい端末でなめらかなスクロールが とちゅうで止まっても、0.7秒後には いまのステップを見せる */
+      clearTimeout(this._ribbonScrollT);
+      this._ribbonScrollT = setTimeout(() => {
+        if (Math.abs(wrap.scrollLeft - left) > 2 && performance.now() - (this._ribbonUserTs || -1e9) > 700) wrap.scrollLeft = left;
+      }, 700);
     },
     updateRibbonMore() {
       const w = this.els['flow-ribbon'];
