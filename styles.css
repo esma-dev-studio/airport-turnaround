@@ -3,6 +3,9 @@
  * 清潔感のある空港らしい配色。PC/タブレット横並び、スマホ縦並び。
  * ========================================================= */
 
+/* =========================================================
+ * 【共通: 土台】トークン・ルビと文字の共通ルール・画面切り替え(3パッケージ共通。土台だけが変える)
+ * ========================================================= */
 :root {
   --navy: #1e3a5f;
   --navy-2: #27496d;
@@ -18,11 +21,74 @@
   --bad: #d64545;
   --chip: #eef4f8;
   --radius: 12px;
-  --shadow: 0 2px 10px rgba(30, 58, 95, 0.10);
+  --shadow: 2px 3px 10px rgba(30, 58, 95, 0.14);  /* 光源は左上 → 影は右下に落とす */
   /* ステップ1〜7の色（涼しい色→あたたかい色で「旅の進み」を表す） */
   --s1: #2b6cb0; --s2: #0f8fb0; --s3: #2f9e63; --s4: #7c9a2e;
   --s5: #c9822e; --s6: #d05a5a; --s7: #6a5acd;
+
+  /* 文字・行間・タップ（画面の文字は --fs-min=13px より小さくしない。タップは 44px 以上） */
+  --fs-min: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-body: 0.9375rem;
+  --lh-ruby: 1.9;        /* ルビつきの文章 */
+  --lh-tight: 1.35;      /* ルビのない短いラベル */
+  --tap: 44px;
+
+  /* 強い色（白地の上で文字に使える濃さ） */
+  --ok-strong: #1f7a45;
+  --bad-strong: #b83232;
+  --warn-strong: #93600f;
+  --line-strong: #8796a8;
+
+  /* 状態色（DOM と Canvas で同じ値を使う。色だけに頼らず、必ず記号もつける）
+   * はじめられる=白地+青緑わく+▶ / あつまり中=こはく+… / おしごと中=青緑ぬり+歯車
+   * かんりょう=緑+✓ / まだ=灰の点線+鍵 / トラブル=赤ぬり+⚠ / かみなりでおやすみ=灰青ぬり */
+  --st-ready: #0b6f8a;
+  --st-ready-bg: #ffffff;
+  --st-active: #0b6f8a;
+  --st-wait: #c98a00;
+  --st-wait-bg: #fbf3e2;
+  --st-wait-ink: #6e4a00;
+  --st-done: #1f7a45;
+  --st-done-bg: #e3f5ea;
+  --st-issue: #b3261e;
+  --st-locked: #5b6b80;
+  --st-paused: #5b6f86;
+
+  /* 重なり順（z-index の段） */
+  --z-fx: 1;
+  --z-panel: 5;
+  --z-drawer: 6;
+  --z-msg: 7;
+  --z-pop: 8;
+  --z-overlay: 9;
+  --z-sticky: 20;
+  --z-fixed-msg: 30;
+  --z-sheet: 35;
+  --z-fixed-overlay: 40;
+  --z-confetti: 45;
+  --z-modal: 50;
+
+  /* 角丸の段 */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* 影の段（光源は左上で、影は右下に落とす。1=チップ 2=浮いたパネル・カード 3=モーダル・ポップ） */
+  --elev-1: 1px 2px 3px rgba(16, 32, 52, 0.16);
+  --elev-2: 3px 6px 14px rgba(16, 32, 52, 0.18);
+  --elev-3: 6px 14px 34px rgba(16, 32, 52, 0.28);
+
+  /* 位置合わせ（--res-h は 1280x720 で測ったスタッフ帯 #panel-resources の高さ） */
+  --drawer-w: min(300px, 78vw);
+  --status-w: min(232px, 62vw);
+  --res-h: 49px;
   font-size: 16px;
+}
+@media (min-width: 1024px) {
+  :root { --drawer-w: 320px; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,23 +96,25 @@
 /* ふりがな（ルビ）
  * 複数行になる文章は line-height を 1.9 前後にして、ルビが上の行と重ならないようにする */
 rt {
-  font-size: 0.5em;
+  font-size: max(0.5em, 7px);   /* うすくしない（opacity は使わない）。小さくても 7px は保つ */
   font-weight: 400;
-  opacity: 0.78;
   letter-spacing: 0;
 }
-ruby { ruby-align: center; }
-.btn rt, .flow-chip rt, .req-chip rt, .res-chip rt, .zk-tab rt, .pace-btn rt, .sc-diff rt { font-size: 0.46em; }
+ruby { ruby-align: center; white-space: nowrap; }  /* ルビの語の途中で改行しない */
 html, body { height: 100%; }
 body {
   font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
   color: var(--ink);
   background: var(--sky);
-  line-height: 1.7;
+  line-height: 1.9;              /* ルビが上の行に重ならない行間 */
+  word-break: auto-phrase;       /* 文節で改行（対応しないブラウザは今までどおり） */
+  overflow-wrap: break-word;     /* anywhere は flex の中の要素が縮みすぎるので使わない */
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
-button { font-family: inherit; }
+p, h1, h2, h3, li { text-wrap: pretty; }
+button { font-family: inherit; line-height: 1.85; touch-action: manipulation; }
+[role="button"] { touch-action: manipulation; }
 ruby rt, .tc-ruby { font-weight: normal; }
 
 #app { height: 100%; }
@@ -56,11 +124,27 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .screen.active { display: block; }
 .hidden { display: none !important; }
 
+/* ---------------- キーボード操作のわく ---------------- */
+:where(button, a, input, select, [tabindex]):focus-visible { outline: 3px solid #12324f; outline-offset: 2px; }
+#hud :focus-visible { outline-color: #ffd24a; }
+
+/* ---------------- 共通アイコン（icons.js の SVG スプライト） ----------------
+ * 塗りのアイコンは fill:currentColor、線のアイコンは fill:none + stroke:currentColor(1.75)。
+ * 形ごとの塗り・線は icons.js がスプライトの中に書いているので、ここでは大きさと色の元だけを決める。 */
+.ico { width: 1.15em; height: 1.15em; vertical-align: -0.18em; flex: none; fill: currentColor; }
+#icon-sprite .i-f { fill: currentColor; }
+#icon-sprite .i-l { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+/* =========================================================
+ * 【META】ボタン・タイトル・ステージ選択
+ * ========================================================= */
 /* ---------------- ボタン（下フチつきの「押しごたえ」デザイン） ---------------- */
 .btn {
   border: none;
   border-radius: 12px;
-  padding: 9px 18px 10px;
+  min-height: var(--tap);
+  padding: 5px 18px 6px;
+  text-wrap: balance;
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
@@ -81,10 +165,10 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .btn-danger:active { transform: translateY(2px); box-shadow: 0 1px 0 #a33333; }
 .btn-warnghost { background: transparent; border: 1.5px solid #eecfa0; color: #a4681b; box-shadow: none; }
 .btn-warnghost:active { transform: scale(0.97); }
-.btn-big { font-size: 1.15rem; padding: 14px 34px 15px; border-radius: 15px; }
-.btn-sm { font-size: 0.82rem; padding: 5px 12px 6px; border-radius: 9px; box-shadow: 0 2px 0 #cfdbe4; }
+.btn-big { font-size: 1.15rem; padding: 9px 34px 10px; border-radius: 15px; }
+.btn-sm { font-size: 0.82rem; min-height: var(--tap); padding: 5px 14px 6px; border-radius: 9px; box-shadow: 0 2px 0 #cfdbe4; }
 .btn-sm.btn-primary { box-shadow: 0 2px 0 var(--accent-d); }
-.btn-icon { padding: 8px 12px; font-size: 1rem; background: transparent; border: 1.5px solid var(--line); box-shadow: none; }
+.btn-icon { padding: 5px 12px; font-size: 1rem; background: transparent; border: 1.5px solid var(--line); box-shadow: none; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ---------------- タイトル画面 ---------------- */
@@ -133,7 +217,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .title-sub { color: var(--ink-2); margin-top: 4px; font-size: 0.9rem; }
 .title-desc { margin: 18px 0; line-height: 1.9; }
 .title-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 10px 0 16px; }
-.title-foot { color: var(--ink-2); font-size: 0.75rem; }
+.title-foot { color: var(--ink-2); font-size: var(--fs-min); line-height: 1.9; }
 
 /* ---------------- ステージ選択 ---------------- */
 #screen-select.active { display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -155,13 +239,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .stage-card:hover:not(.locked) { transform: translateY(-2px); border-color: var(--accent); }
 .stage-card.locked { opacity: 0.62; cursor: default; background: #f2f5f8; }
 .sc-row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.sc-name { font-weight: 700; color: var(--navy); font-size: 1.05rem; }
+.sc-name { font-weight: 700; color: var(--navy); font-size: 1.05rem; line-height: 1.9; }
 .sc-diff {
   background: var(--navy-2); color: #fff; border-radius: 999px;
-  font-size: 0.72rem; padding: 3px 10px; white-space: nowrap;
+  font-size: var(--fs-min); padding: 2px 10px; white-space: nowrap;
 }
 .sc-sub { color: var(--ink-2); font-size: 0.85rem; margin: 6px 0; line-height: 1.85; }
-.sc-row2 { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--ink-2); flex-wrap: wrap; gap: 4px; }
+.sc-row2 { display: flex; justify-content: space-between; font-size: var(--fs-min); color: var(--ink-2); flex-wrap: wrap; gap: 4px; }
 .sc-best { color: #b07d10; font-weight: 700; }
 .sc-best-none { color: var(--ink-2); font-weight: 400; }
 .sc-soon { color: var(--ink-2); }
@@ -174,6 +258,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .sc-diff.diff-hard { background: #b0483f; }
 #btn-select-back { display: block; margin: 0 auto; }
 
+/* =========================================================
+ * 【GAME】ゲーム画面レイアウト〜下パネル(HUD・ながれリボン・作業カード・采配レバー・駐機場・トースト・スタート・右上パネル・スタッフ帯)
+ * ========================================================= */
 /* ---------------- ゲーム画面レイアウト ---------------- */
 #screen-game.active {
   display: grid;
@@ -189,7 +276,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   background: var(--navy);
   color: #fff;
   border-radius: var(--radius);
-  padding: 8px 14px;
+  padding: 6px 14px;
   box-shadow: var(--shadow);
   flex-wrap: wrap;
 }
@@ -206,9 +293,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
   background: rgba(8, 16, 28, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 9px;
-  padding: 3px 12px 5px;
+  padding: 4px 10px 5px;
 }
-.hud-label { font-size: 0.62rem; opacity: 0.8; }
+.hud-label { font-size: var(--fs-min); opacity: 0.85; letter-spacing: 0.02em; line-height: 1.85; }
 #hud-clock, #hud-std, #hud-remain {
   font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15;
   color: #ffd24a;
@@ -222,12 +309,27 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .speed-ctrl { display: flex; border-radius: 10px; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.35); }
 .speed-btn {
   background: transparent; color: #fff; border: none;
-  padding: 7px 13px; font-size: 0.95rem; cursor: pointer;
+  padding: 0 8px; font-size: 0.95rem; cursor: pointer;
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1;
 }
 .speed-btn + .speed-btn { border-left: 1.5px solid rgba(255,255,255,0.35); }
 .speed-btn.active { background: var(--accent); }
-#btn-settings { color: #fff; border-color: rgba(255,255,255,0.35); }
-.btn-flow { color: #fff; border-color: rgba(255,255,255,0.35); font-size: 0.82rem; white-space: nowrap; }
+#btn-settings { color: #fff; border-color: rgba(255,255,255,0.35); min-width: 44px; }
+.btn-flow { color: #fff; border-color: rgba(255,255,255,0.35); font-size: 0.82rem; white-space: nowrap; min-width: 44px; }
+/* PC・タブレット: 3列のグリッドで1段に収める（左=ステージ名と天気を縦に / 中=時計 / 右=操作） */
+@media (min-width: 701px) {
+  #hud { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+  .hud-left { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.35; }
+  .hud-right { justify-self: end; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  #hud { gap: 6px; padding: 6px 10px; }
+  .hud-right { gap: 4px; }
+  .btn-flow .btn-txt { display: none; }
+  .hud-clock-box { min-width: 62px; padding: 4px 8px 5px; }
+}
 
 /* ---------------- ながれリボン（常時表示。12の作業を順番どおりに） ---------------- */
 .flow-ribbon {
@@ -235,42 +337,48 @@ ruby rt, .tc-ruby { font-weight: normal; }
   background: var(--paper);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 5px 8px;
+  padding: 8px 8px 4px;
   overflow-x: auto; overflow-y: hidden;
 }
 .fr-lead {
-  font-size: 0.68rem; font-weight: 700; color: var(--navy);
+  font-size: var(--fs-min); font-weight: 700; color: var(--navy);
   white-space: nowrap; line-height: 1.25; text-align: center; flex: 0 0 auto;
 }
 .fr-step {
-  display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
   border: 1.5px solid var(--line); border-radius: 999px;
-  padding: 2px 7px 2px 3px;
+  padding: 2px 8px 2px 4px;
   background: #f7fafc;
 }
 .fr-step.fr-sdone { background: #eaf7ef; border-color: #8fd0aa; }
 .fr-step.fr-snow { border-color: var(--accent); background: #eef8fc; box-shadow: 0 0 0 2px rgba(15, 143, 176, 0.15); }
 .fr-num {
-  width: 21px; height: 21px; flex: 0 0 21px;
+  /* 押せる範囲は 44x44、見た目の丸は 28px（背景の円で描く） */
+  width: 44px; height: 44px; flex: 0 0 44px;
   border: none; border-radius: 50%;
-  background: var(--sc, var(--navy-2)); color: #fff;
-  font-size: 0.72rem; font-weight: 700; line-height: 1;
+  background: radial-gradient(circle closest-side, var(--sc, var(--navy-2)) 0 13.5px, transparent 14.5px);
+  color: #fff;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
   cursor: pointer;
-  box-shadow: 0 1.5px 0 rgba(0, 0, 0, 0.18);
+  box-shadow: none;
 }
 .fr-sdone .fr-num { filter: saturate(0.45) brightness(1.08); }
-.fr-snow .fr-num { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sc, var(--accent)); }
+.fr-snow .fr-num { background: radial-gradient(circle closest-side, var(--sc) 0 13.5px, #fff 14px 16px, var(--sc) 16.5px 18.5px, transparent 19px); }
 .fr-chip {
   position: relative; flex: 0 0 auto;
-  width: 31px; height: 29px; padding: 0;
+  width: 40px; height: 40px; padding: 0;
   border: 1.5px solid transparent; border-radius: 8px;
   background: #fff; cursor: pointer;
   font-size: 1rem; line-height: 1;
 }
+/* 見た目は 40px のまま、押せる範囲をまん中から 44x44 にする（上下左右に 2px。となりとの間は 4px なので重ならない）
+ * わくの太さが端数で丸められても大きさが変わらないよう、inset ではなく中心からの 44px で決める */
+.fr-chip::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; }
 .fr-mark {
-  position: absolute; right: -4px; top: -5px;
-  font-size: 0.56rem; font-weight: 700; line-height: 1.55;
-  border-radius: 999px; padding: 0 3.5px;
+  position: absolute; right: -6px; top: -7px;
+  min-width: 16px; height: 16px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 16px; text-align: center;
+  border-radius: 999px; padding: 0 3px;
 }
 .fr-chip.fr-locked { opacity: 0.36; filter: grayscale(1); }
 .fr-chip.fr-ready { border-color: var(--ok); background: #f0fbf4; animation: fr-glow 1.8s ease-in-out infinite; }
@@ -289,6 +397,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
   50% { box-shadow: 0 0 0 7px rgba(47, 158, 99, 0.45); }
 }
 .fr-arrow { color: var(--ink-2); font-size: 0.9rem; flex: 0 0 auto; }
+/* せまい幅では矢印と見出しを隠して、チップの場所をあける（1024 以下は横スクロールしてよい） */
+@media (max-width: 1100px) { .fr-arrow { display: none; } }
+@media (max-width: 1023px) { .fr-lead { display: none; } }
 
 /* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ */
 #game-main {
@@ -299,8 +410,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ---------------- 作業カード（左ドロワー） ---------------- */
 #panel-tasks {
   position: absolute;
-  top: 10px; left: 10px; bottom: 96px;
-  width: min(300px, 78vw);
+  top: 10px; left: 10px; bottom: calc(var(--res-h) + 54px);
+  width: var(--drawer-w);
   z-index: 6;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(7px);
@@ -323,8 +434,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
 #task-list::-webkit-scrollbar-track, .game-log::-webkit-scrollbar-track, .flow-ribbon::-webkit-scrollbar-track { background: transparent; }
 .drawer-tab {
   position: absolute;
-  top: 6px; right: -40px;
-  width: 34px; padding: 9px 0;
+  top: 6px; right: -50px;
+  width: 44px; padding: 9px 0;
   border: none; border-radius: 0 10px 10px 0;
   background: var(--navy); color: #fff;
   cursor: pointer;
@@ -332,15 +443,15 @@ ruby rt, .tc-ruby { font-weight: normal; }
   font-size: 0.9rem;
   box-shadow: var(--shadow);
 }
-.drawer-tab-txt { font-size: 0.62rem; writing-mode: vertical-rl; letter-spacing: 2px; }
+.drawer-tab-txt { font-size: var(--fs-min); writing-mode: vertical-rl; letter-spacing: 2px; }
 .drawer-badge {
   position: absolute;
   top: -7px; right: -7px;
-  min-width: 20px; height: 20px;
+  min-width: 22px; height: 22px;
   border-radius: 999px;
   background: var(--bad);
   color: #fff;
-  font-size: 0.7rem; font-weight: 700;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   padding: 0 4px;
   border: 2px solid #fff;
@@ -353,9 +464,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border: 1.5px solid #eed48a;
   color: #7a5b12;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: var(--fs-min);
   padding: 6px 16px;
-  line-height: 1.85;
+  line-height: 1.9;
   box-shadow: var(--shadow);
   max-width: min(560px, 74%);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -377,12 +488,12 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* かんりょうスタンプ（赤いはんこふう） */
 .task-card.st-done::after {
   content: 'かんりょう!';
-  position: absolute; right: 9px; top: 26px;
+  position: absolute; right: 10px; top: auto; bottom: 10px;
   color: #d05a5a;
   border: 2.5px solid #d05a5a;
   border-radius: 8px;
   padding: 1px 8px 2px;
-  font-size: 0.68rem; font-weight: 900; letter-spacing: 0.06em;
+  font-size: var(--fs-min); font-weight: 900; letter-spacing: 0.06em;
   transform: rotate(-9deg);
   opacity: 0.85;
   pointer-events: none;
@@ -408,17 +519,24 @@ ruby rt, .tc-ruby { font-weight: normal; }
   75% { transform: translateX(5px); }
 }
 
-.tc-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; row-gap: 3px; }
-.tc-icon { font-size: 1.05rem; }
-.tc-name { font-weight: 700; font-size: 0.93rem; color: var(--navy); flex: 1 1 52%; line-height: 1.6; }
+.tc-head {
+  /* 2段: 1段目=ステップ番号と状態 / 2段目=アイコンと作業名（名前に幅を全部つかう） */
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  grid-template-areas: 'step step . state' 'icon name name name';
+  align-items: center; column-gap: 6px; row-gap: 2px;
+}
+.tc-icon { grid-area: icon; font-size: 1.05rem; }
+.tc-name { grid-area: name; font-weight: 700; font-size: 0.93rem; color: var(--navy); line-height: 1.9; }
 /* 見出しのルビは幅をとらないように少しつめる（1文字だけの折り返し防止） */
-.tc-name rt { font-size: 0.45em; letter-spacing: -0.03em; }
-.tc-ruby { color: var(--ink-2); font-size: 0.68rem; font-weight: 400; }
+.tc-name rt { letter-spacing: -0.03em; }
+.tc-ruby { color: var(--ink-2); font-size: var(--fs-min); font-weight: 400; }
 .tc-state {
-  font-size: 0.66rem; color: var(--ink-2); white-space: nowrap;
-  margin-left: auto;
+  grid-area: state;
+  font-size: var(--fs-min); color: var(--ink-2); white-space: nowrap;
+  margin-left: 0;
   background: var(--chip); border-radius: 999px; padding: 1px 8px;
-  line-height: 1.7;
+  line-height: 1.85;
 }
 .st-ready .tc-state { color: #1d6b3f; background: #e3f5ea; font-weight: 700; }
 .st-active .tc-state { color: #fff; background: var(--accent); font-weight: 700; }
@@ -429,13 +547,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ひつような人・車のチップ（左の色ぼうをやめて、色つきの丸いピルに） */
 .req-chip {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 0.68rem;
+  font-size: var(--fs-min);
   background: var(--chip);
   border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 1px 9px;
+  padding: 2px 9px 1px;
   color: var(--ink);
-  line-height: 1.5;
+  line-height: 1.85;
 }
 @supports (color: color-mix(in srgb, red, blue)) {
   .req-chip {
@@ -456,21 +574,23 @@ ruby rt, .tc-ruby { font-weight: normal; }
 
 .tc-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  font-size: 0.7rem; color: var(--ink-2); margin-top: 5px; flex-wrap: wrap;
+  font-size: var(--fs-min); color: var(--ink-2); margin-top: 5px; flex-wrap: wrap;
+  line-height: 1.85;
 }
 .tc-extra { color: #a4681b; }
 .tc-prio { border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
 .tc-prio.prio-high { border-color: #eab6b6; color: #b34a4a; }
 
-.tc-lockmsg { display: none; font-size: 0.78rem; color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.9; }
+.tc-lockmsg { display: none; font-size: var(--fs-min); color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.9; }
 .tc-lockmsg.show { display: block; }
 
 /* ステップ番号（ながれリボンと同じ番号・同じ色で順番をおぼえられるように） */
 .tc-step {
+  grid-area: step; justify-self: start;
   flex: 0 0 auto;
   background: var(--navy-2); color: #fff;
   border-radius: 999px; padding: 1px 7px;
-  font-size: 0.6rem; font-weight: 700; white-space: nowrap;
+  font-size: var(--fs-min); font-weight: 700; white-space: nowrap;
 }
 [data-step="1"] { --sc: var(--s1); }
 [data-step="2"] { --sc: var(--s2); }
@@ -485,7 +605,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* この作業がおわると つぎに何が開くか */
 .tc-unlocks {
   display: none;
-  font-size: 0.72rem; color: #2a6b48; background: #eef8f1;
+  font-size: var(--fs-min); color: #2a6b48; background: #eef8f1;
   border-radius: 6px; padding: 4px 8px; margin-top: 6px; line-height: 1.85;
 }
 .tc-unlocks.show { display: block; }
@@ -497,7 +617,35 @@ ruby rt, .tc-ruby { font-weight: normal; }
   50% { box-shadow: 0 0 0 5px rgba(47, 158, 99, 0.4); }
 }
 
-.tc-btns { display: flex; gap: 6px; margin-top: 7px; }
+.tc-btns { display: flex; gap: 8px; margin-top: 7px; }
+
+/* ---------------- 采配レバー（ていねい/ふつう/急ぐ） ---------------- */
+.pace-ctrl {
+  display: flex;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.pace-btn {
+  flex: 1;
+  border: none;
+  background: #fff;
+  font-size: var(--fs-min);
+  min-height: 44px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.pace-btn + .pace-btn { border-left: 1.5px solid var(--line); }
+.pace-btn.on { background: var(--navy-2); color: #fff; font-weight: 700; }
+.pace-btn.on.pace-rush { background: #b8434e; }
+.pace-btn.on.pace-careful { background: #2e9e5b; }
+
+/* 集合中（メンバーが持ち場へ移動・集合している状態）
+ * ※状態ピルの色は上の .st-gathering .tc-state（カード欄）で定義 */
+.task-card.st-gathering { border-color: var(--warn); background: #fffdf4; }
 
 /* ---------------- 駐機場ビュー（全面） ---------------- */
 #apron-wrap {
@@ -547,12 +695,14 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ズームボタン */
 #zoom-ctrl {
   position: absolute;
-  right: 12px; bottom: 104px;
-  display: flex; flex-direction: column; gap: 6px;
+  /* 文字が大きくなって右上パネルが高くなったので、たて並びだとパネルの下にかくれる。
+   * 横並びにして、スタッフ帯のすぐ上に置く（右上パネルの max-height の下端より下） */
+  right: 12px; bottom: calc(var(--res-h) + 18px);
+  display: flex; flex-direction: row; gap: 6px;
   z-index: 5;
 }
 .zoom-btn {
-  width: 40px; height: 40px;
+  width: 44px; height: 44px; line-height: 1;
   border: none; border-radius: 10px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--navy);
@@ -573,18 +723,18 @@ ruby rt, .tc-ruby { font-weight: normal; }
   padding: 10px 12px;
   animation: rise 0.15s ease-out;
 }
-.spot-pop .sp-title { font-weight: 700; color: var(--navy); font-size: 0.9rem; margin-bottom: 4px; }
+.spot-pop .sp-title { font-weight: 700; color: var(--navy); font-size: 0.9rem; margin-bottom: 4px; line-height: 1.9; }
 .spot-pop .sp-step {
   display: inline-block; margin-right: 5px;
   background: var(--sc, var(--navy-2)); color: #fff; border-radius: 999px;
-  font-size: 0.6rem; padding: 1px 7px; vertical-align: 2px;
+  font-size: var(--fs-min); padding: 1px 7px; vertical-align: 2px;
 }
-.spot-pop .sp-info { font-size: 0.74rem; color: var(--ink-2); line-height: 1.9; margin-bottom: 6px; }
+.spot-pop .sp-info { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.9; margin-bottom: 6px; }
 .sp-next {
   margin-top: 5px; padding: 4px 8px;
-  background: #eef8f1; color: #2a6b48; border-radius: 6px; font-size: 0.7rem; line-height: 1.85;
+  background: #eef8f1; color: #2a6b48; border-radius: 6px; font-size: var(--fs-min); line-height: 1.9;
 }
-.spot-pop .sp-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.spot-pop .sp-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .event-banner {
   position: absolute;
@@ -595,6 +745,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border-radius: 999px;
   padding: 9px 18px;
   font-size: 0.88rem;
+  line-height: 1.85;
   cursor: pointer;
   box-shadow: 0 3px 12px rgba(90, 70, 0, 0.3);
   animation: pulse 1.4s infinite;
@@ -632,6 +783,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border: 2px solid var(--ok); font-weight: 700;
   animation: rise 0.25s ease-out, fr-flash 0.9s 2;
 }
+/* ---------------- コーチのふきだし ---------------- */
+.toast-coach {
+  background: #ffffff;
+  color: var(--ink);
+  border: 2px solid var(--accent);
+  font-weight: 500;
+}
 .toast.out { opacity: 0; transition: opacity 0.45s; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
@@ -651,13 +809,24 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 .start-card h3 { color: var(--navy); margin-bottom: 10px; }
 .start-card p { font-size: 0.9rem; line-height: 2; margin-bottom: 14px; white-space: pre-line; text-align: left; }
+/* スタート画面のまめ知識 */
+.start-trivia {
+  background: var(--chip);
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-size: var(--fs-min);
+  line-height: 2;
+  color: var(--ink-2);
+  text-align: left;
+  margin-bottom: 14px;
+}
 
 /* ---------------- 右上パネル（指標・コンパクト） ---------------- */
 #panel-status {
   position: absolute;
   top: 10px; right: 10px;
-  width: min(232px, 62vw);
-  max-height: calc(100% - 116px);
+  width: var(--status-w);
+  max-height: calc(100% - var(--res-h) - 74px);
   z-index: 5;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(7px);
@@ -673,32 +842,34 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border: 1.5px solid var(--line);
   background: transparent;
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: var(--fs-min);
   color: var(--ink-2);
-  padding: 6px 9px;
+  min-height: 44px;
+  padding: 8px 12px;
   cursor: pointer;
   text-align: left;
 }
 #panel-status:not(.log-open) #game-log { display: none; }
 /* きろくを開いたときは、しっかり高さをとって読みやすく */
-#panel-status.log-open { max-height: calc(100% - 116px); }
+#panel-status.log-open { max-height: calc(100% - var(--res-h) - 74px); }
 #panel-status.log-open #game-log {
   display: flex;
   flex: 1;
   min-height: 260px;
 }
-.panel-title { font-size: 0.82rem; color: var(--navy); }
-.panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: 0.68rem; }
+.panel-title { font-size: 0.9rem; color: var(--navy); }
+.panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: var(--fs-min); }
 .metric { margin-bottom: 2px; position: relative; }
 .metric-head {
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 0.78rem; font-weight: 600; margin-bottom: 3px;
+  font-size: var(--fs-min); font-weight: 700; margin-bottom: 3px;
+  line-height: 1.9;
 }
 /* 指標が動いたときの「−3」フロート */
 .metric-delta {
   position: absolute;
   right: 2px; top: -4px;
-  font-size: 0.78rem; font-weight: 800;
+  font-size: var(--fs-min); font-weight: 700;
   pointer-events: none;
   animation: delta-rise 1.4s ease-out forwards;
 }
@@ -714,7 +885,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   0%, 100% { filter: none; }
   40% { filter: brightness(1.6) saturate(1.6); }
 }
-.metric-head small { font-weight: 400; color: var(--ink-2); font-size: 0.85em; }
+.metric-head small { font-weight: 400; color: var(--ink-2); font-size: inherit; }
 .bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
 .fill-safety { background: #2e9e5b; }
@@ -724,7 +895,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .bar-fill.low { background: var(--bad); }
 .unfinished-box {
   background: var(--chip); border-radius: 8px; padding: 7px 10px;
-  font-size: 0.8rem; color: var(--ink-2);
+  font-size: var(--fs-min); color: var(--ink-2);
 }
 .unfinished-box strong { color: var(--navy); font-size: 1rem; }
 .game-log {
@@ -759,26 +930,26 @@ ruby rt, .tc-ruby { font-weight: normal; }
 #panel-resources .res-group { flex-wrap: nowrap; }
 #panel-resources .res-strip { flex-wrap: nowrap; }
 .res-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.res-group-label { font-size: 0.72rem; font-weight: 700; color: var(--navy); white-space: nowrap; }
+.res-group-label { font-size: var(--fs-min); font-weight: 700; color: var(--navy); white-space: nowrap; line-height: 1.85; }
 .res-strip { display: flex; flex-wrap: wrap; gap: 5px; }
 /* スタッフ・車両チップ（左の色ぼう→色つきピル。「(」のように見える湾曲を解消） */
 .res-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.7rem;
-  line-height: 1.5;
+  font-size: var(--fs-min);
+  line-height: 1.85;
   background: #fff;
   border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 2px 9px 2px 5px;
+  padding: 2px 10px 2px 4px;
   white-space: nowrap;
   flex: none;
 }
 /* アイコンは担当色の丸バッジに */
 .res-chip .rc-ico {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%;
+  width: 22px; height: 22px; border-radius: 50%;
   background: var(--c, var(--chip));
-  font-size: 0.72rem;
+  font-size: var(--fs-min);
   flex: none;
 }
 .res-chip .rc-name { font-weight: 700; color: var(--navy); }
@@ -787,15 +958,18 @@ ruby rt, .tc-ruby { font-weight: normal; }
   color: var(--ink-2);
   background: var(--chip);
   border-radius: 999px;
-  padding: 0 7px;
-  font-size: 0.62rem;
-  line-height: 1.7;
+  padding: 1px 7px;
+  font-size: var(--fs-min);
+  line-height: 1.35;
 }
 .res-chip.rs-working { border-color: #9ed2e4; background: #f2fafd; }
 .res-chip.rs-working .rc-st { color: #fff; background: var(--accent); font-weight: 700; }
 .res-chip.rs-moving, .res-chip.rs-returning { border-color: #ecd9a0; background: #fffdf4; }
 .res-chip.rs-moving .rc-st, .res-chip.rs-returning .rc-st { color: #7a5b12; background: #f6e3ac; font-weight: 700; }
 
+/* =========================================================
+ * 【META】モーダル〜結果タイムライン(モーダル・結果・ながれマップ・ずかん・まめ知識・タイムライン)
+ * ========================================================= */
 /* ---------------- モーダル ---------------- */
 .modal-backdrop {
   position: fixed; inset: 0;
@@ -814,13 +988,13 @@ ruby rt, .tc-ruby { font-weight: normal; }
   box-shadow: 0 10px 40px rgba(10, 25, 45, 0.4);
   animation: rise 0.2s ease-out;
 }
-.modal-title { font-size: 1.1rem; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
+.modal-title { font-size: 1.1rem; font-weight: 700; color: var(--navy); margin-bottom: 10px; line-height: 1.9; }
 .modal-body { font-size: 0.9rem; line-height: 1.95; }
 .modal-body p { margin-bottom: 8px; }
-.modal-kv { font-size: 0.84rem; }
+.modal-kv { font-size: 0.875rem; }
 .modal-note {
   background: #fdf6dd; border-radius: 8px; padding: 8px 10px;
-  font-size: 0.8rem; line-height: 1.85;
+  font-size: var(--fs-min); line-height: 1.9;
 }
 .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 
@@ -838,18 +1012,20 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 .event-choice:hover { border-color: var(--accent); }
 .event-choice:active { transform: scale(0.985); }
-.ec-label { font-weight: 700; color: var(--navy); font-size: 0.9rem; line-height: 1.7; }
-.ec-hint { font-size: 0.78rem; color: var(--ink-2); line-height: 1.8; }
+.ec-label { font-weight: 700; color: var(--navy); font-size: 0.9rem; line-height: 1.9; }
+.ec-hint { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; }
 .ec-tags { display: flex; gap: 5px; flex-wrap: wrap; }
 .ec-tags em {
-  font-style: normal; font-size: 0.68rem;
-  background: var(--chip); border-radius: 999px; padding: 1px 8px; color: var(--ink-2);
+  font-style: normal; font-size: var(--fs-min);
+  background: var(--chip); border-radius: 999px; padding: 2px 8px 1px; color: var(--ink-2);
+  line-height: 1.85;
 }
 
 .set-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 9px 0; border-bottom: 1px solid var(--line);
   font-size: 0.9rem; gap: 10px;
+  min-height: 44px;
 }
 .set-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 
@@ -868,7 +1044,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   padding: 26px 28px;
   text-align: center;
 }
-.result-flag { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; line-height: 1.6; }
+.result-flag { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; line-height: 1.9; }
 .result-flag.great { color: var(--ok); }
 .result-flag.ok { color: var(--accent-d); }
 .result-flag.bad { color: var(--bad); }
@@ -876,7 +1052,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .result-rank {
   width: 84px; height: 84px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 2.6rem; font-weight: 900; color: #fff;
+  font-size: 2.6rem; font-weight: 900; color: #fff; line-height: 1;
   background: var(--accent);
   box-shadow: 0 0 0 5px #fff, 0 0 0 8px currentColor, 0 6px 18px rgba(30, 58, 95, 0.25);
   animation: rank-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 0.15s backwards;
@@ -905,7 +1081,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .rank-C { background: #7b8a9c; }
 .rank-D { background: #9c7b7b; }
 .rank-X { background: var(--bad); }
-.result-score { font-size: 3rem; font-weight: 800; color: var(--navy); }
+.result-score { font-size: 3rem; font-weight: 700; color: var(--navy); line-height: 1; }
 .result-score-max { color: var(--ink-2); }
 /* ★の獲得表示（1つずつポンッと出る） */
 .result-stars { font-size: 2rem; line-height: 1.2; margin-bottom: 10px; letter-spacing: 0.12em; }
@@ -924,12 +1100,12 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .result-badges {
   display: flex; align-items: center; justify-content: center; gap: 7px; flex-wrap: wrap;
   background: #fff8e2; border: 1.5px solid #eed48a; border-radius: 10px;
-  padding: 7px 12px; margin-bottom: 10px; font-size: 0.8rem;
+  padding: 7px 12px; margin-bottom: 10px; font-size: var(--fs-min);
 }
 .result-badges .rb-title { font-weight: 900; color: #8a6d1d; }
 .badge-chip {
   background: #fff; border: 1.5px solid #eabf4d; border-radius: 999px;
-  padding: 2px 11px; font-weight: 700; color: #7a5b12;
+  padding: 2px 11px 1px; font-weight: 700; color: #7a5b12; line-height: 1.85;
   animation: stamp-in 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
 }
 /* つぎの目標 */
@@ -950,16 +1126,16 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .badge-item.bd-got { border-color: #eabf4d; background: #fffdf4; }
 .badge-item.bd-notyet { opacity: 0.62; filter: grayscale(0.4); }
 .bd-mark {
-  font-size: 0.6rem; font-weight: 900; color: #fff;
+  font-size: var(--fs-min); font-weight: 900; color: #fff;
   background: #f5a301; border-radius: 999px; padding: 1px 7px; vertical-align: 2px;
 }
 .result-breakdown { list-style: none; margin-bottom: 12px; display: flex; flex-direction: column; gap: 7px; }
-.result-breakdown li { display: grid; grid-template-columns: 11em 1fr auto; align-items: center; gap: 8px; font-size: 0.82rem; line-height: 1.8; }
+.result-breakdown li { display: grid; grid-template-columns: 11em 1fr auto; align-items: center; gap: 8px; font-size: 0.82rem; line-height: 1.9; }
 .rb-label { text-align: left; }
 .rb-bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
 .rb-fill { display: block; height: 100%; border-radius: 999px; }
 .rb-num { font-variant-numeric: tabular-nums; color: var(--ink-2); }
-.result-times { font-size: 0.85rem; color: var(--ink-2); margin-bottom: 14px; }
+.result-times { font-size: 0.85rem; color: var(--ink-2); margin-bottom: 14px; line-height: 1.9; }
 .result-advice-box {
   background: var(--chip); border-radius: 12px; padding: 12px 16px;
   text-align: left; margin-bottom: 18px;
@@ -970,37 +1146,38 @@ ruby rt, .tc-ruby { font-weight: normal; }
 
 /* ---------------- ながれマップ ---------------- */
 .flow-map { display: flex; flex-direction: column; gap: 4px; }
-.flow-note { font-size: 0.74rem; color: var(--ink-2); line-height: 1.75; flex: 1; }
+.flow-note { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; flex: 1; }
 .flow-row { display: flex; flex-wrap: wrap; gap: 6px; margin-left: 28px; }
 /* ステップ見出し（番号・条件・いまここ） */
 .flow-step { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .flow-stepnum {
-  width: 22px; height: 22px; flex: 0 0 22px;
+  width: 26px; height: 26px; flex: 0 0 26px;
   border-radius: 50%; background: var(--sc, var(--navy-2)); color: #fff;
-  font-size: 0.72rem; font-weight: 700;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
   display: flex; align-items: center; justify-content: center;
 }
 .flow-step.fs-done .flow-stepnum { filter: saturate(0.45) brightness(1.08); }
 .flow-step.fs-now .flow-stepnum { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sc, var(--accent)); }
 .flow-here {
   background: var(--accent); color: #fff; border-radius: 999px;
-  font-size: 0.66rem; font-weight: 700; padding: 2px 9px; white-space: nowrap;
+  font-size: var(--fs-min); font-weight: 700; padding: 2px 9px; white-space: nowrap;
 }
 .flow-chip {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   background: var(--chip);
   border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 4px 11px;
+  padding: 2px 11px 1px;
   color: var(--navy);
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.85;
 }
 .flow-chip.fc-done { background: #e6f6ec; border-color: #7cc99a; color: #22703f; }
 .flow-chip.fc-active { background: #e1f2f8; border-color: var(--accent); color: var(--accent-d); animation: pulse-soft 1.4s infinite; }
 .flow-chip.fc-ready { background: #fff; border-color: var(--accent); }
 .flow-chip.fc-locked { opacity: 0.5; }
-.flow-legend { display: flex; gap: 7px; margin-top: 12px; font-size: 0.68rem; flex-wrap: wrap; color: var(--ink-2); }
-.flow-legend span { border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.flow-legend { display: flex; gap: 7px; margin-top: 12px; font-size: var(--fs-min); flex-wrap: wrap; color: var(--ink-2); }
+.flow-legend span { border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px 1px; line-height: 1.85; }
 .flow-legend .fc-done { background: #e6f6ec; }
 .flow-legend .fc-active { background: #e1f2f8; }
 .flow-legend .fc-ready { border-color: var(--accent); }
@@ -1010,7 +1187,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .zk-step {
   display: inline-block; margin-right: 6px;
   background: var(--sc, var(--navy-2)); color: #fff; border-radius: 999px;
-  font-size: 0.62rem; font-weight: 700; padding: 1px 8px; vertical-align: 2px;
+  font-size: var(--fs-min); font-weight: 700; padding: 1px 8px; vertical-align: 2px;
 }
 .zk-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .zk-tab {
@@ -1018,8 +1195,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
   border: 1.5px solid var(--line);
   background: #fff;
   border-radius: 8px;
+  min-height: 44px;
   padding: 7px 4px;
-  font-size: 0.8rem;
+  font-size: var(--fs-min);
   cursor: pointer;
   color: var(--ink-2);
 }
@@ -1027,27 +1205,18 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .zk-list { display: flex; flex-direction: column; gap: 8px; }
 .zk-cat { font-size: 0.82rem; color: var(--navy); margin-top: 4px; }
 .zk-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
-.zk-item p { font-size: 0.78rem; margin: 3px 0; line-height: 1.85; }
-.zk-head { font-weight: 700; color: var(--navy); font-size: 0.86rem; }
-.zk-head small { color: var(--ink-2); font-weight: 400; font-size: 0.72rem; }
-.zk-why { color: #7a5b12; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: 0.76rem; line-height: 1.85; }
-.zk-note { color: var(--ink-2); font-size: 0.72rem; }
+.zk-item p { font-size: 0.875rem; margin: 3px 0; line-height: 1.9; }
+.zk-head { font-weight: 700; color: var(--navy); font-size: 0.86rem; line-height: 1.9; }
+.zk-head small { color: var(--ink-2); font-weight: 400; font-size: var(--fs-min); }
+.zk-why { color: #7a5b12; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: var(--fs-min); line-height: 1.9; }
+.zk-note { color: var(--ink-2); font-size: var(--fs-min); }
 
-/* ---------------- コーチのふきだし ---------------- */
-.toast-coach {
-  background: #ffffff;
-  color: var(--ink);
-  border: 2px solid var(--accent);
-  font-weight: 600;
-  line-height: 1.7;
-}
-
-/* ---------------- スタート画面・結果画面のまめ知識 ---------------- */
-.start-trivia, .result-trivia {
+/* ---------------- 結果画面のまめ知識 ---------------- */
+.result-trivia {
   background: var(--chip);
   border-radius: 10px;
   padding: 9px 13px;
-  font-size: 0.78rem;
+  font-size: var(--fs-min);
   line-height: 2;
   color: var(--ink-2);
   text-align: left;
@@ -1058,11 +1227,11 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ---------------- 結果画面の作業タイムライン ---------------- */
 .result-gantt-box { margin-bottom: 16px; text-align: left; }
 .result-gantt-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 8px; }
-.rg-sub { font-weight: 400; color: var(--ink-2); font-size: 0.72rem; }
+.rg-sub { font-weight: 400; color: var(--ink-2); font-size: var(--fs-min); line-height: 1.9; }
 .result-gantt { display: flex; flex-direction: column; gap: 3px; }
 .gr { display: grid; grid-template-columns: 7.6em 1fr; align-items: center; gap: 8px; }
 .gr-label {
-  font-size: 0.68rem; color: var(--ink);
+  font-size: var(--fs-min); color: var(--ink); line-height: 1.9;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .gr-track {
@@ -1074,43 +1243,18 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 .gr-gather { position: absolute; top: 0; bottom: 0; background: #f0cf8e; border-radius: 3px; }
 .gr-work { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
-.gr-none { font-size: 0.66rem; color: var(--ink-2); padding-left: 4px; }
+.gr-none { font-size: var(--fs-min); color: var(--ink-2); padding-left: 4px; }
 .gr-stdline { position: absolute; top: -1px; bottom: -1px; width: 2px; background: rgba(214, 69, 69, 0.75); }
 .gr-axis { display: grid; grid-template-columns: 7.6em 1fr; gap: 8px; margin-top: 2px; }
-.gr-axis-track { position: relative; height: 14px; font-size: 0.62rem; color: var(--ink-2); }
+.gr-axis-track { position: relative; height: 20px; font-size: var(--fs-min); color: var(--ink-2); }
 .gr-axis-track span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .gr-axis-track .ax-std { color: #b34a4a; font-weight: 700; }
 
-/* ---------------- 采配レバー（ていねい/ふつう/急ぐ） ---------------- */
-.pace-ctrl {
-  display: flex;
-  border: 1.5px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 6px;
-}
-.pace-btn {
-  flex: 1;
-  border: none;
-  background: #fff;
-  font-size: 0.68rem;
-  padding: 5px 2px;
-  cursor: pointer;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-.pace-btn + .pace-btn { border-left: 1.5px solid var(--line); }
-.pace-btn.on { background: var(--navy-2); color: #fff; font-weight: 700; }
-.pace-btn.on.pace-rush { background: #b8434e; }
-.pace-btn.on.pace-careful { background: #2e9e5b; }
-
-/* 集合中（メンバーが持ち場へ移動・集合している状態）
- * ※状態ピルの色は上の .st-gathering .tc-state（カード欄）で定義 */
-.task-card.st-gathering { border-color: var(--warn); background: #fffdf4; }
-
+/* =========================================================
+ * 【GAME】スマホ(700px以下)
+ * ========================================================= */
 /* ---------------- レスポンシブ（スマホは縦積みに戻す） ---------------- */
 @media (max-width: 700px) {
-  :root { font-size: 15px; }
   #screen-game.active {
     display: flex; flex-direction: column;
     height: auto; min-height: 100%;
@@ -1122,7 +1266,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   #apron-wrap { position: relative; inset: auto; order: 1; height: 58vw; min-height: 240px; }
   #panel-status { position: static; width: auto; max-height: none; order: 2; }
   #panel-status.log-open { max-height: none; }
-  #panel-status.log-open #game-log { min-height: 0; max-height: 260px; }
+  #panel-status.log-open #game-log { min-height: 260px; max-height: min(50svh, 360px); }
   #panel-tasks { position: static; width: auto; transform: none !important; order: 3; overflow: visible; bottom: auto; }
   #panel-tasks .drawer-tab { display: none; }
   #task-list { overflow-y: visible; }
@@ -1130,8 +1274,19 @@ ruby rt, .tc-ruby { font-weight: normal; }
   #panel-resources .res-group, #panel-resources .res-strip { flex-wrap: wrap; }
   #zoom-ctrl { bottom: 12px; }
   .hint-banner { max-width: 88%; }
-  .game-log { max-height: 120px; }
-  .btn, .speed-btn { min-height: 40px; }
+  .btn, .speed-btn { min-height: 44px; }
   .fr-lead { display: none; }
-  .fr-chip { width: 34px; height: 32px; }  /* 指で押しやすく */
+}
+
+/* =========================================================
+ * 【共通: 土台】動きをへらす設定の人には、アニメーションを止める
+ * ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+  .title-clouds, .confetti-box { display: none; }
 }

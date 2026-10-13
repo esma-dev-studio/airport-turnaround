@@ -57,11 +57,11 @@
       </div>
       <div class="hud-center">
         <div class="hud-clock-box">
-          <span class="hud-label">いまの時こく</span>
+          <span class="hud-label">いまの<ruby>時刻<rt>じこく</rt></ruby></span>
           <span id="hud-clock">10:00</span>
         </div>
         <div class="hud-clock-box">
-          <span class="hud-label">しゅっぱつよてい</span>
+          <span class="hud-label"><ruby>出発予定<rt>しゅっぱつよてい</rt></ruby></span>
           <span id="hud-std">10:45</span>
         </div>
         <div class="hud-clock-box">
@@ -75,7 +75,7 @@
           <button class="speed-btn" data-speed="1" title="通常速度">▶</button>
           <button class="speed-btn" data-speed="2" title="2倍速">⏩</button>
         </div>
-        <button id="btn-flowmap" class="btn btn-icon btn-flow" title="出発準備のながれを見る">🗺 ながれ</button>
+        <button id="btn-flowmap" class="btn btn-icon btn-flow" title="出発準備のながれを見る" aria-label="ながれを見る">🗺 <span class="btn-txt">ながれ</span></button>
         <button id="btn-settings" class="btn btn-icon" title="設定">⚙</button>
       </div>
     </header>
@@ -191,6 +191,7 @@
 
 </div>
 
+<script src="icons.js"></script>
 <script src="tasks.js"></script>
 <script src="events.js"></script>
 <script src="stages.js"></script>
