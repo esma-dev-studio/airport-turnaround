@@ -414,7 +414,7 @@
       if (!t || t.status === 'done' || !window.PACE_ALLOWED.has(taskId)) return { ok: false };
       if (t.pace === pace) return { ok: true };
       t.pace = pace;
-      if (pace === 'rush') this.log(`「${t.def.name}」を急がせる（速いが満足度${window.SAFETY_SENSITIVE.has(t.id) ? '・安全性' : ''}に注意）`, 'warn');
+      if (pace === 'rush') this.log(`「${t.def.name}」を「いそぐ」にした（速いが満足度${window.SAFETY_SENSITIVE.has(t.id) ? '・安全性' : ''}に注意）`, 'warn');
       else if (pace === 'careful') this.log(`「${t.def.name}」をていねいに進める`, 'info');
       this.emit('task', { id: t.id });
       return { ok: true };
@@ -477,7 +477,9 @@
       Object.entries(t.def.staff || {}).forEach(([type, n]) => pickFrom('staff', type, n));
       Object.entries(t.def.vehicles || {}).forEach(([type, n]) => pickFrom('vehicle', type, n));
       if (missing.length) {
-        return { ok: false, reason: `${missing.join('。')}。ほかの おしごとが おわるのを まとう` };
+        /* 自動では はじまらないので、もう一度 押せばよいと分かる言い方にする（あつまり中は「のこりを よぶ」） */
+        const again = t.status === 'gathering' ? '「▶ のこりを よぶ」' : '「▶ はじめる」';
+        return { ok: false, reason: `${missing.join('。')}。ほかの おしごとが おわったら、もういちど ${again}を おしてね` };
       }
 
       /* 割当実行 */
@@ -633,7 +635,8 @@
 
       this.emit('task', { id: t.id });
       this.emit('resources');
-      this.emit('sfx', t.id === 'depart' ? 'clear' : 'done');
+      /* 出発のときの音は _endStage の「クリア / しっぱい」の1つだけにする（失格の回に クリアの音を鳴らさない） */
+      if (t.id !== 'depart') this.emit('sfx', 'done');
 
       if (t.id === 'pushback') {
         this.startTask('depart');
@@ -783,8 +786,11 @@
         add('bad', '安全確認を省略したため、安全性が大きく減点され、クリアになりませんでした。プッシュバック前の周辺確認は、どんなに急いでいても必ず行いましょう。');
       } else if (s.flags.critical) {
         add('bad', '安全にかかわる確認を省略する選択をしたため、クリアになりませんでした。安全はすべてに優先します。');
-      } else {
+      } else if (departed) {
         add('good', '安全な運航を実現しました。');
+      } else {
+        /* 出発できなかった回は「運航を実現」とは言わない（安全のルールを守れたことだけをほめる） */
+        add('good', 'あんぜんの ルールは まもれたね。');
       }
 
       if (!departed) {
@@ -811,7 +817,8 @@
         } else {
           add('tip', '作業どうしのすき間を小さくして、並行作業を増やすとさらに良くなります。');
         }
-      } else if (departed) {
+      } else if (departed && !s.flags.critical) {
+        /* 失格の回には、出発をほめる文を出さない */
         add('good', '定刻どおりの出発、みごとな段取りです！');
       }
 
@@ -835,7 +842,7 @@
         if (a) add(EV_TIP.has(`${e.id}:${e.choiceIdx}`) ? 'tip' : 'good', a);
       });
       if (s.stats.rushCount >= 4 && s.metrics.sat < 78) {
-        add('tip', '「急がせる」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
+        add('tip', '「いそぐ」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
       } else if (s.metrics.sat < 80 && !s.stats.satNotes.includes('advised')) {
         add('tip', '乗客の待ち時間をへらすと満足度が上がります。');
       }

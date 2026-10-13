@@ -54,7 +54,7 @@
   --st-done-bg: #e3f5ea;
   --st-issue: #b3261e;
   --st-locked: #5b6b80;
-  --st-paused: #5b6f86;
+  --st-paused: #4a5584;   /* まだ（#5b6b80）と見分けられる 青むらさき寄りの灰（白文字 7.2） */
 
   /* 重なり順（z-index の段） */
   --z-fx: 1;
@@ -387,6 +387,14 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   white-space: nowrap;
 }
 #hud-weather .ico { width: 17px; height: 17px; }
+/* 一時停止の札（HUD の中。背の低い横長の画面だけで出す。静か・点滅しない） */
+.hud-paused {
+  display: none; align-items: center; gap: 5px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.85; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px; padding: 1px 12px 1px 9px;
+}
+.hud-paused .ico { width: 15px; height: 15px; }
 /* かみなりで そとの おしごとが止まっている間だけ、こはく色の札にする（パネルの色は変えない） */
 #hud-weather.wx-storm { background: #f2b21b; color: #3d2c00; font-weight: 700; }
 /* 出発ボードふうの時計（黒パネル+こはく色の数字） */
@@ -465,6 +473,18 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 
 /* ---------------- ながれリボン（常時表示。12の作業を順番どおりに） ---------------- */
+.flow-ribbon-wrap { position: relative; min-width: 0; }
+/* 右に続きがあるときの「›」（スタッフ帯と同じ形） */
+.rib-more {
+  position: absolute; right: 4px; top: 50%; margin-top: -22px;
+  width: 44px; height: 44px;
+  border: 1px solid rgba(30, 58, 95, 0.25); border-radius: 10px;
+  background: #fff; color: var(--navy);
+  box-shadow: inset 0 1px 0 #fff, var(--elev-1);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.rib-more .ico { width: 22px; height: 22px; }
 .flow-ribbon {
   display: flex; align-items: center; gap: 4px;
   justify-content: safe center;   /* 入るときはまん中、はみ出すときは左よせ */
@@ -564,7 +584,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 @media (max-width: 1059px) { .fr-arrow { display: none; } }
 /* リボンを押したときの答え（押した部品の真下に出す小さな吹き出し。3.5秒で消える） */
 .fr-tip {
-  position: fixed; z-index: var(--z-pop);
+  position: fixed; z-index: calc(var(--z-overlay) + 1);   /* はじめる前の案内（スタートの幕の上）にも使う */
   max-width: min(320px, calc(100vw - 16px));
   background: var(--navy); color: #fff;
   border-radius: 10px; padding: 6px 12px;
@@ -579,6 +599,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   background: inherit; border-radius: 2px; transform: rotate(45deg);
 }
 .fr-tip .ico { width: 16px; height: 16px; }
+.fr-tip.no-tail::before { display: none; }   /* コーチの下へ ずらしたときは、チップを指さない */
 /* わかち書き（ことばの間に空白）の知らせ・ふきだし・説明の文は、ことばの切れ目（空白・「、」「。」）だけで改行する
  * （文節の推定にまかせると「は／じめよう」と切れることがある）。1つのことばが1行に入らないときだけ、その中で折り返す。
  * 空白のない ふつうの文（まめちしき・イベントの題名・きろく）は、ここに入れない（土台の文節の改行のまま） */
@@ -598,8 +619,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   --rail-r: calc(var(--status-w) + 20px);
 }
 #game-main.drawer-open { --rail-l: calc(var(--drawer-w) + 60px); }
-/* せまいタブレットでドロワーを開いているときは、知らせが細くなりすぎないよう、スコア板の下（--rail-t。JS が測る）に出して右はしまで使う */
-@media (min-width: 701px) and (max-width: 1023px) {
+/* 縦長のタブレットでドロワーを開いているときは、知らせが細くなりすぎないよう、スコア板の下（--rail-t。JS が測る）に出して右はしまで使う */
+@media (min-width: 701px) and (max-width: 1099px) and (orientation: portrait) {
   #game-main.drawer-open { --rail-r: 0px; }
 }
 
@@ -661,21 +682,18 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .drawer-badge .ico { width: 10px; height: 10px; }
 .drawer-badge b { font-weight: 700; }
-/* 閉じている間に、はじめられる数が増えたときの吹き出し（1回だけ出て消える） */
+/* 閉じている間に、はじめられる数が増えたときの札（上の知らせの置き場の さいごの行。4秒で消える。押せない） */
 .drawer-nudge {
-  position: absolute; top: 18px; left: calc(100% + 60px);
-  width: max-content; max-width: 220px;
+  width: max-content; max-width: 100%;
   background: var(--navy); color: #fff;
   font-size: var(--fs-sm); font-weight: 700; line-height: 1.9;
   border-radius: 10px; padding: 4px 12px;
   box-shadow: var(--elev-2);
   pointer-events: none;
+  word-break: keep-all; overflow-wrap: anywhere;
   animation: msg-in 0.25s ease-out;
 }
-.drawer-nudge::before {
-  content: ''; position: absolute; left: -5px; top: 50%; width: 10px; height: 10px; margin-top: -5px;
-  background: inherit; border-radius: 2px; transform: rotate(45deg);
-}
+.drawer-nudge .ico { width: 16px; height: 16px; }
 #task-list { display: flex; flex-direction: column; gap: 8px; }
 
 .task-card {
@@ -697,11 +715,6 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .task-card.st-locked { background: #f4f7fa; border-style: dashed; border-color: #8796a8; }
 .task-card.st-paused { border-color: var(--st-paused); background: #f3f5f8; }
 .task-card.st-issue { border-color: var(--st-issue); background: #fdf4f3; }
-/* かんりょうのはんこは出さなくなった。@keyframes は結果画面のバッジ（.badge-chip）が使うので残す */
-@keyframes stamp-in {
-  0% { transform: rotate(-9deg) scale(2.1); opacity: 0; }
-  100% { transform: rotate(-9deg) scale(1); opacity: 0.85; }
-}
 .task-card.shake { animation: shake 0.35s; }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
@@ -845,11 +858,11 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 /* ボタンの文字は とちゅうで折り返さない（入らないボタンは つぎの行へ） */
 .tc-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
 .tc-btns .ico { width: 16px; height: 16px; }
-/* 主ボタン「▶ はじめる」は幅いっぱい。「ストップ」は右はしへ離す */
+/* 主ボタン「▶ はじめる」は幅いっぱい。「くわしく」は どの状態でも右はし（同じ場所に「ストップ」が来ないように）。「ストップ」は左 */
 .tc-start { flex: 1; font-size: 1rem; }
 /* トラブルの「どうする？ えらぶ」は いちばん上の1行を ひとりじめ（はじめる・くわしく は その下の行） */
 .tc-issue { flex: 1 1 100%; order: -1; }
-.tc-cancel { margin-left: auto; }
+.tc-info { order: 3; margin-left: auto; }
 
 /* かんりょうのカード: スタンプは出さず、見出し・時刻・くわしく だけにたたむ */
 .task-card.st-done { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
@@ -976,7 +989,12 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   font-size: var(--fs-sm); line-height: 1.95;
   box-shadow: var(--elev-2);
   animation: msg-in 0.25s ease-out;
+  pointer-events: auto;   /* 文の上のタップを 下の駐機場へ通さない（押すと とじる） */
 }
+/* 人のリストを開いている間は かくす（リストのうしろに 文が半分 見えないように） */
+.top-rail.pick-open > .coach-bubble { visibility: hidden; }
+/* リボンの吹き出しと重なる知らせは、吹き出しが出ている間だけ うすくする */
+.top-rail > .under-tip { opacity: 0.3; transition: opacity 0.15s; }
 .cb-avatar {
   flex: none; width: 36px; height: 36px; margin-top: 2px;
   border-radius: 50%;
@@ -1035,11 +1053,6 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   pointer-events: none;
 }
 .pause-chip .ico { width: 16px; height: 16px; }
-/* （ながれマップの「作業中」のピルが使う。ゲーム画面では使わない） */
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
 
 /* ズームボタン（横ならびで、スタッフ帯のすぐ上） */
 #zoom-ctrl {
@@ -1104,7 +1117,22 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .spot-pop.sp-arrow-left::before { display: block; left: -6px; top: calc(var(--ay, 30px) - 7px); }
 .spot-pop.sp-arrow-right::before { display: block; right: -6px; top: calc(var(--ay, 30px) - 7px); }
 .spot-pop.sp-arrow-up::before { display: block; top: -6px; left: calc(var(--ax, 30px) - 7px); }
-.sp-body { position: relative; overflow-y: auto; min-height: 0; padding: 10px 12px 12px; border-radius: 12px; }
+.sp-body { position: relative; overflow-y: auto; min-height: 0; padding: 10px 12px 8px; border-radius: 12px 12px 0 0; }
+/* 本文が下へ続くときは、下はしを うすくする（ボタンの列は本文の外なので うすくならない） */
+.sp-body.scroll-more, .modal-body.scroll-more {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+}
+/* 背の低い画面: すすめかたは「すすめかたを かえる」で開く */
+.sp-pace-more > summary {
+  display: flex; align-items: center; gap: 4px; min-height: 44px;
+  list-style: none;   /* 子の svg が「押せる部品」に数えられないよう cursor は変えない（ずかんの くわしく と同じ） */
+  font-size: var(--fs-sm); font-weight: 700; color: var(--accent-d); line-height: 1.6;
+}
+.sp-pace-more > summary::-webkit-details-marker { display: none; }
+.sp-pace-more > summary .ico { width: 16px; height: 16px; transition: transform 0.15s; }
+.sp-pace-more[open] > summary .ico { transform: rotate(90deg); }
+.sp-pace-now { color: var(--ink-2); font-weight: 500; }
 .sp-close {
   position: absolute; top: 1px; right: 1px;   /* 本文より後ろに置いてあるので、z-index なしで上に出る */
   width: 46px; height: 46px;                  /* 小数の位置でも 44px を下回らないよう 46px */
@@ -1135,7 +1163,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .sp-next .ico { width: 15px; height: 15px; }
 .spot-pop .pace-wrap { margin: 2px 0 4px; }
-.spot-pop .sp-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* ボタンの列は本文の外。いつも ポップの下はしに見える */
+.spot-pop .sp-btns { flex: none; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0; padding: 4px 12px 12px; }
 .spot-pop .sp-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 .spot-pop .sp-btns .ico { width: 16px; height: 16px; }
 .spot-pop .sp-btns .btn-warnghost { margin-left: auto; }
@@ -1162,9 +1191,19 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 @media (min-width: 1100px) {
   #toast-area { right: calc(var(--status-w) + 22px); }
 }
-/* せまいタブレットでドロワーを開いているときは、ズームの上に上げて、右はしまで使う（細くなりすぎないように） */
-@media (min-width: 701px) and (max-width: 1023px) {
+/* 縦長のタブレットでドロワーを開いているときは、ズームの上に上げて、右はしまで使う（細くなりすぎないように） */
+@media (min-width: 701px) and (max-width: 1099px) and (orientation: portrait) {
   #game-main.drawer-open #toast-area { right: 12px; bottom: calc(var(--res-h) + 70px); }
+}
+/* 1024px 以上で きろくを とじているとき（JS が .toast-under を付ける）: トーストは スコア板の下（カメラが あけている右の列）に出す。
+ * 左下の「スタッフのまちあい」や車のおきばを かくさない。入る高さは ズームのボタンの上まで */
+#game-main.toast-under #toast-area {
+  left: auto; right: 10px; bottom: auto; transform: none;
+  top: calc(var(--status-b, 200px) + 8px);
+  width: var(--status-w);
+  max-height: calc(100% - var(--status-b, 200px) - var(--res-h) - 78px);
+  overflow: hidden;
+  align-items: stretch;
 }
 .toast {
   background: rgba(30, 58, 95, 0.95);
@@ -1183,7 +1222,6 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 /* 「次に進めるようになった」お知らせ（情報の紺+ひらいた鍵。光らせない） */
 .toast-open { background: rgba(30, 58, 95, 0.95); }
 .toast.out { opacity: 0; transition: opacity 0.45s; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 /* ゲーム画面の知らせ・ポップは 4px だけ動かす（下のパネルとのすき間 8px にかからない） */
 @keyframes msg-in { from { opacity: 0; transform: translateY(4px); } }
 /* ゲーム画面の外（タイトル・ステージ選択）で出すお知らせ */
@@ -1214,6 +1252,9 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   box-shadow: var(--elev-3);
 }
 .start-card h3 { color: var(--navy); margin-bottom: 10px; }
+/* 見出しは「ステージ1」と題名の2行 */
+.start-card h3 .sh-num { display: block; font-size: var(--fs-sm); color: var(--accent-d); line-height: 1.6; }
+.start-card h3 .sh-title { display: block; }
 .start-card p { font-size: 0.9rem; line-height: 2; margin-bottom: 14px; white-space: pre-line; text-align: left; }
 #btn-begin { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 #btn-begin .ico { width: 20px; height: 20px; }
@@ -1389,6 +1430,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .res-scroll.has-more {
   -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
   mask-image: linear-gradient(90deg, #000 86%, transparent);
+  margin-right: 48px;   /* 続きがあるときは「›」の手前で終わらせる（さいごのチップの文字が ボタンの下に かくれない） */
 }
 .res-more {
   position: absolute; right: 4px; top: 50%; margin-top: -22px;
@@ -1503,6 +1545,23 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .modal-info .ico { color: var(--navy-2); }
 .modal-foot { flex: none; padding-top: 8px; }
+/* ボタンの列の左に置く文（イベントの期限）。入らないときは ボタンの上の行 */
+.modal-btns .modal-lead { flex: 1 1 14em; margin: 0 auto 0 0; align-self: center; }
+/* 本文が下へ続くときの「▼ したに つづくよ」（本文の下はしの上に出す。押せない） */
+.more-hint { position: relative; flex: none; height: 0; z-index: 1; }
+.more-hint > span {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  white-space: nowrap; pointer-events: none;
+  background: var(--navy); color: #fff; border-radius: 999px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.85; padding: 0 12px;
+  box-shadow: var(--elev-1);
+}
+/* ながれマップは 凡例を本文の下に張りつけているので、うすくしない・札も出さない */
+.modal[data-kind="flow"] .modal-body.scroll-more { -webkit-mask-image: none; mask-image: none; }
+.modal[data-kind="flow"] .more-hint { display: none !important; }
+/* 安全確認: 2つの選択肢は どの幅でも縦に（安全な主ボタンが上。左はしと幅をそろえる） */
+.modal[data-kind="safety"] .modal-btns { flex-direction: column; align-items: stretch; }
+.modal[data-kind="safety"] .modal-btns .btn { width: 100%; min-height: 48px; }
 .modal-btns {
   flex: none;
   display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
@@ -1534,8 +1593,9 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .event-choice:hover { border-color: var(--accent-d); }
 .event-choice:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.14); }
-.ec-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.ec-label { font-weight: 700; color: var(--navy); font-size: 0.95rem; line-height: 1.9; }
+/* 札「えらばないと これ」が入らないときは つぎの行へ（カードの右から はみ出さない） */
+.ec-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 2px 8px; }
+.ec-label { flex: 1 1 10em; min-width: 0; font-weight: 700; color: var(--navy); font-size: 0.95rem; line-height: 1.9; }
 .ec-default {
   flex: none; margin-top: 3px;
   font-size: var(--fs-min); font-weight: 700; color: var(--navy);
@@ -1583,6 +1643,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   font-size: 0.9rem; gap: 10px;
   min-height: 56px;
 }
+.set-row .btn { min-height: calc(var(--tap) + 2px); }   /* 44px を小数の誤差でも下回らない */
 .set-row.sw-row { touch-action: manipulation; }   /* 行のどこを押してもスイッチが切りかわる（指で押す前提なので cursor は変えない） */
 /* オン/オフのスイッチ（64x32 の角丸＋つまみ＋「オン/オフ」の文字。行の高さは 44px 以上） */
 .switch {
@@ -1661,6 +1722,20 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .tut-fig.hud { background: var(--navy); border-radius: var(--r-md); padding: 6px; display: inline-flex; flex-wrap: nowrap; gap: 4px; max-width: 100%; }
 .tut-fig.hud .tut-key { color: #fff; background: rgba(255, 255, 255, 0.08); white-space: nowrap; }
 .tut-fig.hud .tut-key.on { background: var(--accent-d); }
+.tut-ex .tut-fig { margin: 2px 0 0; }
+/* スマホの はやさの見本: 本物と同じ アイコンだけの形 + その下に ことば */
+.tut-hudrow { display: flex; gap: 10px; margin-top: 2px; }
+.thk { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.thk-ico {
+  width: 44px; height: 40px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--navy); color: #fff;
+}
+.thk.on .thk-ico { background: var(--accent-d); box-shadow: inset 0 -3px 0 #ffd24a; }
+.thk-ico .ico { width: 20px; height: 20px; }
+.thk-cap { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.35; }
+/* チュートリアルの小見出し（本文より少し大きく・太く） */
+.tut-sub { font-size: 0.95rem; font-weight: 700; color: var(--navy); line-height: 1.9; margin: 6px 0 2px; }
 /* 1ページ目: とうちゃく ─(45分)→ 出発 の時間の矢印 */
 .tut-timeline {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
@@ -1710,7 +1785,15 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .tut-sw { display: flex; align-items: center; gap: 8px; font-size: var(--fs-min); line-height: 1.85; }
 .tut-sw > span:last-child { min-width: 0; }
 .tsw { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #cfd6dc; box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.18); }
-.tsw-ready { border: 2.5px dashed var(--st-ready); background: #e8f4f8; }
+/* はじめられる: 駐機場と同じ「暗い太い輪 + 青緑の点線」と、右下の ▶ のバッジ */
+.tsw-ready { position: relative; border: 4px solid #3b4654; outline: 2px dashed var(--st-ready); outline-offset: -3px; background: #e8f4f8; }
+.tsw-badge {
+  position: absolute; right: -7px; bottom: -7px;
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--st-ready); color: #fff; border: 1.5px solid #fff;
+}
+.tsw-badge .ico { width: 9px; height: 9px; }
 .tsw-wait { border: 3px solid var(--st-wait); background: var(--st-wait-bg); }
 .tsw-target { border: 4px solid var(--st-done); background: #e3f5ea; }
 .tsw-soon { border: 2px dotted var(--st-locked); background: #f4f7fa; }
@@ -1798,7 +1881,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .rank-S { background: #d9a013; }
 .rank-A { background: #2e9e5b; }
 .rank-B { background: #2b6cb0; }
-.rank-C { background: #7b8a9c; }
+.rank-C { background: linear-gradient(160deg, #a8693a, #7a4620); color: #fff; }   /* 銅（灰は 失格の × だけ） */
 .rank-D { background: #9c7b7b; }
 .rank-X { background: #7b8a9c; }
 .result-score { font-size: 3rem; font-weight: 700; color: var(--navy); line-height: 1; font-variant-numeric: tabular-nums; }
@@ -1896,10 +1979,10 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   background: var(--chip); border-radius: 12px; padding: 12px 16px;
   text-align: left; margin-bottom: 16px;
 }
-.result-advice-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 4px; line-height: 1.9; }
+.result-advice-box h3 { font-size: 1rem; font-weight: 900; color: var(--navy); margin-bottom: 4px; line-height: 1.9; }
 .result-advice-box p { font-size: 0.86rem; line-height: 2; word-break: normal; }
 .adv-group + .adv-group { margin-top: 8px; }
-.adv-group h4 { font-size: var(--fs-min); color: var(--navy); line-height: 1.9; display: flex; align-items: center; gap: 6px; }
+.adv-group h4 { font-size: 0.9rem; font-weight: 700; color: var(--navy); line-height: 1.9; display: flex; align-items: center; gap: 6px; }
 .adv-group.adv-fix h4 .ico { color: var(--warn-strong); }
 .adv-list { list-style: none; padding: 0; }
 .adv-list li { position: relative; padding-left: 16px; font-size: 0.86rem; line-height: 2; word-break: normal; }
@@ -2086,6 +2169,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
 .gr-work { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
 .gr-none { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.6; overflow: visible; }
 .gr-stdline { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--bad-strong); }
+/* ほんとうの出発（プッシュバックを はじめた時刻）: こい色の てんせん（色の意味が かぶらないよう、形で分ける） */
+.gr-offline { position: absolute; top: -1px; bottom: -1px; width: 0; border-left: 2px dashed var(--ink); }
 .gr-axis { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 8px; margin-top: 2px; }
 .gr-axis-track { position: relative; height: 26px; font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; }
 .gr-axis-track span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
@@ -2098,6 +2183,7 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
 .lg-steps { background: linear-gradient(90deg, var(--s1), var(--s2), var(--s3), var(--s4), var(--s5), var(--s6), var(--s7)); }
 .lg-gather { background: repeating-linear-gradient(45deg, #a86f0c 0 3px, #f0cf8e 3px 6px); }
 .lg-std { width: 3px; height: 14px; border-radius: 0; background: var(--bad-strong); }
+.lg-off { width: 0; height: 14px; border-radius: 0; border-left: 2px dashed var(--ink); }
 
 /* ---------------- 【META】画面の大きさごと ---------------- */
 @media (min-width: 520px) {
@@ -2106,6 +2192,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
 @media (min-width: 768px) {
   .modal.wide .zk-list.zk-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
   .modal.wide .zk-list.zk-cards > .zk-stephead, .modal.wide .zk-list.zk-cards > .zk-cat { grid-column: 1 / -1; }
+  /* 作業が1つだけのステップは 1行ぜんぶ（右を空けない） */
+  .modal.wide .zk-list.zk-cards > .zk-solo { grid-column: 1 / -1; }
 }
 /* 1024px 以上の結果画面: 左に見出し〜ボタン（sticky）、右にくわしく */
 @media (min-width: 1024px) {
@@ -2124,9 +2212,6 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   .modal-backdrop { padding: 10px; }
   .modal { padding: 16px 14px 14px; max-height: 92vh; max-height: calc(100dvh - 20px); }
   .modal-x { margin-right: -8px; }
-  /* 安全確認: 2つの選択肢を縦に。安全な主ボタンが上 */
-  .modal[data-kind="safety"] .modal-btns { flex-direction: column; align-items: stretch; }
-  .modal[data-kind="safety"] .modal-btns .btn { width: 100%; min-height: 48px; }
   .zk-tabs { display: grid; grid-template-columns: 1fr 1fr; }
   /* チュートリアル: 画面の高さいっぱいまで使う（ボタンは どのページも 板の下はし） */
   .modal.tut { height: min(560px, calc(100dvh - 20px)); }
@@ -2152,10 +2237,16 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
 @media (max-width: 420px) {
   .result-btns { display: contents; }
   .result-btns .btn { order: 85; margin-top: 8px; }
+  /* 下はしに ぴったり張りつけ、まわりを白でうめる（ボタンの上下から 切れた文字が のぞかないように） */
   .result-btns .btn-primary {
-    order: 90; position: sticky; bottom: 8px; z-index: 2;
-    box-shadow: 0 0 0 8px #fff, inset 0 1px 0 rgba(255, 255, 255, 0.28), 1px 2px 4px rgba(10, 40, 60, 0.28);
+    order: 90; position: sticky; bottom: 0; z-index: 2;
+    box-shadow: 0 0 0 10px #fff, 0 -12px 12px 6px #fff, 0 24px 0 16px #fff,
+      inset 0 1px 0 rgba(255, 255, 255, 0.28), 1px 2px 4px rgba(10, 40, 60, 0.28);
   }
+}
+/* 高さ 600px 前後のノートPC: 絵を ちぢめて「はじめる」まで 画面に入れる */
+@media (max-height: 700px) and (min-height: 521px) and (min-width: 900px) {
+  .title-hero { display: block; width: auto; max-width: min(560px, 92%); max-height: min(38vh, 261px); margin-inline: auto; }
 }
 /* 背の低い画面（横向きのスマホなど）: タイトルを2列にする */
 @media (max-height: 520px) {
@@ -2164,7 +2255,16 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     align-items: center; gap: 20px; max-width: 960px;
   }
   .title-hero { width: 100%; margin: 0; }
-  .title-desc { margin: 10px 0; }
+  /* 右の列を低くする（「ずかん」「せってい」まで 画面に入るように） */
+  .title-eyebrow, .title-sub { display: none; }
+  .title-logo { font-size: clamp(1.4rem, 3.75vw, 2.25rem); }
+  .title-desc { margin: 6px 0; }
+  .title-btns { margin: 6px 0 10px; }
+  /* 結果のボタンは 下に張りつけない（背の低い画面の3わりを ふさがない）。本文のさいごに ならぶ */
+  .result-btns { position: static; background: none; padding-top: 8px; }
+  /* イベントとチュートリアルは 横に広く使う。イベントの選択肢は横に ならべて くらべられるように */
+  .modal[data-kind="event"], .modal.tut { width: min(780px, calc(100vw - 20px)); }
+  .modal[data-kind="event"] .event-choices { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; }
   /* モーダルは画面の高さいっぱいまで（横向きのスマホで 本文の場所を ふやす） */
   .modal-backdrop { padding: 10px; }
   .modal { max-height: calc(100dvh - 20px); }
@@ -2229,7 +2329,10 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   #hud-weather { padding: 1px 7px; flex: none; }
   #hud-weather .wx-label { display: none; }
   .hud-right { grid-area: right; gap: 4px; }
-  .btn-flow .btn-txt { display: none; }
+  /* 「ながれ」は アイコンの下に ことばを出す（HUD の高さは かえない） */
+  .btn-flow { flex-direction: column; gap: 0; padding: 2px 6px; }
+  .btn-flow .ico { width: 18px; height: 18px; }
+  .btn-flow .btn-txt { display: block; font-size: var(--fs-min); line-height: 1.2; }
   .hud-center { grid-area: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .hud-clock-box { min-width: 0; padding: 0 6px 1px; }
   /* 時計のラベルは、かなだけの短いことばにする（ルビの行の高さをとらない） */
@@ -2284,6 +2387,10 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     z-index: var(--z-fixed-msg);
   }
   #screen-game.has-event #toast-area { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  /* イベントの知らせ（画面の下に固定）の ぶんだけ、ページの下に余白（さいごのカードのボタンが かくれない） */
+  #screen-game.has-event { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  /* 「はじめられるよ！」は1行（44px）にする（カードの見出しやスタッフ帯を かくす高さを へらす） */
+  .toast-open { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* 持ち場ポップは下からのシート */
   .spot-pop {
     position: fixed;
@@ -2294,8 +2401,99 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     z-index: var(--z-sheet);
   }
   .spot-pop::before { display: none !important; }
+  /* イベントの知らせが出ている間は、シートを その上へ（知らせが シートの下に かくれない） */
+  #screen-game.has-event .spot-pop { bottom: calc(63px + env(safe-area-inset-bottom)); max-height: calc(60svh - 55px); }
   .btn, .speed-btn { min-height: 44px; }
   .fr-lead { display: none; }
+}
+
+/* ---------------- 幅 400px 以下: 天気の札を時計の行へ（ステージ名を「ス…」と切らない） ---------------- */
+@media (max-width: 400px) {
+  #hud { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'name name right' 'wx center center'; }
+  .hud-left { display: contents; }
+  #hud-stage-name { grid-area: name; align-self: center; }
+  #hud-weather { grid-area: wx; align-self: center; justify-self: start; }
+}
+/* ---------------- 幅 380px 以下: 一時停止の札は アイコンを はぶいて 文を ぜんぶ出す ---------------- */
+@media (max-width: 380px) {
+  .top-rail > .pause-chip { padding: 6px 10px; }
+  .pause-chip .ico { display: none; }
+}
+/* ---------------- 背の低い横長の画面（スマホの横向き 701px 以上・高さ 500px 以下） ---------------- */
+@media (max-height: 500px) and (min-width: 701px) {
+  /* 作業カードのドロワーは上から下まで。開いている間は、スタッフ帯をドロワーの右へずらす（かくさない） */
+  #panel-tasks { bottom: 10px; }
+  #game-main.drawer-open #panel-resources { left: calc(var(--drawer-w) + 20px); }
+  /* カードは「はじめる」を見出しのすぐ下に（低い画面でも1枚目のボタンが見える） */
+  #task-list .task-card:not(.st-done) { display: flex; flex-direction: column; }
+  #task-list .task-card:not(.st-done) > .tc-head { order: -2; }
+  #task-list .task-card:not(.st-done) > .tc-btns { order: -1; margin: 6px 0 2px; }
+  /* スコア板は「アイコン+数字」4つと きろくのボタンの1行（見出し・バー・のこりの数は はぶく） */
+  #screen-game { --status-w: 340px; }
+  #panel-status:not(.log-open) { width: auto; max-height: none; flex-direction: row; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; }
+  #panel-status:not(.log-open) .panel-title,
+  #panel-status:not(.log-open) .bar,
+  #panel-status:not(.log-open) .mh-name,
+  #panel-status:not(.log-open) .unfinished-box { display: none; }
+  #panel-status:not(.log-open) .metrics { display: flex; gap: 10px; }
+  #panel-status:not(.log-open) .metric { display: flex; align-items: center; gap: 3px; }
+  #panel-status:not(.log-open) .metric-head .ico { width: 16px; height: 16px; }
+  #panel-status:not(.log-open) .mv { min-width: 1.9em; }
+  /* きろくを開いたら、下からの全幅のシート（きろくは 260px 以上） */
+  #panel-status.log-open {
+    position: fixed; left: 8px; right: 8px; bottom: 8px; top: auto;
+    width: auto; height: min(370px, calc(100dvh - 16px)); max-height: none;
+    z-index: var(--z-sheet);
+  }
+  #panel-status.log-open .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 18px; }
+  /* 一時停止は 上の知らせに積まない（持ち場・スタッフ帯・ズームに かぶらない）。HUD の「とめているよ」で知らせる
+   * （ステージ名の下、天気の となり。とめている間は 天気を アイコンだけにして、時計の箱に かからない） */
+  .top-rail > .pause-chip { display: none; }
+  .hud-left { display: grid; grid-template-columns: auto auto; grid-template-areas: 'name name' 'wx paused'; column-gap: 6px; align-items: center; justify-content: start; }
+  #hud-stage-name { grid-area: name; }
+  #hud-weather { grid-area: wx; justify-self: start; }
+  #hud-paused:not(.hidden) { display: inline-flex; grid-area: paused; }
+  #hud.is-paused #hud-weather .wx-label { display: none; }
+  #hud.is-paused #hud-weather { padding: 1px 8px; }
+  /* ドロワーを開いている間は、上の知らせを右はしまで使う（スコア板は 情報だけの欄なので、かぶってもよい）。
+   * コーチは スマホと同じく 顔の丸を はぶいて、行の数を へらす（ズームのボタンに かからない） */
+  #game-main.drawer-open { --rail-r: 0px; }
+  /* ドロワーを開いている間は、コーチを ひかえる（駐機場の高さが 200px ほどしかなく、ズームのボタンや スタッフ帯に かかるため。
+   * カードに 同じことが 出ている。ドロワーを とじたら、のこりの時間 また出る） */
+  #game-main.drawer-open .top-rail > .coach-bubble { display: none; }
+  .coach-bubble { padding: 6px 46px 6px 12px; }
+  .cb-avatar { display: none; }
+  .cb-who { display: inline; margin: 0 6px 0 0; }
+}
+/* 701px 以上: 「のこり」の箱の幅を「しゅっぱつ！」が入る幅で そろえる（文がかわっても 時計の組が 左右に動かない）。
+ * 幅は 箱の余白が かわる区切りごとに測った値（901px〜 132px / 750〜900px 128px / 701〜749px 122px） */
+@media (min-width: 701px) {
+  .hud-remain-box { min-width: 8.25em; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .hud-remain-box { min-width: 8em; }
+}
+@media (min-width: 701px) and (max-width: 749px) {
+  .hud-remain-box { min-width: 7.625em; }
+}
+/* 横向きのスマホ（幅 720px 以下・高さ 520px 以下）のタイトル: 「ずかん」「せってい」を 絵の下に置く（右の列に 入りきらないため） */
+@media (max-height: 520px) and (max-width: 720px) {
+  .title-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-areas: 'hero hero logo' 'hero hero desc' 'hero hero start' 'zukan set howto' '. . prog' '. . foot';
+    column-gap: 12px; row-gap: 8px; align-items: center;
+  }
+  .title-body, .title-btns { display: contents; }
+  .title-hero { grid-area: hero; }
+  .title-logo { grid-area: logo; }
+  .title-desc { grid-area: desc; margin: 0; }
+  #btn-title-start { grid-area: start; justify-self: center; }
+  #btn-title-howto { grid-area: howto; justify-self: center; }
+  #btn-title-zukan { grid-area: zukan; }
+  #btn-title-settings { grid-area: set; }
+  #btn-title-zukan, #btn-title-settings { padding-left: 8px; padding-right: 8px; }
+  .title-progress { grid-area: prog; justify-self: center; }
+  .title-foot { grid-area: foot; }
 }
 
 /* =========================================================

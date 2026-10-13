@@ -182,7 +182,7 @@ const EVENT_DEFS = {
         effects: { safety: -50 },
         taskDelta: {},
         critical: true,
-        log: '⚠ かみなりの中、作業を続けさせてしまった…（重大な安全問題）',
+        log: '⚠ かみなりが なっているのに 作業を続けさせてしまった…（重大な安全問題）',
       },
     ],
   },

@@ -34,7 +34,7 @@
         <button id="btn-title-settings" class="btn btn-ghost"><svg class="ico ico-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-gear"></use></svg> せってい</button>
       </div>
       <p id="title-progress" class="title-progress hidden"></p>
-      <p class="title-foot">この<ruby>空港<rt>くうこう</rt></ruby>と「あおぞら<ruby>航空<rt>こうくう</rt></ruby>」は、ゲームのための<ruby>空想<rt>くうそう</rt></ruby>の<ruby>会社<rt>かいしゃ</rt></ruby>です。</p>
+      <p class="title-foot">この <ruby>空港<rt>くうこう</rt></ruby>と『あおぞら<ruby>航空<rt>こうくう</rt></ruby>』は、ゲームの ために つくった もので、ほんものでは ないよ。</p>
       </div>
     </div>
   </section>
@@ -55,6 +55,8 @@
       <div class="hud-left">
         <span id="hud-stage-name">ステージ1</span>
         <span id="hud-weather"><svg class="ico ico-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-sun"></use></svg><span class="wx-label">はれ</span></span>
+        <!-- 背の低い横長の画面だけ: 一時停止を上の知らせの札のかわりに HUD で知らせる -->
+        <span id="hud-paused" class="hud-paused hidden" role="status"><svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg>とめているよ</span>
       </div>
       <div class="hud-center">
         <div class="hud-clock-box">
@@ -82,7 +84,11 @@
     </header>
 
     <!-- ながれリボン：12の作業を「ステップ1〜7」の順に常時表示（ui.jsが中身を生成） -->
-    <div id="flow-ribbon" class="flow-ribbon" aria-label="ながれ"></div>
+    <div class="flow-ribbon-wrap">
+      <div id="flow-ribbon" class="flow-ribbon" aria-label="ながれ"></div>
+      <!-- 右に続きがあるときだけ出す（スタッフ帯の「›」と同じ） -->
+      <button id="btn-rib-more" class="rib-more hidden" type="button" aria-label="つづきを みる" title="つづきを みる"><svg class="ico ico-chevron-right" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-chevron-right"></use></svg></button>
+    </div>
 
     <div id="game-main">
       <!-- 駐機場ビュー（全画面） -->
@@ -94,6 +100,8 @@
           <div id="coach-bubble" class="coach-bubble hidden" role="status"></div>
           <button id="hint-banner" class="hint-banner hidden" type="button"></button>
           <div id="pause-chip" class="pause-chip hidden"><svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg> じかんを とめているよ<span class="pc-more"> ─ <svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>で つづき</span></div>
+          <!-- ドロワーを とじている間に、はじめられる おしごとが ふえたとき（4秒で消える。押せない） -->
+          <div id="drawer-nudge" class="drawer-nudge hidden" role="status"></div>
         </div>
         <div id="toast-area" aria-live="polite"></div>
         <div id="zoom-ctrl">
@@ -116,7 +124,6 @@
       <!-- 左ドロワー：作業カード -->
       <aside id="panel-tasks">
         <button id="btn-drawer-tasks" class="drawer-tab" title="おしごとカードを ひらく / とじる" aria-label="おしごとカード"><svg class="ico ico-list" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg><span class="drawer-tab-txt">おしごと</span><span id="drawer-badge" class="drawer-badge hidden"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg><b>0</b></span></button>
-        <div id="drawer-nudge" class="drawer-nudge hidden" role="status"></div>
         <div id="task-list"></div>
       </aside>
 
@@ -199,7 +206,7 @@
         </div>
         <details id="result-more" class="result-more result-gantt-box">
           <summary><svg class="ico ico-clock" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-clock"></use></svg> おしごとタイムライン<svg class="ico ico-chevron-right rm-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-chevron-right"></use></svg></summary>
-          <p class="rg-sub">よこに ならんで いるほど、<ruby>同時<rt>どうじ</rt></ruby>に できた しるし</p>
+          <p class="rg-sub">たてに かさなって いる（おなじ じかんに ある）バーが おおいほど、<ruby>同時<rt>どうじ</rt></ruby>に できた しるし</p>
           <div id="result-gantt" class="result-gantt"></div>
         </details>
         <p id="result-trivia" class="result-trivia"></p>
