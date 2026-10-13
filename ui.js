@@ -4120,7 +4120,9 @@
       this.els['btn-log-toggle'].addEventListener('click', () => {
         const open = this.els['panel-status'].classList.toggle('log-open');
         this.setLogToggle(open);
-        /* スマホで きろくを開いている間に ためていたトーストを、閉じたら 1枚だけ出す */
+        /* スマホ: きろくを開いたら、出ているトーストを片づける（モーダルと同じ。同じことは きろくに のっている）。
+         * 開いている間に ためていたトーストは、閉じたら 1枚だけ出す */
+        if (open && this.isNarrow()) this.els['toast-area'].innerHTML = '';
         if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
       });
 
