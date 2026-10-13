@@ -1652,14 +1652,36 @@
       this.els['hint-banner'].addEventListener('click', () => { Sfx.play('click'); this.onHintTap(); });
       /* ドロワーの開閉（つまみ・自動でとじる・テストのどれでも）にあわせる */
       new MutationObserver(() => this.syncDrawer()).observe(this.els['panel-tasks'], { attributes: true, attributeFilter: ['class'] });
+      /* モーダルが開いたら、その場でゲーム画面のトーストを片づける（幕の下に残さない。閉じたあとの1枚は frame が出す） */
+      new MutationObserver(() => {
+        if (!this.els['modal-backdrop'].classList.contains('hidden')) this.els['toast-area'].innerHTML = '';
+      }).observe(this.els['modal-backdrop'], { attributes: true, attributeFilter: ['class'] });
       /* スタッフ帯の高さ → --res-h */
       if (window.ResizeObserver) {
         new ResizeObserver(() => { this.measureResH(); this.updateResMore(); this.applyViewInsets(); }).observe(this.els['panel-resources']);
         new ResizeObserver(() => { this.placeRail(); this.applyViewInsets(); }).observe(this.els['panel-status']);
+        /* 上の知らせが出た・消えた・行数がかわった → 駐機場の見える範囲（上）を知らせなおす */
+        const railRO = new ResizeObserver(() => this.applyViewInsets());
+        ['event-banner', 'coach-bubble', 'hint-banner', 'pause-chip'].forEach((id) => railRO.observe(this.els[id] || document.getElementById(id)));
       }
+      this._lastW = window.innerWidth;
       window.addEventListener('resize', () => {
         this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH();
-        if (this.spotPopTask && !this.isNarrow()) this.placeSpotPop(this.spotPopTask);
+        if (this.spotPopTask) {
+          if (this.isNarrow()) {
+            /* 横向き → 縦向き: 広い画面で決めた位置・高さを消して、下からのシートにもどす */
+            const pop = this.els['spot-pop'];
+            pop.style.left = ''; pop.style.top = ''; pop.style.maxHeight = '';
+            pop.classList.remove('sp-arrow-left', 'sp-arrow-right', 'sp-arrow-up');
+          } else this.placeSpotPop(this.spotPopTask);
+        }
+        /* 画面の幅がかわったら（向きをかえたなど）: だれをえらぶかのリストは位置がずれるので閉じる。
+         * リボンは いまのステップへ寄せなおす（スマホのアドレスバーの出し入れのような高さだけの変化では動かさない） */
+        if (this._lastW !== window.innerWidth) {
+          this._lastW = window.innerWidth;
+          this.closeStaffPick();
+          if (this._ribbonWant) { this._ribbonFront = null; this.updateRibbon(); }
+        }
       });
       /* リボン: 手で動かした時刻（自動スクロールを3秒ひかえる）・続きの合図・吹き出しを閉じる */
       const rib = this.els['flow-ribbon'];
@@ -1821,6 +1843,9 @@
     },
     openStaffPick(list, sx, sy) {
       const box = this.els['staff-pick'];
+      /* タップした点に近い人から ならべる（入りきらないときは リストの中を スクロール） */
+      const dist = (e) => { const p = Scene.sceneToScreen(Scene.ent[e.id].pos.x, Scene.ent[e.id].pos.y - 9); return Math.hypot(p.x - sx, p.y - sy); };
+      list = list.slice().sort((a, b) => dist(a) - dist(b));
       box.innerHTML = '<div class="sk-head">だれを えらぶ？</div>' + list.map((e) => {
         const meta = window.RES_META.staff[e.type];
         const skill = e.skill === 'vet' ? this.ico('vet') : e.skill === 'rookie' ? this.ico('rookie') : '';
@@ -1853,6 +1878,10 @@
       this.ribbonChips = {};
       this.ribbonSteps = [];
       this._ribbonFront = null;
+      this._ribbonWant = null;
+      cancelAnimationFrame(this._ribbonTw);
+      this._ribbonTw = 0;
+      wrap.scrollLeft = 0;
       const rows = window.FLOW_ROWS;
       wrap.innerHTML = '<span class="fr-lead" aria-hidden="true">ながれ</span>' + rows.map((row, i) => {
         const chips = row.tasks.map((id) => {
@@ -1925,18 +1954,21 @@
     updateRibbon() {
       const s = this.state;
       if (!s || !this.ribbonChips) return;
-      const MARK = { 'fr-ready': 'play', 'fr-gathering': 'dots', 'fr-active': 'working', 'fr-done': 'check' };
+      const MARK = { 'fr-ready': 'play', 'fr-gathering': 'dots', 'fr-active': 'working', 'fr-done': 'check', 'fr-paused': 'storm' };
       Object.keys(this.ribbonChips).forEach((id) => {
         const el = this.ribbonChips[id];
-        const st = s.tasks[id].status;
-        const cls = 'fr-' + (st === 'moving' ? 'gathering' : st);
+        const t = s.tasks[id];
+        const st = t.status;
+        /* かみなりで止まっている外の作業は、カードと同じ「かみなりで おやすみ」（灰青+かみなり） */
+        const cls = this.isPausedTask(t) ? 'fr-paused' : 'fr-' + (st === 'moving' ? 'gathering' : st);
         if (el.dataset.st === cls) return;
         el.dataset.st = cls;
-        el.classList.remove('fr-locked', 'fr-ready', 'fr-gathering', 'fr-active', 'fr-done');
+        el.title = cls === 'fr-paused' ? `${t.def.name}（かみなりで おやすみ）` : t.def.name;
+        el.classList.remove('fr-locked', 'fr-ready', 'fr-gathering', 'fr-active', 'fr-done', 'fr-paused');
         el.classList.add(cls);
         el.querySelector('.fr-mark').innerHTML = MARK[cls] ? this.ico(MARK[cls]) : '';
       });
-      let front = null;
+      let front = null, first = null;
       this.ribbonSteps.forEach(({ row, el }) => {
         if (!el) return;
         const sts = row.tasks.map((id) => s.tasks[id].status);
@@ -1944,29 +1976,85 @@
         const now = !done && sts.some((x) => x === 'ready' || x === 'gathering' || x === 'active');
         el.classList.toggle('fr-sdone', done);
         el.classList.toggle('fr-snow', now);
-        if (now) front = row.step;   // いま進められる中で、いちばん先のステップ
+        if (now) {
+          if (first == null) first = row.step;   // まだ おしごとが のこっている、いちばん前のステップ
+          front = row.step;                      // いま進められる中で、いちばん先のステップ
+        }
       });
-      if (front != null && front !== this._ribbonFront) {
-        this._ribbonFront = front;
-        this.scrollRibbonTo(front);
+      const key = front == null ? null : first + '-' + front;
+      if (key != null && key !== this._ribbonFront) {
+        this._ribbonFront = key;
+        this._ribbonWant = { first, front };
+        this.queueRibbonScroll();
       }
       this.updateRibbonMore();
     },
-    /* いまのステップが見えるところへ、リボンだけを横に動かす（ページは動かさない。手で動かした直後の3秒は動かさない） */
-    scrollRibbonTo(step) {
+    /* 同じ処理の中で何度かわっても、動かすのは その処理が終わったあとの1回だけ
+     * （描画を待たずに始める。画面の更新がおそい端末でも、動きはじめが おくれない） */
+    queueRibbonScroll() {
+      if (this._ribbonQ) return;
+      this._ribbonQ = true;
+      Promise.resolve().then(() => { this._ribbonQ = false; this.scrollRibbonTo(this._ribbonWant); });
+    },
+    /* リボンの見せたい位置（scrollLeft）。いまの要素の位置から毎回はかる（終わったステップがたたまれても ずれない）。
+     * いちばん前のステップから いちばん先のステップまでが入るなら、前から見せる。
+     * 入らないなら、いちばん先のステップを右がわに ぜんぶ見せて、その左に まだ おしごと中のステップを できるだけ見せる */
+    ribbonTarget(want) {
       const wrap = this.els['flow-ribbon'];
-      const rec = this.ribbonSteps && this.ribbonSteps.find((x) => x.row.step === step);
-      if (!wrap || !rec || !rec.el) return;
-      if (performance.now() - (this._ribbonUserTs || -1e9) < 3000) return;
+      const elOf = (step) => { const r = this.ribbonSteps && this.ribbonSteps.find((x) => x.row.step === step); return r && r.el; };
+      const a = elOf(want.first), b = elOf(want.front);
+      if (!wrap || !a || !b) return null;
+      const wl = wrap.getBoundingClientRect().left, sl = wrap.scrollLeft;
+      const fr = b.getBoundingClientRect();
+      const x0 = sl + a.getBoundingClientRect().left - wl - 8;
+      const xf = sl + fr.left - wl - 8;
+      const xfEnd = sl + fr.right - wl + 8;
+      /* 右はしは「続きがある」印で うすくなるので、9わりの幅に入るかで決める */
+      const span = wrap.clientWidth * 0.9;
+      const x = (xfEnd - x0 <= span) ? x0 : Math.min(xf, xfEnd - span);
+      return clamp(x, 0, Math.max(0, wrap.scrollWidth - wrap.clientWidth));
+    },
+    /* いまのステップが見えるところへ、リボンだけを横に動かす（ページは動かさない。手で動かした直後の3秒は動かさない）。
+     * ブラウザの smooth スクロールは、とちゅうで もう一度動かすと行きすぎるので使わない。
+     * 毎フレーム scrollLeft を自分で書き、最後のフレームで目標に ぴったり止める */
+    scrollRibbonTo(want) {
+      const wrap = this.els['flow-ribbon'];
+      if (!wrap || !want) return;
+      const since = performance.now() - (this._ribbonUserTs || -1e9);
+      if (since < 3000) {
+        /* 手で動かした直後: 3秒たってから、もう一度ためす（そのときも さわっていれば、また まつ） */
+        clearTimeout(this._ribbonRetry);
+        this._ribbonRetry = setTimeout(() => { if (this._ribbonWant === want) this.queueRibbonScroll(); }, 3000 - since + 50);
+        return;
+      }
+      cancelAnimationFrame(this._ribbonTw);
+      this._ribbonTw = 0;
       if (wrap.scrollWidth <= wrap.clientWidth + 1) return;
-      const left = clamp(wrap.scrollLeft + (rec.el.getBoundingClientRect().left - wrap.getBoundingClientRect().left) - 8,
-        0, wrap.scrollWidth - wrap.clientWidth);
-      wrap.scrollTo({ left, behavior: this.motionOk() ? 'smooth' : 'auto' });
-      /* 画面の更新がおそい端末でなめらかなスクロールが とちゅうで止まっても、0.7秒後には いまのステップを見せる */
-      clearTimeout(this._ribbonScrollT);
-      this._ribbonScrollT = setTimeout(() => {
-        if (Math.abs(wrap.scrollLeft - left) > 2 && performance.now() - (this._ribbonUserTs || -1e9) > 700) wrap.scrollLeft = left;
-      }, 700);
+      const to0 = this.ribbonTarget(want);
+      if (to0 == null) return;
+      if (!this.motionOk() || Math.abs(to0 - wrap.scrollLeft) < 2) { this._ribbonTok = null; wrap.scrollLeft = to0; return; }
+      const from = wrap.scrollLeft, t0 = performance.now(), dur = 380, userTs = this._ribbonUserTs;
+      const step = (now) => {
+        if (this._ribbonUserTs !== userTs) { this._ribbonTw = 0; return; }   // 手で動かしたら、そこでやめる
+        const k = clamp((now - t0) / dur, 0, 1), e = 1 - Math.pow(1 - k, 3);
+        const to = this.ribbonTarget(want);
+        if (to == null) { this._ribbonTw = 0; return; }
+        wrap.scrollLeft = from + (to - from) * e;
+        this._ribbonTw = k < 1 ? requestAnimationFrame(step) : 0;
+      };
+      this._ribbonTw = requestAnimationFrame(step);
+      /* 画面の更新が とちゅうで止まっても（おそい端末・うしろのタブ）、終わるはずの時刻に1回だけ ぴったり目標へ。
+       * ブラウザのアニメは使っていないので、ここで scrollLeft を書いても行きすぎない */
+      const tok = {};
+      this._ribbonTok = tok;
+      clearTimeout(this._ribbonFix);
+      this._ribbonFix = setTimeout(() => {
+        if (this._ribbonTok !== tok || this._ribbonUserTs !== userTs) return;
+        cancelAnimationFrame(this._ribbonTw);
+        this._ribbonTw = 0;
+        const to = this.ribbonTarget(want);
+        if (to != null && Math.abs(wrap.scrollLeft - to) > 1) wrap.scrollLeft = to;
+      }, dur + 250);
     },
     updateRibbonMore() {
       const w = this.els['flow-ribbon'];
@@ -1981,11 +2069,14 @@
       const t = s && s.tasks[taskId];
       if (!t) return;
       opt = opt || {};
-      this.autoCloseDrawer();
-      this.closeStaffPick();
-      this.hideRibbonTip();
+      /* opt.refresh = 中身を新しくするための開き直し（利用者が開いたのではない）。ドロワー・ほかの部品は そのまま */
+      if (!opt.refresh) {
+        this.autoCloseDrawer();
+        this.closeStaffPick();
+        this.hideRibbonTip();
+        this._popOpenedAt = performance.now();
+      }
       this.spotPopTask = taskId;
-      this._popOpenedAt = performance.now();
       const pop = this.els['spot-pop'];
       const G = window.Game;
       const rubi = window.rubi;
@@ -2033,7 +2124,6 @@
       const paceHtml = t.status !== 'done' && t.status !== 'locked' ? this.paceHtml(t) : '';
 
       pop.innerHTML = `
-        <button class="sp-close" type="button" aria-label="とじる">${this.ico('close')}</button>
         <div class="sp-body">
           <div class="sp-title"><span class="sp-step" data-step="${t.def.step || ''}">ステップ${t.def.step || '-'}</span><span class="sp-ticon">${this.taskIco(t.id)}</span><span class="sp-name">${rubi(t.def.name)}</span></div>
           ${opt.note ? `<div class="sp-note">${opt.note}</div>` : ''}
@@ -2042,7 +2132,8 @@
           ${paceHtml}
           ${next}
           <div class="sp-btns"></div>
-        </div>`;
+        </div>
+        <button class="sp-close" type="button" aria-label="とじる">${this.ico('close')}</button>`;
       const btnWrap = pop.querySelector('.sp-btns');
       btns.forEach((b) => {
         const el = document.createElement('button');
@@ -2056,7 +2147,7 @@
         el.addEventListener('click', () => {
           Sfx.play('click');
           this.cb.onSetPace(t.id, el.dataset.pace);
-          this.openSpotPop(taskId, opt); // 表示更新
+          this.openSpotPop(taskId, Object.assign({}, opt, { refresh: true })); // 表示更新
         });
       });
 
@@ -2204,6 +2295,8 @@
       this._lastReady = null;
       this._wxPaused = null;
       this._lastHint = null;
+      this._railT = 0;
+      clearTimeout(this._railTimer); this._railTimer = 0;
 
       this.els['hud-stage-name'].textContent = state.stage.shortName;
       this.updateWeatherHud();
@@ -2251,7 +2344,7 @@
           <div class="tc-foot">
             <span class="tc-time"></span>
             <span class="tc-extra"></span>
-            ${t.def.priority === 'high' ? `<span class="tc-prio prio-high">${this.ico('alert')}だいじ</span>` : ''}
+            ${t.def.priority === 'high' ? `<span class="tc-prio prio-high">だいじ</span>` : ''}
           </div>
           ${this.paceHtml(t)}
           <div class="tc-lockmsg"></div>
@@ -2318,11 +2411,14 @@
         `<div class="pace-ctrl" role="group" aria-label="すすめかた">${btns}</div>` +
         `<div class="pace-eff${t.pace !== 'normal' ? ' show' : ''}">${t.pace !== 'normal' ? eff : ''}</div></div>`;
     },
-    /* 効果の文（tasks.js の PACE と SAFETY_SENSITIVE から作る。かなだけなので title にも使える） */
+    /* 効果の文（はやさは PACE、まんぞく・あんぜんの数は Game.paceEffect から作る。かなだけなので title にも使える） */
     paceEffText(id, pace) {
-      if (pace === 'careful') return 'ゆっくり・まんぞく ＋2';
-      if (pace === 'rush') return 'はやい・まんぞく −3' + (window.SAFETY_SENSITIVE.has(id) ? '・あんぜん −5' : '');
-      return 'ふつうの はやさ';
+      const P = window.PACE[pace];
+      if (!P || pace === 'normal') return 'ふつうの はやさ';
+      const eff = window.Game.paceEffect ? window.Game.paceEffect(pace, id) : { sat: 0, safety: 0 };
+      const num = (n) => (n > 0 ? '＋' : '−') + Math.abs(n);
+      return (P.f > 1 ? 'ゆっくり' : 'はやい') +
+        (eff.sat ? '・まんぞく ' + num(eff.sat) : '') + (eff.safety ? '・あんぜん ' + num(eff.safety) : '');
     },
     isPausedTask(t) {
       return window.Game.outdoorPaused() && t.def.outdoor && (t.status === 'active' || t.status === 'gathering');
@@ -2520,13 +2616,17 @@
       s.entities.forEach((e) => {
         const chip = this.chipEls[e.id];
         if (!chip) return;
-        chip.classList.remove('rs-idle', 'rs-moving', 'rs-working', 'rs-returning');
-        chip.classList.add('rs-' + e.status);
         const task = e.taskId ? s.tasks[e.taskId] : null;
+        /* かみなりで止まっている外の作業の人・車は「おやすみ」（カード・リボンと同じ 灰青+かみなり） */
+        const paused = !!task && (e.status === 'working' || e.status === 'moving') && this.isPausedTask(task);
+        const st = paused ? 'paused' : e.status;
+        chip.classList.remove('rs-idle', 'rs-moving', 'rs-working', 'rs-returning', 'rs-paused');
+        chip.classList.add('rs-' + st);
         /* まちあい中はピルを出さない（名前だけ） */
-        const html = e.status === 'idle' ? '' : (ST[e.status] || '') + (task ? this.taskIco(task.id) : '');
+        const html = e.status === 'idle' ? '' : paused ? this.ico('storm') + 'おやすみ' + (task ? this.taskIco(task.id) : '')
+          : (ST[e.status] || '') + (task ? this.taskIco(task.id) : '');
         this.setHtml(chip.querySelector('.rc-st'), html);
-        chip.title = (chip.dataset.skill ? chip.dataset.skill + '・' : '') + (TITLE[e.status] || '');
+        chip.title = (chip.dataset.skill ? chip.dataset.skill + '・' : '') + (paused ? 'かみなりで おやすみ' : (TITLE[e.status] || ''));
       });
       /* 選択中のエンティティが使われたら選択解除 */
       if (this.selected) {
@@ -2621,7 +2721,10 @@
 
     /* 一時停止の帯 */
     setPausedIndicator(show) {
-      this.els['pause-chip'].classList.toggle('hidden', !show);
+      const el = this.els['pause-chip'];
+      if (el.classList.contains('hidden') === !show) return;
+      el.classList.toggle('hidden', !show);
+      this.queueInsets();
     },
 
     updateHint(force) {
@@ -2630,22 +2733,26 @@
       if (!force && now - this.hintThrottle < 800) return;
       this.hintThrottle = now;
       const el = this.els['hint-banner'];
+      const wasHidden = el.classList.contains('hidden');
       /* イベント・コーチを出している間、せまいタブレットでドロワーを開いている間は、ヒントを出さない */
       const coachOn = this.els['coach-bubble'] && !this.els['coach-bubble'].classList.contains('hidden');
       const drawerOver = window.matchMedia('(min-width: 701px) and (max-width: 1099px)').matches &&
         !this.els['panel-tasks'].classList.contains('closed');
-      if (this.state.activeEvent || coachOn || drawerOver) { el.classList.add('hidden'); return; }
-      const hint = window.Game.getHint();
+      let changed = false;
+      const hint = (this.state.activeEvent || coachOn || drawerOver) ? null : window.Game.getHint();
       if (hint) {
         if (this._lastHint !== hint) {
           this._lastHint = hint;
           el.innerHTML = `<span class="hb-text">${this.ico('info')} ${this.gx(hint)}</span>`;
+          changed = true;
         }
         el.classList.remove('hidden');
       } else {
-        this._lastHint = null;
+        if (!(this.state.activeEvent || coachOn || drawerOver)) this._lastHint = null;
         el.classList.add('hidden');
       }
+      /* 出た・消えた・文がかわった（行の数がかわるかもしれない）ときは、駐機場の見える範囲を知らせなおす */
+      if (changed || wasHidden !== el.classList.contains('hidden')) this.queueInsets();
     },
     /* ヒントを押したら、おすすめの作業を開く（はじめられるならポップ、そうでなければカード） */
     onHintTap() {
@@ -2709,7 +2816,10 @@
     toastOpen(ids) {
       const now = performance.now();
       const o = this._openToast;
+      /* もう はじめた・おわった作業は 名前に入れない（まだ「はじめられる」ものだけ） */
+      const stillReady = (id) => { const t = this.state && this.state.tasks[id]; return !t || t.status === 'ready'; };
       if (o && now - o.t < 1500 && o.el && o.el.isConnected && !o.el.classList.contains('out')) {
+        o.ids = o.ids.filter(stillReady);
         ids.forEach((id) => { if (!o.ids.includes(id)) o.ids.push(id); });
         o.el.innerHTML = this.openToastHtml(o.ids);
         o.t = now;
@@ -2718,8 +2828,12 @@
       const el = this.pushToast(this.openToastHtml(ids), 'open');
       this._openToast = el ? { el, ids: ids.slice(), t: now } : null;
     },
+    /* 「はじめられるよ！」を先に言い、名前は アイコン+名前 を「・」でつなぐ。スマホは2つ・広い画面は3つまで（のこりは「ほか Nこ」） */
     openToastHtml(ids) {
-      return this.ico('unlock') + ' ' + ids.map((id) => `「${this.taskIco(id)}${window.rubi(window.TASK_MAP[id].name)}」`).join('と') + 'が はじめられるよ！';
+      const max = this.isNarrow() ? 2 : 3;
+      const names = ids.slice(0, max).map((id) => this.taskIco(id) + window.rubi(window.TASK_MAP[id].name)).join('・');
+      const more = ids.length > max ? ` ほか ${ids.length - max}こ` : '';
+      return this.ico('unlock') + ' はじめられるよ！ ' + names + more;
     },
     flushToastQ() {
       const q = this._toastQ || [];
@@ -2788,7 +2902,9 @@
       return window.Icons.iconize(window.rubi(fixed))
         .replace(/\u25B6\uFE0F?/g, this.ico('play'))
         .replace(/\u23F0\uFE0F?/g, this.ico('hourglass'))
-        .replace(/\u{1F325}\uFE0F?/gu, this.ico('cloud'));
+        .replace(/\u{1F325}\uFE0F?/gu, this.ico('cloud'))
+        /* ルビの語と、すぐあとの ひらがな（送りがな・助詞）は1つのかたまりにして、そのあいだで改行しない（「時間ど／おり」「作業／が」にしない） */
+        .replace(/(<ruby>(?:(?!<\/ruby>)[\s\S])*<\/ruby>)([\u3041-\u3096\u30FC]{1,8})/g, '<span class="nb">$1$2</span>');
     },
     ico(name) { return window.Icons.svg(name); },
     taskIco(id) { return window.Icons.svg(window.Icons.task(id)); },
@@ -2834,14 +2950,51 @@
       const open = !pt.classList.contains('closed');
       /* 左: ひらいたドロワーの右はし（すべっている途中でも、とまったときの位置で測る） */
       const l = (!this.isNarrow() && open) ? Math.max(0, pt.offsetLeft + pt.offsetWidth - aw.offsetLeft + 8) : 0;
-      /* 右・上・下（スコア板・スタッフ帯）: Scene に DOM の欄を測る方法があれば、その値を使う（0 で上書きして欄の下に機体を入れない） */
-      let r = 0, t = 0, b = 0;
-      if (Scene.resize && aw.clientWidth && (Scene.cw !== aw.clientWidth || Scene.ch !== aw.clientHeight)) Scene.resize();
-      if (Scene.freeRect && Scene.cw && Scene.ch) {
-        const f = Scene.freeRect();
-        r = Math.max(0, Scene.cw - f.r); t = Math.max(0, f.t); b = Math.max(0, Scene.ch - f.b);
+      /* 上: 上の知らせ（コーチ・ヒント・一時停止・イベント）の下はし。持ち場や機体が知らせの下にかくれないように。
+       * ふえたときは すぐ、へったときは 1.5秒 そのままのときだけ（知らせが入れかわるたびに カメラが動かないように） */
+      const want = this.railInset();
+      if (want >= (this._railT || 0) - 2) {
+        this._railT = want;
+        clearTimeout(this._railTimer); this._railTimer = 0;
+      } else if (!this._railTimer) {
+        this._railTimer = setTimeout(() => { this._railTimer = 0; this._railT = this.railInset(); this.applyViewInsets(); }, 1500);
       }
-      Scene.setViewInsets({ l, r, t, b });
+      /* 右・下（スコア板・スタッフ帯・ズーム）は わたさない。Scene が DOM の欄を測りつづける
+       * （Scene の約束: わたした辺だけを その値にし、わたさない辺は 0.4秒ごとに測る。ドロワーは GAME が知らせる）。
+       * 上をわたすときは、Scene が測った上の欄（縦長の画面のスコア板など）より小さくしない */
+      const ins = { l };
+      if (this._railT > 0) {
+        const f = Scene.freeRect && Scene.cw ? Scene.freeRect(true) : null;
+        let t = Math.max(this._railT, f ? f.t : 0);
+        /* Scene は 上下の余白で見える高さが キャンバスの35%より せまくなると、上下とも余白をあきらめる。
+         * 低い画面（スマホの横向き）で下のスタッフ帯の余白まで なくならないよう、そこまでの大きさにおさえる */
+        if (f && Scene.ch) t = Math.min(t, Math.max(f.t, Math.floor(f.b - Scene.ch * 0.37)));
+        if (t > 0) ins.t = t;
+      }
+      Scene.setViewInsets(ins);
+    },
+    /* 上の知らせのうち、駐機場の上半分に出ているものの下はし（キャンバスの上からの px。ないときは 0）。
+     * スマホのイベント帯（画面の下に固定）・一時停止（左下）は数えない */
+    railInset() {
+      const rail = this.els['top-rail'], cv = this.els['apron'];
+      if (!rail || !cv) return 0;
+      const c = cv.getBoundingClientRect();
+      if (c.height < 1) return 0;
+      let b = 0;
+      for (const el of rail.children) {
+        if (el.classList.contains('hidden')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.height < 1 || r.top - c.top > c.height / 2 || r.bottom < c.top) continue;
+        b = Math.max(b, r.bottom - c.top);
+      }
+      return b > 0 ? Math.ceil(b + 6) : 0;
+    },
+    /* 上の知らせを出した・消した・書きかえた: 同じ処理の中の変化をまとめて、1回だけ見える範囲を知らせなおす
+     * （ResizeObserver は画面の更新を待つので、時間を止めている間でも すぐ届くように こちらからも呼ぶ） */
+    queueInsets() {
+      if (this._insetsQ) return;
+      this._insetsQ = true;
+      Promise.resolve().then(() => { this._insetsQ = false; this.applyViewInsets(); });
     },
     /* 701〜1099px: 駐機場をさわったとき・持ち場ポップを開いたときは、ドロワーをとじる */
     autoCloseDrawer() {
@@ -2868,6 +3021,7 @@
       b.classList.remove('hidden');
       this.els['screen-game'].classList.add('has-event');
       this.updateHint(true);
+      this.queueInsets();
     },
     /* 題名 + 「えらぶ」。期限が「N分後」のものは細いバー、作業の終わりが期限のものは「（あと約N分）」 */
     renderEventBanner(def) {
@@ -2892,6 +3046,7 @@
     hideEventBanner() {
       this.els['event-banner'].classList.add('hidden');
       this.els['screen-game'].classList.remove('has-event');
+      this.queueInsets();
       if (this.modalKind === 'event') this.closeModal();
     },
     openEventModal() {
@@ -3082,6 +3237,7 @@
       el.classList.remove('hidden');
       this._coachLeft = 12;   // 秒（時間を止めている間は数えない）
       this.updateHint(true);
+      this.queueInsets();
     },
     hideCoach() {
       const el = this.els['coach-bubble'];
@@ -3089,6 +3245,7 @@
       if (!el || el.classList.contains('hidden')) return;
       el.classList.add('hidden');
       this.updateHint(true);
+      this.queueInsets();
     },
     coachBegin() {
       if (this.state && this.state.stage.hints === true) {
@@ -3418,7 +3575,12 @@
             this.setHtml(card.querySelector('.tc-state'), this.stateHtml(t, paused, this.issueTask === t.id && t.status !== 'done'));
           }
         });
-        if (this._wxPaused !== G.outdoorPaused()) this.updateWeatherHud();
+        if (this._wxPaused !== G.outdoorPaused()) {
+          /* かみなりで止まった・また動いた: 天気の札・リボン・スタッフ帯をいっしょに かえる */
+          this.updateWeatherHud();
+          this.updateRibbon();
+          this.updateResources();
+        }
         if (s.activeEvent && now - (this._evTs || 0) > 500) { this._evTs = now; this.renderEventBanner(); }
         this.updateHint();
       }
@@ -3436,7 +3598,7 @@
           if (this.spotPopTask === payload.id) {
             const t = this.state.tasks[payload.id];
             if (!t || t.status === 'done' || t.status === 'active') this.closeSpotPop();
-            else this.openSpotPop(payload.id);  // ロック解除などで内容がかわったら開き直す
+            else this.openSpotPop(payload.id, { refresh: true });  // ロック解除などで内容がかわったら開き直す
           }
           break;
         case 'unlocked':
@@ -3465,7 +3627,7 @@
         case 'log': this.addLog(payload); break;
         case 'toast': this.toast(payload.msg, payload.type); break;
         case 'sfx': Sfx.play(payload); break;
-        case 'weather': this.updateWeatherHud(); break;
+        case 'weather': this.updateWeatherHud(); this.updateRibbon(); this.updateResources(); break;
         case 'celebrate': if (this.state) Scene.celebrate(this.state, payload.taskId); break;
         case 'safety-ask': this.openSafetyModal(); break;
         case 'event-armed':
@@ -3478,7 +3640,10 @@
           this.issueTask = null;
           this.hideEventBanner();
           if (prev) this.updateCard(prev);
+          /* かみなりで外の作業が止まったかもしれない: 天気の札・リボン・スタッフ帯をいっしょに かえる */
           this.updateWeatherHud();
+          this.updateRibbon();
+          this.updateResources();
           this.updateHint(true);
           break;
         }

@@ -369,6 +369,11 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   .hud-clock-box { min-width: 62px; padding: 4px 8px 5px; }
   #hud-weather { padding: 1px 10px 1px 8px; }
 }
+/* 701〜749px: 右の列（速さ・ながれ・せってい）が半分より広いので、時計の箱を細くして まん中に近づける */
+@media (min-width: 701px) and (max-width: 749px) {
+  .hud-center { gap: 5px; }
+  .hud-clock-box { min-width: 0; padding: 4px 5px 5px; }
+}
 
 /* ---------------- ながれリボン（常時表示。12の作業を順番どおりに） ---------------- */
 .flow-ribbon {
@@ -453,6 +458,9 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .fr-chip.fr-active .fr-mark { display: inline-flex; background: #fff; color: var(--st-active); border-color: var(--st-active); }
 .fr-chip.fr-done { background: var(--st-done-bg); border-color: transparent; color: var(--st-done); }
 .fr-chip.fr-done .fr-mark { display: inline-flex; background: var(--st-done); }
+/* かみなりで おやすみ（カードの札と同じ 灰青ぬり+かみなりの印） */
+.fr-chip.fr-paused { background: var(--st-paused); border-color: var(--st-paused); color: #fff; }
+.fr-chip.fr-paused .fr-mark { display: inline-flex; background: #fff; color: var(--st-paused); border-color: var(--st-paused); }
 /* ロックが開いた瞬間だけ、2回光る（ふだんは静か） */
 .fr-chip.fr-flash { animation: fr-flash 0.9s 2; }
 @keyframes fr-flash {
@@ -482,6 +490,15 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   background: inherit; border-radius: 2px; transform: rotate(45deg);
 }
 .fr-tip .ico { width: 16px; height: 16px; }
+/* わかち書き（ことばの間に空白）の知らせ・ふきだし・説明の文は、ことばの切れ目（空白・「、」「。」）だけで改行する
+ * （文節の推定にまかせると「は／じめよう」と切れることがある）。1つのことばが1行に入らないときだけ、その中で折り返す。
+ * 空白のない ふつうの文（まめちしき・イベントの題名・きろく）は、ここに入れない（土台の文節の改行のまま） */
+.cb-text, .fr-tip, .toast, .hb-text, .drawer-nudge,
+.sp-info, .sp-note, .sp-next, .tc-lockmsg, .tc-short, .tc-unlocks, .pace-eff {
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+/* ルビの語+すぐあとの ひらがな（ui.js の gx が包む）。「時間／どおり」「作業／が」のように ルビのきわで切らない */
+.nb { white-space: nowrap; }
 
 /* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ
  * --rail-l / --rail-r: 上の知らせ・トーストが よける左右のはば（ドロワー・スコア板） */
@@ -735,12 +752,14 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   50% { box-shadow: 0 0 0 5px rgba(11, 111, 138, 0.35); }
 }
 
-.tc-btns { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
-.tc-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.tc-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; }
+/* ボタンの文字は とちゅうで折り返さない（入らないボタンは つぎの行へ） */
+.tc-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
 .tc-btns .ico { width: 16px; height: 16px; }
 /* 主ボタン「▶ はじめる」は幅いっぱい。「ストップ」は右はしへ離す */
 .tc-start { flex: 1; font-size: 1rem; }
-.tc-issue { flex: 1; }
+/* トラブルの「どうする？ えらぶ」は いちばん上の1行を ひとりじめ（はじめる・くわしく は その下の行） */
+.tc-issue { flex: 1 1 100%; order: -1; }
 .tc-cancel { margin-left: auto; }
 
 /* かんりょうのカード: スタンプは出さず、見出し・時刻・くわしく だけにたたむ */
@@ -956,6 +975,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .staff-pick {
   position: absolute; z-index: var(--z-pop);
   min-width: 170px; max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain;   /* 駐機場に入りきらない人数は、リストの中をスクロール */
   background: var(--paper);
   border-radius: 12px;
   box-shadow: var(--elev-3);
@@ -997,8 +1017,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .spot-pop.sp-arrow-up::before { display: block; top: -6px; left: calc(var(--ax, 30px) - 7px); }
 .sp-body { position: relative; overflow-y: auto; min-height: 0; padding: 10px 12px 12px; border-radius: 12px; }
 .sp-close {
-  position: absolute; top: 2px; right: 2px; z-index: 1;
-  width: 44px; height: 44px;
+  position: absolute; top: 1px; right: 1px;   /* 本文より後ろに置いてあるので、z-index なしで上に出る */
+  width: 46px; height: 46px;                  /* 小数の位置でも 44px を下回らないよう 46px */
   border: none; border-radius: 10px; background: transparent; color: var(--ink-2);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -1198,10 +1218,13 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .status-row { display: flex; align-items: stretch; gap: 8px; }
 .unfinished-box {
   flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 4px;
-  background: var(--chip); border-radius: 8px; padding: 0 10px;
-  font-size: var(--fs-min); color: var(--ink-2); line-height: 1.35; white-space: nowrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: var(--chip); border-radius: 8px; padding: 2px 10px;
+  font-size: var(--fs-min); color: var(--ink-2); line-height: 1.35;
 }
+/* 「のこりの おしごと」（HUD の「のこり 45分」は時間。こちらは作業の数）。せまいときは ことばの切れ目で2行にする */
+.ub-label { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.ub-num { flex: none; white-space: nowrap; }
 .unfinished-box strong { color: var(--navy); font-size: 1rem; }
 .log-toggle {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
@@ -1328,10 +1351,12 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   line-height: 1.85;
 }
 .rc-st .ico { width: 14px; height: 14px; }
-.res-chip.rs-working .rc-st, .res-chip.rs-moving .rc-st, .res-chip.rs-returning .rc-st { display: inline-flex; }
+.res-chip.rs-working .rc-st, .res-chip.rs-moving .rc-st, .res-chip.rs-returning .rc-st, .res-chip.rs-paused .rc-st { display: inline-flex; }
 .res-chip.rs-working .rc-st { color: #fff; background: var(--st-active); }
 .res-chip.rs-moving .rc-st { color: var(--st-wait-ink); background: var(--st-wait-bg); box-shadow: inset 0 0 0 1px var(--st-wait); }
 .res-chip.rs-returning .rc-st { color: #4a5a6e; background: #eef1f4; }
+/* かみなりで止まっている外の作業の人・車（カード・リボンと同じ 灰青ぬり+かみなり） */
+.res-chip.rs-paused .rc-st { color: #fff; background: var(--st-paused); }
 
 /* =========================================================
  * 【META】モーダル〜結果タイムライン(モーダル・結果・ながれマップ・ずかん・まめ知識・タイムライン)
@@ -1676,6 +1701,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   #panel-status { position: static; width: auto; max-height: none; order: 2; padding: 8px 10px; gap: 6px; }
   #panel-status.log-open { height: auto; max-height: none; }
   #panel-status.log-open #game-log { flex: none; min-height: 260px; max-height: min(50svh, 360px); }
+  /* きろくを開いている間の指標は2列（1マス =「アイコン ことば … 数字」の1行）。4列のままだと数字が となりのマスに はみ出す */
+  #panel-status.log-open .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
   .panel-title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; }
   .panel-title-sub { display: inline; }
   .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 6px; }
@@ -1688,14 +1715,20 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   #panel-tasks .drawer-tab, .drawer-nudge { display: none !important; }
   #task-list { overflow-y: visible; }
   /* 上の知らせは駐機場の左右 8px まで。一時停止は短い文だけ */
-  .top-rail { left: 8px; right: 8px; top: 8px; }
+  .top-rail { left: 8px; right: 8px; top: 8px; bottom: 8px; }
   .pause-chip .pc-more { display: none; }
+  /* 一時停止は駐機場の左下（ズームのボタンと同じ高さ）に出して、上の知らせと積み重ねない（機体が上の知らせの下にかくれないように） */
+  .top-rail > .pause-chip { margin-top: auto; align-self: flex-start; max-width: calc(100% - 152px); padding: 6px 12px; }
+  /* コーチのふきだしは、顔の丸をはぶき「コーチ」を文の前に置いて、行の数をへらす */
+  .coach-bubble { padding: 6px 46px 6px 12px; }
+  .cb-avatar { display: none; }
+  .cb-who { display: inline; margin: 0 6px 0 0; }
   /* イベントの知らせは画面の下に固定（どこまでスクロールしても見える） */
   .top-rail > .event-banner {
     position: fixed;
     left: 8px; right: 8px; top: auto;
     bottom: calc(8px + env(safe-area-inset-bottom));
-    z-index: 31;
+    z-index: calc(var(--z-fixed-msg) + 1);   /* トーストより上・シートより下 */
     max-width: none;
   }
   #zoom-ctrl { bottom: 8px; right: 8px; }

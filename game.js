@@ -597,19 +597,20 @@
       this._releaseEntities(t);
       if (t.id !== 'depart') this.log(`「${t.def.name}」が完了`, 'ok');
 
-      /* 采配レバーの効果（完了時に一度だけ） */
+      /* 采配レバーの効果（完了時に一度だけ。数は paceEffect にまとめてあり、カードの説明の文も同じ数を使う） */
       if (window.PACE_ALLOWED.has(t.id)) {
+        const eff = this.paceEffect(t.pace, t.id);
         if (t.pace === 'rush') {
           s.stats.rushCount++;
-          s.metrics.sat = clamp(s.metrics.sat - 3, 0, 100);
-          if (window.SAFETY_SENSITIVE.has(t.id)) {
-            s.metrics.safety = clamp(s.metrics.safety - 5, 0, 100);
-            this.log(`急いだぶん「${t.def.name}」の確認が少し甘くなった…（安全性−5）`, 'warn');
+          s.metrics.sat = clamp(s.metrics.sat + eff.sat, 0, 100);
+          if (eff.safety) {
+            s.metrics.safety = clamp(s.metrics.safety + eff.safety, 0, 100);
+            this.log(`急いだぶん「${t.def.name}」の確認が少し甘くなった…（安全性−${Math.abs(eff.safety)}）`, 'warn');
           }
           this.emit('metrics');
         } else if (t.pace === 'careful') {
           s.stats.carefulCount++;
-          s.metrics.sat = clamp(s.metrics.sat + 2, 0, 100);
+          s.metrics.sat = clamp(s.metrics.sat + eff.sat, 0, 100);
           this.emit('metrics');
         }
       }
@@ -894,6 +895,13 @@
     /* この作業が終わると開く作業（＝つぎにつながる作業）。順番の理解を助ける表示用 */
     nextOpens(taskId) {
       return (window.TASK_UNLOCKS[taskId] || []).map((id) => window.TASK_MAP[id]).filter(Boolean);
+    },
+
+    /* 采配レバーの効果の数（完了したときに一度だけ足す）。_completeTask と、カードの説明の文の両方がここを使う */
+    paceEffect(pace, taskId) {
+      if (pace === 'rush') return { sat: -3, safety: window.SAFETY_SENSITIVE.has(taskId) ? -5 : 0 };
+      if (pace === 'careful') return { sat: 2, safety: 0 };
+      return { sat: 0, safety: 0 };
     },
 
     /* ---- 表示用の読み取り専用の関数（state を書きかえない） ---- */
