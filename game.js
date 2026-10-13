@@ -740,6 +740,10 @@
         arrival: s.stage.arrival,
         delay: s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null,
         advice: this._buildAdvice(departed),
+        /* 表示用: ふりかえりを種類つき(bad/tip/good)で。advice の文字列と同じ内容 */
+        adviceParts: this._adviceParts || [],
+        /* 表示用: 安全確認をとばしたか（結果画面の「クリアするには」の文を分ける。判定・点数には使わない） */
+        safetySkipped: !!s.flags.safetySkipped,
         stageId: s.stage.id,
         /* バッジ判定用のプレイ内容 */
         extra: {
@@ -763,22 +767,25 @@
     _buildAdvice(departed) {
       const s = this.state;
       const out = [];
+      /* 表示用に種類もためる（bad=だめだったこと / tip=つぎのコツ / good=よかったこと）。文と判定は変えない */
+      const parts = [];
+      const add = (kind, text) => { out.push(text); parts.push({ kind, text }); };
       const fs = s.stats.firstStarts;
       const t = s.tasks;
       const delay = s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null;
 
       if (s.flags.safetySkipped) {
-        out.push('安全確認を省略したため、安全性が大きく減点され、クリアになりませんでした。プッシュバック前の周辺確認は、どんなに急いでいても必ず行いましょう。');
+        add('bad', '安全確認を省略したため、安全性が大きく減点され、クリアになりませんでした。プッシュバック前の周辺確認は、どんなに急いでいても必ず行いましょう。');
       } else if (s.flags.critical) {
-        out.push('安全にかかわる確認を省略する選択をしたため、クリアになりませんでした。安全はすべてに優先します。');
+        add('bad', '安全にかかわる確認を省略する選択をしたため、クリアになりませんでした。安全はすべてに優先します。');
       } else {
-        out.push('安全な運航を実現しました。');
+        add('good', '安全な運航を実現しました。');
       }
 
       if (!departed) {
-        out.push(`時間内に出発できませんでした。到着直後から「降機」「取り降ろし」「給油」「点検」の4つを並行で始めるのがコツです。`);
+        add('bad', `時間内に出発できませんでした。到着直後から「降機」「取り降ろし」「給油」「点検」の4つを並行で始めるのがコツです。`);
       } else if (delay !== null && delay > 0.5) {
-        out.push(`一方で、出発が${Math.ceil(delay)}分遅れました。`);
+        add('bad', `一方で、出発が${Math.ceil(delay)}分遅れました。`);
         /* いちばん大きな「待ち時間」を探して助言する */
         const gaps = [];
         const gap = (name, val, msg) => { if (val != null && val > 2) gaps.push({ val, msg }); };
@@ -793,14 +800,14 @@
         gap('load', fs.load != null && t.unload.doneAt != null ? fs.load - t.unload.doneAt : null,
           '取り降ろしが終わったらすぐ「積み込み」を始めると改善できます。');
         gaps.sort((a, b) => b.val - a.val);
-        if (gaps.length) out.push(gaps[0].msg);
+        if (gaps.length) add('tip', gaps[0].msg);
         else if ((fs.refuel != null && fs.refuel - s.stage.arrival > 12) || (fs.inspect != null && fs.inspect - s.stage.arrival > 15)) {
-          out.push('給油や機体点検は到着直後から始められます。早めに始めると余裕が生まれます。');
+          add('tip', '給油や機体点検は到着直後から始められます。早めに始めると余裕が生まれます。');
         } else {
-          out.push('作業どうしのすき間を小さくして、並行作業を増やすとさらに良くなります。');
+          add('tip', '作業どうしのすき間を小さくして、並行作業を増やすとさらに良くなります。');
         }
       } else if (departed) {
-        out.push('定刻どおりの出発、みごとな段取りです！');
+        add('good', '定刻どおりの出発、みごとな段取りです！');
       }
 
       /* イベント対応へのひとこと（プレイヤーが自分で選んだものだけ・最大2件） */
@@ -816,15 +823,18 @@
         'lost_bag:1': '手荷物を次の便で送る判断は出発を守りましたが、持ち主の満足度は下がります。',
         'weather:0': '雷のときに屋外作業を止めるのは正しい判断です。安全はすべてに優先します。',
       };
+      /* よい面とわるい面の両方があるもの（つぎのコツとして出す） */
+      const EV_TIP = new Set(['late_pax:2', 'cleaning_delay:2', 'lost_bag:1']);
       s.resolvedEvents.filter((e) => !e.auto).slice(0, 2).forEach((e) => {
         const a = evAdvice[`${e.id}:${e.choiceIdx}`];
-        if (a) out.push(a);
+        if (a) add(EV_TIP.has(`${e.id}:${e.choiceIdx}`) ? 'tip' : 'good', a);
       });
       if (s.stats.rushCount >= 4 && s.metrics.sat < 78) {
-        out.push('「急がせる」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
+        add('tip', '「急がせる」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
       } else if (s.metrics.sat < 80 && !s.stats.satNotes.includes('advised')) {
-        out.push('乗客の待ち時間をへらすと満足度が上がります。');
+        add('tip', '乗客の待ち時間をへらすと満足度が上がります。');
       }
+      this._adviceParts = parts;
       return out.join(' ');
     },
 
