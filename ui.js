@@ -134,7 +134,7 @@
   const ENG_V = 5.75;                      // エンジンは中心線から5.75m（パイロンで主翼の前下に吊る）
   const DOOR_U = { L1: 5.3, R2: 30.4, fwdCargo: 8.8, aftCargo: 24.4 };
   const FUS_EDGE = PLANE_CY + FUS_R * PK;  // 胴体の下（右側）のふちのy（駐機中）
-  const BELT_Y = Math.round(FUS_EDGE + 63); // ベルトの先が貨物ドアの敷居にとどく位置
+  const BELT_Y = Math.round(FUS_EDGE + 51); // ベルトの先（車両ローカルの +52）が貨物ドアの敷居にとどく位置
 
   /* 区画（背景にえがく。人や車の待機位置もここから決める） */
   const ZONE = {
@@ -156,7 +156,8 @@
     refuel:    { staff: [[716, 442]], vehicles: { fuel: [[732, 463, 0]] } },     // 右主翼の前（給油口は翼の下）
     catering:  { staff: [[548, 413]], vehicles: { catering: [[ux(DOOR_U.R2), 393, -90]] } },
     inspect:   { staff: [[900, 306]] },                      // 機首の前から一周
-    pushback:  { staff: [[890, 370]], vehicles: { pushback: [[884, PLANE_CY, 180]] } },  // 機首の前で押す
+    /* 押す車は機首の約4m前（車体 x868〜926。制限区域の右はし x932 の内側）。牽引のフックから前脚までトーバーでつなぐ */
+    pushback:  { staff: [[890, 370]], vehicles: { pushback: [[900, PLANE_CY, 180]] } },
     depart:    {},
   };
   const TUG_SLOT = SLOTS.pushback.vehicles.pushback[0];
@@ -173,15 +174,17 @@
     [656, 356], [700, 360], [740, 400], [748, 350], [790, 334], [850, 340],
   ];
   const VEH_ROW = ZONE.veh.y + 26;
+  /* 車のおきば: 区画（白線のあいだ）1つに車1台。車の外形（VEH_EXT）と白線のあいだを9ずつあけ、となりの車とは18はなす */
   const VEHICLE_HOME = {
-    beltloader: [[500, VEH_ROW, 0]],
-    cart: [[600, VEH_ROW, 0], [688, VEH_ROW, 0]],
-    fuel: [[790, VEH_ROW, 0]],
-    catering: [[892, VEH_ROW, 0]],
-    pushback: [[996, VEH_ROW, 0]],
+    beltloader: [[485, VEH_ROW, 0]],
+    cart: [[600, VEH_ROW, 0], [705, VEH_ROW, 0]],
+    fuel: [[813, VEH_ROW, 0]],
+    catering: [[921, VEH_ROW, 0]],
+    pushback: [[1005, VEH_ROW, 0]],
   };
+  const VEH_BAY_LINES = [450, 546, 651, 756, 870, 970, 1046];
   /* 車体の外形（車両ローカル座標: x0, x1, y0, y1）。機体の下にかかっているかの判定に使う */
-  const VEH_EXT = { beltloader: [-34, 64, -12, 12], cart: [-45, 42, -10, 10], fuel: [-48, 48, -13, 13], catering: [-42, 40, -14, 14], pushback: [-26, 32, -15, 15] };
+  const VEH_EXT = { beltloader: [-26, 52, -10, 10], cart: [-45, 42, -10, 10], fuel: [-48, 48, -13, 13], catering: [-42, 40, -14, 14], pushback: [-26, 32, -15, 15] };
   /* 搭乗橋: ターミナルから出る固定通路（背景）→ ロタンダ（回転部）→ のびちぢみする通路 → キャブ。
    * キャブの先（じゃばら）がL1ドアのところの胴体のふちにとどく位置で止まる */
   const L1_EDGE = PLANE_CY - fusHW(DOOR_U.L1) * PK;
@@ -190,12 +193,24 @@
   const PAX_SIGN = [880, 169];             // 降機・搭乗の人数カウンターの位置
 
   /* ---------- 背景キャッシュの範囲（左右にはみ出して描く。プッシュバック・出発で機体が左のはしをこえても地面がつづく）。
-   * 出発は機体が x≈−260 まで走ってから消えるので、カメラが追っても左のはしが出ないよう −700 まで描く ---------- */
+   * 出発ではカメラは途中で止まり、機体だけが左へ走っていく。カメラが追っても左のはしが出ないよう −700 まで描く
+   * （それより外は drawOutside が背景のはしをのばして描く） ---------- */
   const BG_X0 = -700, BG_X1 = SCENE_W + 220;
   /* 誘導路の下の路肩（舗装）の下のはし。プッシュバックで尾がふれても芝に出ないはば。その下は芝 */
   const SHOULDER_Y1 = 726;
+  /* シーンの下のそと（路肩と芝）を照明ごとに1回だけ描いておく帯の範囲（その下は芝のタイルだけ） */
+  const OUT_BAND_Y0 = SCENE_H - 1, OUT_BAND_Y1 = SCENE_H + 260;
   /* カメラがはじめに入れる範囲: 制限区域と、そのまわりの待機所・車のおきば・押す車 */
   const FOCUS = { x0: 288, x1: 1054, y0: 144, y1: 562 };
+  /* エプロンのコンクリートの板の目地（実物の板は約7m角＝68）。x は JOINT_X をとおる JOINT きざみ、y は JOINT_ROWS */
+  const JOINT = 68, JOINT_X = 120;
+  const JOINT_ROWS = [138, 206, 274, 342, 410, 478, 546, 574];
+  /* 'rgba(r,g,b,a)' / '#rrggbb' を [r,g,b,a] に */
+  const parseRGBA = (s) => {
+    if (s[0] === '#') { const n = parseInt(s.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]; }
+    const q = s.slice(s.indexOf('(') + 1, s.indexOf(')')).split(',').map(Number);
+    return [q[0], q[1], q[2], q[3] == null ? 1 : q[3]];
+  };
   /* 場内の人の大きさ（ずかんの絵は 1 のまま）。機体が実寸の比率なので、人も実寸に近い 0.72（身長約1.9m）にする。
    * 押せる範囲は見た目とは別に、画面上の半径 24px を保つ */
   const PERSON_K = 0.72;
@@ -205,19 +220,26 @@
     ramp: 'ランプ', baggage: 'てにもつ', cleaning: 'せいそう', maintenance: 'せいび', gate: 'ゲート',
     beltloader: 'ベルト', cart: 'カート', fuel: 'きゅうゆ', catering: 'きないしょく', pushback: 'おすくるま',
   };
-  /* 持ち場の色（DOM と同じ。:root の --st-* があればそれを使う） */
-  const SPOT_COL = { ready: '#0b6f8a', gather: '#c98a00', accept: '#1f7a45', soon: '#8796a8', unlock: '#0b6f8a', done: '#1f7a45', locked: '#5b6b80' };
+  /* 持ち場の色（DOM と同じ。:root の --st-* があればそれを使う）。
+   * 「えらんだ人が いける ところ」は --st-target（チュートリアルの凡例と同じトークン）。まだ無いときは --st-done のまま */
+  const SPOT_COL = { ready: '#0b6f8a', gather: '#c98a00', accept: '#1f7a45', soon: '#8796a8', unlock: '#0b6f8a', done: '#1f7a45', locked: '#5b6b80', paused: '#4a5584' };
   let _spotColRead = false;
   const spotCol = () => {
     if (!_spotColRead && typeof getComputedStyle === 'function' && document.documentElement) {
       _spotColRead = true;
       const cs = getComputedStyle(document.documentElement);
-      const pick = (k, v) => { const x = (cs.getPropertyValue(v) || '').trim(); if (/^#[0-9a-f]{6}$/i.test(x)) SPOT_COL[k] = x; };
-      pick('ready', '--st-ready'); pick('gather', '--st-wait'); pick('accept', '--st-done'); pick('done', '--st-done'); pick('locked', '--st-locked');
+      const pick = (k, v) => { const x = (cs.getPropertyValue(v) || '').trim(); if (/^#[0-9a-f]{6}$/i.test(x)) { SPOT_COL[k] = x; return true; } return false; };
+      pick('ready', '--st-ready'); pick('gather', '--st-wait'); pick('done', '--st-done'); pick('locked', '--st-locked'); pick('paused', '--st-paused');
+      if (!pick('accept', '--st-target')) pick('accept', '--st-done');
       SPOT_COL.unlock = SPOT_COL.ready;
     }
     return SPOT_COL;
   };
+  /* #rrggbb を rgba() の文字列に */
+  const rgbaOf = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+  /* スマホ（GAME の isNarrow と同じ 700px 以下） */
+  const _narrowMQ = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 700px)') : null;
+  const isNarrowView = () => !!(_narrowMQ && _narrowMQ.matches);
   /* 動きを減らす設定（OS の prefers-reduced-motion） */
   const _rm = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   const reduceMotion = () => !!(_rm && _rm.matches);
@@ -287,14 +309,14 @@
 
   /* ---------- 車の落ち影の外形（車両ローカル座標の矩形 [x, y, w, h]） ---------- */
   const VEH_SHADOW = {
-    beltloader: [[-34, -12, 44, 24], [2, -6, 62, 12]],
+    beltloader: [[-26, -10, 34, 20], [2, -5, 50, 10]],
     cart: [[-45, -10, 87, 20]],
     fuel: [[-48, -13, 96, 26]],
     catering: [[-42, -14, 82, 28]],
     pushback: [[-26, -15, 58, 30]],
   };
   /* 回転灯の位置（キャブの屋根のうしろ。窓をかくさない。車両ローカル座標） */
-  const VEH_BEACON = { beltloader: [-22, 0], cart: [-28, 0], fuel: [-32, 0], catering: [-28, 0], pushback: [-4, -8] };
+  const VEH_BEACON = { beltloader: [-17, 0], cart: [-28, 0], fuel: [-32, 0], catering: [-28, 0], pushback: [-4, -8] };
   /* 客室の窓（機首からの距離 u[m]。非常口のところは窓なし）。清掃の進み具合で前から順に明かりをつける */
   const CABIN_WIN = { u0: 6.9, u1: 29.3, step: 0.535, gap: [14.15, 15.85], v: 0.82 };
   /* セーフティコーン（駐機中だけ）: 左右の翼端のうしろの外（翼の下にかくれない所）と、尾のうしろ。
@@ -378,7 +400,10 @@
     { L: TAXI_Y - PUSH_R2 - (PLANE_CY + LEAD_R) }, { R: PUSH_R2, a: -90 },
   ]));
   const pushEnd = () => { const p = pushPath(); return p[p.length - 1]; };
-  const departPath = () => _depart || (_depart = taxiPath(pushEnd().x, pushEnd().y, 180, [{ L: pushEnd().x + 260 }]));
+  /* 出発の走る長さ: カメラが止まったあと、機体が自分で画面の左（ドロワーの下・キャンバスの外）へ出ていけるだけ（主脚が x=−900 まで）。
+   * 背景キャッシュの左はし（BG_X0）より外は drawOutside が地面をのばして描く */
+  const DEPART_TO_X = -900;
+  const departPath = () => _depart || (_depart = taxiPath(pushEnd().x, pushEnd().y, 180, [{ L: pushEnd().x - DEPART_TO_X }]));
 
   /* ---------- 機体の形（機体ローカル座標: 主脚が原点・機首が+x・右主翼が+y。単位px） ---------- */
   const PX = (u) => (PIVOT_U - u) * PK;
@@ -559,7 +584,6 @@
       this.fx = { parts: [], floats: [] };
       this.spotFx = {};
       this.doneTags = [];
-      this.bgKey = '';   // ステージが変わったら背景キャッシュを作り直す
       this.cam = { zoom: 1, cx: 600, cy: 330 };
       this.arrivalT = null;
       this.arrivalCb = null;
@@ -571,7 +595,14 @@
       this._follow = null;
       this._followOff = false;
       this._hold = false;
+      this._lock = false;
       this._relax = false;
+      this._depStop = false;   // 出発で、カメラが機体を追うのをやめたか
+      this._fitTMax = 0;       // スマホ: このステージで出た上の余白のいちばん大きい値（はじめの画角の倍率を固定する）
+      this._bgFade = null;     // 照明が切りかわるときの背景のクロスフェード
+      this._bgLight = null;    // 新しいステージのはじめは、クロスフェードしない（背景キャッシュはステージが同じなら使いまわす）
+      this._rainA = 0;         // 雨すじの濃さ（かみなりの雨は 1.5秒でフェード）
+      this._rainMode = null;
     },
 
     /* 到着シネマティック: 誘導路からスポットへ入ってくる（動きを減らす設定では、すぐ駐機した形にする） */
@@ -604,6 +635,7 @@
         this.canvas.width = Math.round(w * dpr);
         this.canvas.height = Math.round(h * dpr);
       }
+      if (w !== this.cw || h !== this.ch) this._fitTMax = 0;   // 画面の大きさが変わったら、はじめの画角の倍率を決めなおす
       this.cw = w; this.ch = h; this.dpr = dpr;
       this.clampCam();
     },
@@ -619,6 +651,13 @@
       const fitH = (this.ch / SCENE_H) / this.baseScale();
       return Math.max(0.55, Math.min(1, fitH));
     },
+    /* ⛶ ぜんたい の倍率: 場ぜんたい（1200x640）が安全な範囲（DOM の欄をのぞいた所）に入る倍率（0.45〜1） */
+    allZoom() {
+      const base = this.baseScale() || 1;
+      return clamp(Math.min(this.safeW() / (SCENE_W * base), this.safeH() / (SCENE_H * base)), 0.45, 1);
+    },
+    /* 引ける下限。⛶ とピンチ・ホイールでは、ぜんたいが見えるところまで引ける */
+    zoomFloor() { return Math.min(this.minZoom(), this.allZoom()); },
     safeW() { return Math.max(40, this.cw - this.insets.l - this.insets.r); },
     safeH() { return Math.max(40, this.ch - this.insets.t - this.insets.b); },
     viewCenter() {
@@ -644,7 +683,7 @@
       if (!isFinite(c.cx)) c.cx = 600;
       if (!isFinite(c.cy)) c.cy = 330;
       if (!this.cw || !this.ch) return;
-      c.zoom = clamp(c.zoom, this.minZoom(), 2.6);
+      c.zoom = clamp(c.zoom, this.zoomFloor(), 2.6);
       const R = this.camRange(c.zoom, relax != null ? relax : !!this._relax);
       c.cx = clamp(c.cx, R.x[0], R.x[1]);
       c.cy = clamp(c.cy, R.y[0], R.y[1]);
@@ -663,19 +702,39 @@
       const S = this.scale(), v = this.viewCenter();
       return { x: (x - v.x) / S + this.cam.cx, y: (y - v.y) / S + this.cam.cy };
     },
-    /* はじめの画角: 制限区域とまわりの待機所・車のおきば（FOCUS）が、安全な範囲いっぱいに入る倍率と位置 */
+    /* カメラの補間の行き先（補間がないときは今）の画角で、シーン座標を画面座標にする。
+     * GAME が持ち場ポップを「カメラが止まる所」に合わせて置くのに使う。to={zoom,cx,cy,ins} をわたすと、その画角で計算する。
+     * 余白だけを補間しているとき（機体を追っているあいだなど）は、カメラは今の値のまま */
+    sceneToScreenAt(x, y, to) {
+      const w = to || (this._tween ? this._tween.to : null);
+      if (!w) return this.sceneToScreen(x, y);
+      const keepCam = !to && this._tween && this._tween.camFixed;
+      const I = w.ins || this.insets;
+      const z = keepCam || w.zoom == null ? this.cam.zoom : w.zoom;
+      const cx = keepCam || w.cx == null ? this.cam.cx : w.cx, cy = keepCam || w.cy == null ? this.cam.cy : w.cy;
+      const S = this.baseScale() * z;
+      const vx = I.l + (this.cw - I.l - I.r) / 2, vy = I.t + (this.ch - I.t - I.b) / 2;
+      return { x: (x - cx) * S + vx, y: (y - cy) * S + vy };
+    },
+    /* はじめの画角: 制限区域とまわりの待機所・車のおきば（FOCUS）が、安全な範囲いっぱいに入る倍率と位置。
+     * スマホでは、上の知らせ（コーチ・ヒント）が出たり消えたりするたびに場ぜんたいがズームしないよう、
+     * 倍率はこのステージで出た上の余白のいちばん大きい値（_fitTMax）で決める（知らせの出し消しでは位置だけが動く） */
     fitTarget() {
       const base = this.baseScale();
-      const z = clamp(Math.min(this.safeW() / ((FOCUS.x1 - FOCUS.x0) * base), this.safeH() / ((FOCUS.y1 - FOCUS.y0) * base)), this.minZoom(), 2.6);
+      let sh = this.safeH();
+      if (isNarrowView() && this._fitTMax > this.insets.t) sh = Math.max(40, sh - (this._fitTMax - this.insets.t));
+      const z = clamp(Math.min(this.safeW() / ((FOCUS.x1 - FOCUS.x0) * base), sh / ((FOCUS.y1 - FOCUS.y0) * base)), this.minZoom(), 2.6);
       const R = this.camRange(z, false);
       return { zoom: z, cx: clamp((FOCUS.x0 + FOCUS.x1) / 2, R.x[0], R.x[1]), cy: clamp((FOCUS.y0 + FOCUS.y1) / 2, R.y[0], R.y[1]) };
     },
-    /* ⛶ ぜんたい: 場全体が見える倍率（今までと同じ）。中心は安全な範囲の中心 */
+    /* ⛶ ぜんたい: 場ぜんたいが安全な範囲に入る倍率（allZoom）。中心は安全な範囲の中心 */
     allTarget() {
-      const z = this.minZoom() < 1 ? this.minZoom() : 1;
+      const z = this.allZoom();
       const R = this.camRange(z, false);
       return { zoom: z, cx: clamp(600, R.x[0], R.x[1]), cy: clamp(330, R.y[0], R.y[1]) };
     },
+    /* 出発しきったあとに、もどる画角（⛶ ぜんたい のときは ぜんたい、それ以外は はじめの画角） */
+    homeTarget() { return this.camMode === 'all' ? this.allTarget() : this.fitTarget(); },
     /* GAME から: ドロワーの開け閉めなどで、安全な範囲が変わったら呼ぶ（{l,r,t,b} はキャンバスの画面座標の余白px）。
      * 約束: わたした辺だけを、その値にする。わたさなかった辺は、ひきつづき DOM の欄（スコア・スタッフ・ズームのボタン）を測る。
      * どれか1辺でもわたしたら、作業カードのドロワー（panel-tasks）は GAME が知らせるものとして測らない。
@@ -692,21 +751,34 @@
       /* 欄が大きすぎて安全な範囲がせまくなりすぎるときは、その向きの余白をあきらめる */
       if (this.cw && this.cw - n.l - n.r < this.cw * 0.35) { n.l = 0; n.r = 0; }
       if (this.ch && this.ch - n.t - n.b < this.ch * 0.35) { n.t = 0; n.b = 0; }
-      const o = this._tween ? this._tween.to.ins : this.insets;
+      if (isNarrowView()) this._fitTMax = Math.max(this._fitTMax || 0, n.t);
+      const w = this._tween;
+      const o = w ? w.to.ins : this.insets;
       if (Math.abs(o.l - n.l) < 1 && Math.abs(o.r - n.r) < 1 && Math.abs(o.t - n.t) < 1 && Math.abs(o.b - n.b) < 1) return;
       if (!this.cw || !this.ch || this._needFit) { this._endTween(); this.insets = n; return; }
-      this._endTween();
+      /* 補間のとちゅうに次の変化が来ても、前の補間を一気に終わらせない（カメラがとぶ）。
+       * いまの値（stepTween が毎フレーム書いている、補間とちゅうの値）から新しい補間を始める */
       const from = { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy, ins: { ...this.insets } };
+      /* 出発しきったあと駐機場へもどる補間のとちゅうなら、新しい範囲で行き先を決めなおして、のこりの時間でもどる */
+      const home = !!(w && w.home);
+      /* 機体を追っている・到着してくる・プッシュバックと出発のあいだ・出発しきったあとの余韻（_lock）は、
+       * カメラは動かさず余白だけを補間する（駐機位置へとび戻って、機体がドロワーの下に消えないように） */
+      const fixed = !home && !!(this._follow || this._lock || this.arrivalT != null);
       this.insets = n;
-      /* はじめの画角・ぜんたいのままなら、新しい範囲で決めなおす。自分で動かしたあとは、見ていた所を新しい範囲の中心に。
-       * 出発しきったあとの余韻のあいだ（_hold）は、カメラを動かさない */
-      const to = this._hold ? { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy }
+      /* はじめの画角・ぜんたいのままなら、新しい範囲で決めなおす。自分で動かしたあとは、見ていた所を新しい範囲の中心に */
+      const to = home ? this.homeTarget()
+        : fixed ? { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy }
         : this.camMode === 'fit' ? this.fitTarget() : this.camMode === 'all' ? this.allTarget()
         : (() => { const R = this.camRange(this.cam.zoom, !!this._relax); return { zoom: this.cam.zoom, cx: clamp(this.cam.cx, R.x[0], R.x[1]), cy: clamp(this.cam.cy, R.y[0], R.y[1]) }; })();
       to.ins = n;
       this.insets = from.ins;
-      if (!animate || reduceMotion()) { this.insets = n; Object.assign(this.cam, { zoom: to.zoom, cx: to.cx, cy: to.cy }); return; }
-      this._tween = { t: 0, dur: 0.25, from, to };
+      if (!animate || reduceMotion()) {
+        this._tween = null;
+        this.insets = n;
+        if (!fixed) Object.assign(this.cam, { zoom: to.zoom, cx: to.cx, cy: to.cy });
+        return;
+      }
+      this._tween = { t: 0, dur: home ? Math.max(0.25, w.dur - w.t) : 0.25, from, to, camFixed: fixed, home };
     },
     stepTween(dt) {
       const w = this._tween;
@@ -714,9 +786,11 @@
       w.t += dt;
       const k = clamp(w.t / w.dur, 0, 1), e = k * k * (3 - 2 * k);
       const L = (a, b) => a + (b - a) * e;
-      this.cam.zoom = L(w.from.zoom, w.to.zoom);
-      this.cam.cx = L(w.from.cx, w.to.cx);
-      this.cam.cy = L(w.from.cy, w.to.cy);
+      if (!w.camFixed) {
+        this.cam.zoom = L(w.from.zoom, w.to.zoom);
+        this.cam.cx = L(w.from.cx, w.to.cx);
+        this.cam.cy = L(w.from.cy, w.to.cy);
+      }
       ['l', 'r', 't', 'b'].forEach((s) => { this.insets[s] = L(w.from.ins[s], w.to.ins[s]); });
       if (k >= 1) this._tween = null;
     },
@@ -725,7 +799,24 @@
       if (!w) return;
       this._tween = null;
       this.insets = { ...w.to.ins };
-      Object.assign(this.cam, { zoom: w.to.zoom, cx: w.to.cx, cy: w.to.cy });
+      if (!w.camFixed) Object.assign(this.cam, { zoom: w.to.zoom, cx: w.to.cx, cy: w.to.cy });
+    },
+    /* 出発しきったら（機体はもう画面の外）、約1秒かけて駐機場の画角へもどす（とばない）。もどしおえたら、その場で止める */
+    _startHome() {
+      const w = this._tween;
+      const ins = w ? { ...w.to.ins } : { ...this.insets };
+      const cur = this.insets;
+      this.insets = ins;
+      const to = this.homeTarget();
+      this.insets = cur;
+      to.ins = ins;
+      if (reduceMotion()) {
+        this._tween = null;
+        this.insets = ins;
+        Object.assign(this.cam, { zoom: to.zoom, cx: to.cx, cy: to.cy });
+        return;
+      }
+      this._tween = { t: 0, dur: 1.0, from: { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy, ins: { ...cur } }, to, home: true };
     },
     /* 安全な範囲を決める（0.4秒ごと）。setViewInsets でわたされた辺はその値、わたされていない辺は DOM の欄を測った値 */
     pollInsets(dt, force) {
@@ -771,7 +862,7 @@
       this._endTween();
       this._needFit = false;   // はじめの画角を決める前に自分で動かしたら、その画角を優先する
       this.camMode = mode || 'user';
-      if (this._follow) this._followOff = true;
+      if (this._follow || this._lock) this._followOff = true;
     },
     /* プッシュバック・出発のあいだは、機体を追う（誘導路がスタッフ欄の下にかくれる画面でも、出発が見えるように） */
     updateFollow(state, tr, dt) {
@@ -800,10 +891,22 @@
       const phase = push === 'active' || (push === 'done' && dep !== 'done') || dep === 'active';
       /* 出発しきったあと（結果の画面までの余韻）は、カメラをその場で止める。ゆるい範囲のままにして、はしでとばない */
       const hold = dep === 'done';
+      /* 出発しきったら（機体はもう画面の外へ出ている）、約1秒かけて駐機場の画角へもどしてから止める。
+       * 自分でズーム・パンして機体を追うのをやめていたときは、見ている所のまま */
+      if (hold && !this._hold && !this._followOff) this._startHome();
       this._hold = hold;
+      this._lock = phase || hold;
       this._relax = phase || hold || !!this._tween;   // 補間のあいだは、ゆるい範囲のまま（はしでとばない）
-      this._follow = phase && !this._followOff && tr.alpha > 0.05 ? true : null;
-      if (!this._follow || this._tween) return;
+      /* 出発: 機首が安全な範囲の左から25%の所まで来たら（または進み具合60%で）追うのをやめて、カメラを止める。
+       * そのあとは機体が自分で画面の左（ドロワーの下・キャンバスの外）へ走っていく（半透明にして消さない） */
+      if (dep === 'active' && !this._depStop && this.cw) {
+        const t = state.tasks.depart, p = clamp(t.progress / window.Game.effDur(t), 0, 1);
+        const n = this.transformPoint(NOSE_X, PLANE_CY, tr), ns = this.sceneToScreen(n.x, n.y);
+        if (p >= 0.6 || ns.x < this.insets.l + this.safeW() * 0.25) this._depStop = true;
+      }
+      this._follow = phase && !this._followOff && !this._depStop && tr.alpha > 0.05 ? true : null;
+      /* 余白だけの補間（camFixed）のあいだは追いつづける。カメラを動かす補間（到着から はじめの画角へ など）のあいだは止める */
+      if (!this._follow || (this._tween && !this._tween.camFixed)) return;
       const m = this.transformPoint(PLANE_MID[0], PLANE_MID[1], tr);
       const R = this.camRange(this.cam.zoom, true);
       const tx = clamp(m.x, R.x[0], R.x[1]), ty = clamp(m.y + 10, R.y[0], R.y[1]);
@@ -869,7 +972,7 @@
         if (this._planeHome !== false && m.x > I.l && m.x < this.cw - I.r && m.y > I.t && m.y < this.ch - I.b) anchor = { x: PLANE_MID[0], y: PLANE_MID[1] };
       }
       const before = anchor || this.screenToScene(pivot.x, pivot.y);
-      this.cam.zoom = clamp(this.cam.zoom * factor, this.minZoom(), 2.6);
+      this.cam.zoom = clamp(this.cam.zoom * factor, this.zoomFloor(), 2.6);
       const S = this.scale();
       this.cam.cx = before.x - (pivot.x - v.x) / S;
       this.cam.cy = before.y - (pivot.y - v.y) / S;
@@ -1018,8 +1121,9 @@
       const mx = (ex[0] + ex[1]) / 2, a = rec.drawAngle != null ? rec.drawAngle : rec.angle;
       return [rec.pos.x + Math.cos(a) * mx, rec.pos.y + Math.sin(a) * mx];
     },
-    /* 小さい画面で持ち場・予告・進行リング・スキルの印だけを大きくする倍率（人と車には掛けない） */
-    spotK() { const S = this.scale() || 1; return Math.min(2, Math.max(1, 0.6 / S)); },
+    /* 小さい画面で持ち場・予告・進行リング・スキルの印だけを大きくする倍率（人と車には掛けない）。
+     * 1.6倍まで（それより大きくすると、となりの輪どうしが重なって機体の翼・機首をおおう） */
+    spotK() { const S = this.scale() || 1; return Math.min(1.6, Math.max(1, 0.6 / S)); },
     /* 小さい画面（S<0.6）では、人も少し大きく描く（見つけやすく・押しやすく。最大1.6倍）。当たり判定・選択リングの中心も合わせる */
     personK() { const S = this.scale() || 1; return S < 0.6 ? Math.min(1.6, 0.6 / S) : 1; },
 
@@ -1140,9 +1244,22 @@
       c.closePath();
     },
 
+    /* 毎フレームの DOM の計測（キャンバスの大きさ・安全な範囲・ときどき出る DOM の矩形）だけを先にする。
+     * GAME のループが Game.tick（DOM の書きかえ）より前に呼べば、ブラウザがレイアウトをすませた直後に読むので、
+     * 強制レイアウトが起きない。呼ばれないときは、今までどおり draw の中で測る */
+    preFrame(dtReal) {
+      if (!this.canvas) return;
+      this.resize();
+      if (!this.cw || !this.ch) return;
+      this.pollInsets(dtReal, this._needFit);
+      this.pollCovers(dtReal);
+      this._premeasured = true;
+    },
     draw(state, dtReal, ui) {
       if (!this.ctx) return;
-      this.resize();
+      const pre = !!this._premeasured;
+      this._premeasured = false;
+      if (!pre) this.resize();
       const c = this.ctx;
       this.time += dtReal;
       this._ui = ui || null;
@@ -1154,8 +1271,10 @@
       this.stepArrival(dtReal);
       /* カメラ: 安全な範囲を決め（setViewInsets がなければ DOM を測る）、はじめの画角・補間・機体を追う */
       if (this.cw && this.ch) {
-        this.pollInsets(dtReal, this._needFit);
-        this.pollCovers(dtReal);
+        if (!pre) {
+          this.pollInsets(dtReal, this._needFit);
+          this.pollCovers(dtReal);
+        }
         if (this._needFit) {
           this._needFit = false;
           this.camMode = 'fit';
@@ -1171,6 +1290,7 @@
       c.clearRect(0, 0, this.cw, this.ch);
       c.fillStyle = L.taxi[1];
       c.fillRect(0, 0, this.cw, this.ch);
+      if (!this.cw || !this.ch) return;
 
       c.save();
       const v = this.viewCenter(), S = this.scale();
@@ -1179,25 +1299,30 @@
       c.translate(-this.cam.cx, -this.cam.cy);
 
       this.ensureBg(state);
-      this.drawOutside();
+      /* 照明が切りかわったとき（かみなりの始まり・終わり）は、約1.5秒で前の照明から新しい照明へクロスフェードする */
+      const F = this._bgFade, fk = F ? this.bgFadeK() : 1;
+      if (F) { this.drawOutside(F.fromL, 1); this.drawOutside(L, fk); } else this.drawOutside(L, 1);
       this.drawBgVisible();
+      this.drawGroundLinesSharp();
       this.drawSkyLife(state);
       this.addSignLabels(state);
       this._spotDiscs = [];
+      this._ringDiscs = [];
       if (state) {
         this.updateBridge(state, dtReal);
         this._planeHome = this.arrivalT == null && Math.abs(tr.x) + Math.abs(tr.y) + Math.abs(tr.rot) < 0.5;
         const ents = this.layoutEntities(state, gt, tr, dtReal);
         /* 雨の地面の波紋は地面の層（機体・車・人・持ち場の輪の下）に描く */
-        this.drawRainGround(state);
+        this.drawRainGround(state, dtReal);
         /* 到着してくるあいだは、持ち場のサークルより機体を上に（走ってくる機体の下にかくれる） */
         const arriving = this.arrivalT != null;
         if (arriving) this.drawSpotLayer(state, ui, dtReal);
-        /* 重なり順: 地面の物（雨の波紋・コーン・搭乗橋の影）→ 機体の下にいる物 → 機体 → 搭乗橋の下をくぐる人
+        /* 重なり順: 地面の物（雨の波紋・コーン・搭乗橋の影）→ 機体の下にいる物 → トーバー → 機体 → 搭乗橋の下をくぐる人
          * → 搭乗橋の床 → 搭乗橋の中の人・乗客 → ガラスの屋根 → そのほか */
         this.drawCones(state);
         this.drawBridgeShadow();
         this.drawEntityLayer(state, ents, 'under', gt);
+        this.drawTowbar(state, ents, tr);
         this.drawPlane(state, tr);
         this.drawEntityLayer(state, ents, 'bridge', gt);
         this.drawBridge(state);
@@ -1211,23 +1336,52 @@
         this.drawGhosts(state, ents, gt);
         /* 照明の色（夕方の暖色・雨の寒色）を、動く物の上に1回だけかぶせる。
          * 持ち場の輪とアイコンの所はぬかす（契約の色のまま）。スキルの印・選択・進み具合の輪・文字はこのあと */
-        this.drawMoveTint();
+        if (F) { this.drawMoveTint(F.fromL, 1 - fk); this.drawMoveTint(L, fk); } else this.drawMoveTint(L, 1);
         this.drawBadges(state, ents);
         this.drawSelection(state, ents, ui);
         this.drawRings(state, tr);
         this.drawPaxCounter(state);
-        this.drawRain(state);
       }
       c.restore();
+      /* 雨すじは画面の座標で描く（ズームしても太さ・長さが同じ） */
+      if (state) this.drawRain(state, dtReal);
       this.drawLabelsScreen(state, dtReal);
+      this.stepBgFade(dtReal);
     },
-    /* 背景キャッシュのうち、画面に見えている所だけを貼る */
+    /* 背景キャッシュのうち、画面に見えている所だけを貼る（クロスフェード中は前の照明の絵の上に新しい絵を重ねる） */
     drawBgVisible() {
-      const B = this.viewBounds();
+      if (!this.bgCanvas) return;
+      const B = this.viewBounds(), k = this._bgK || 2;
       const x0 = Math.max(BG_X0, Math.floor(B.x0) - 2), x1 = Math.min(BG_X1, Math.ceil(B.x1) + 2);
       const y0 = Math.max(0, Math.floor(B.y0) - 2), y1 = Math.min(SCENE_H, Math.ceil(B.y1) + 2);
       if (x1 <= x0 || y1 <= y0) return;
-      this.ctx.drawImage(this.bgCanvas, (x0 - BG_X0) * 2, y0 * 2, (x1 - x0) * 2, (y1 - y0) * 2, x0, y0, x1 - x0, y1 - y0);
+      const c = this.ctx, F = this._bgFade;
+      const blit = (cv) => c.drawImage(cv, (x0 - BG_X0) * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k, x0, y0, x1 - x0, y1 - y0);
+      if (F && F.from && F.from.width) {
+        blit(F.from);
+        c.globalAlpha = this.bgFadeK();
+        blit(this.bgCanvas);
+        c.globalAlpha = 1;
+      } else blit(this.bgCanvas);
+    },
+    /* クロスフェードの進み（0..1。なめらかに） */
+    bgFadeK() {
+      const F = this._bgFade;
+      if (!F) return 1;
+      const k = clamp(F.t / F.dur, 0, 1);
+      return k * k * (3 - 2 * k);
+    },
+    stepBgFade(dt) {
+      const F = this._bgFade;
+      if (!F) return;
+      F.t += dt;
+      if (F.t < F.dur) return;
+      /* おわったら、前の照明の背景を手放す（このステージでもう使わない） */
+      this._bgFade = null;
+      if (F.from && F.from !== this.bgCanvas) {
+        Object.keys(this._bgs || {}).forEach((n) => { if (this._bgs[n] === F.from) delete this._bgs[n]; });
+        F.from.width = 0; F.from.height = 0;
+      }
     },
 
     /* いま画面に見えている範囲（シーン座標） */
@@ -1235,10 +1389,15 @@
       const a = this.screenToScene(0, 0), b = this.screenToScene(this.cw, this.ch);
       return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
     },
-    /* シーンの外（縦長の画面やズームアウトで見える所）: 上は空のつづき、下は誘導路の路肩と芝、左右は背景のはしをのばす */
-    drawOutside() {
-      const c = this.ctx, L = this.light, B = this.viewBounds();
+    /* シーンの外（縦長の画面やズームアウトで見える所）: 上は空のつづき、下は誘導路の路肩と芝、左右は背景のはしをのばす。
+     * a は不透明度（照明のクロスフェード用）。下の路肩と芝は、照明ごとに1回だけ描いた帯（outsideBand）を貼る */
+    drawOutside(L, a) {
+      if (!this.bgCanvas) return;
+      const c = this.ctx, B = this.viewBounds();
       const x0 = B.x0 - 4, x1 = B.x1 + 4;
+      a = a == null ? 1 : a;
+      if (a <= 0.001) return;
+      c.globalAlpha = a;
       if (B.y0 < 0) {
         const key = 'sky:' + L.name;
         this._grad = this._grad || {};
@@ -1254,66 +1413,121 @@
         c.fillRect(x0, B.y0 - 4, x1 - x0, -B.y0 + 4.5);
       }
       if (B.y1 > SCENE_H) {
-        /* 誘導路の下の路肩（舗装。プッシュバックで尾がふれても芝に出ない広さ）→ 芝 */
-        const sh = SHOULDER_Y1;
-        c.fillStyle = L.shoulder;
-        c.fillRect(x0, SCENE_H - 0.5, x1 - x0, sh - SCENE_H + 0.5);
-        c.fillStyle = L.grass;
-        c.fillRect(x0, sh, x1 - x0, Math.max(0, B.y1 - sh + 4));
-        if (!this._noisePat) this._noisePat = c.createPattern(this.noiseTile(), 'repeat');
-        c.save();
-        c.globalAlpha = 0.9;
-        c.fillStyle = this._noisePat;
-        c.fillRect(x0, SCENE_H - 0.5, x1 - x0, B.y1 - SCENE_H + 4);
-        c.restore();
-        const h01 = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
-        /* 路肩の黄色いしま（使わない路肩のしるし）。誘導灯のあいだに、うすく */
-        c.strokeStyle = L.yel; c.globalAlpha = 0.42; c.lineWidth = 2.2;
-        c.beginPath();
-        for (let x = Math.floor((x0 - 90) / 180) * 180 + 90; x < x1; x += 180) { c.moveTo(x, SCENE_H + 4); c.lineTo(x, sh - 7); }
-        c.stroke();
-        c.globalAlpha = 1;
-        /* 路肩と芝の境（芝がわに陰） */
-        c.fillStyle = 'rgba(30,45,30,.20)';
-        c.fillRect(x0, sh, x1 - x0, 2.5);
-        c.fillStyle = 'rgba(255,255,255,.10)';
-        c.fillRect(x0, sh - 1.5, x1 - x0, 1.2);
-        /* ところどころの濃い草（大きさ・向き・位置をばらつかせる） */
-        c.fillStyle = 'rgba(40,60,35,.10)';
-        for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) {
-          const i = Math.round(x / 70);
-          for (let j = 0; j < 2; j++) {
-            const a = h01(i, j + 1), b = h01(i, j + 7), d = h01(i, j + 13);
-            c.beginPath();
-            c.ellipse(x + a * 70, sh + 18 + b * 64 + j * 30, 14 + d * 30, 4 + a * 6, (b - 0.5) * 0.5, 0, TAU);
-            c.fill();
-          }
+        const y1 = B.y1 + 4;
+        /* 帯（背景キャッシュと同じ左右のはば）を貼る。帯より左右の外は、その場で描く（機体を追って左のはしの外が見えるときだけ） */
+        const band = this.outsideBand(L);
+        const bx0 = Math.max(x0, BG_X0), bx1 = Math.min(x1, BG_X1), by1 = Math.min(y1, OUT_BAND_Y1);
+        if (bx1 > bx0 && by1 > OUT_BAND_Y0) {
+          c.drawImage(band, bx0 - BG_X0, 0, bx1 - bx0, by1 - OUT_BAND_Y0, bx0, OUT_BAND_Y0, bx1 - bx0, by1 - OUT_BAND_Y0);
+        }
+        if (x0 < BG_X0) this.paintOutsideBottom(c, L, x0, Math.min(x1, BG_X0), Math.min(y1, OUT_BAND_Y1), a, this.noisePat(c));
+        if (x1 > BG_X1) this.paintOutsideBottom(c, L, Math.max(x0, BG_X1), x1, Math.min(y1, OUT_BAND_Y1), a, this.noisePat(c));
+        /* 帯より下は芝だけ（芝の色とノイズを焼きこんだ小さなタイルのくり返し） */
+        if (y1 > OUT_BAND_Y1) {
+          c.globalAlpha = a;
+          c.fillStyle = this.grassPat(c, L);
+          c.fillRect(x0, OUT_BAND_Y1 - 0.5, x1 - x0, y1 - OUT_BAND_Y1 + 0.5);
         }
       }
       const H2 = this.bgCanvas.height, W2 = this.bgCanvas.width;
-      const side = (a, b) => {
-        if (!this._noisePat) this._noisePat = c.createPattern(this.noiseTile(), 'repeat');
-        c.save(); c.globalAlpha = 0.7; c.fillStyle = this._noisePat; c.fillRect(a, 138, b - a, SCENE_H - 138); c.restore();
+      const side = (p, q) => {
+        c.globalAlpha = a * 0.7; c.fillStyle = this.noisePat(c); c.fillRect(p, 138, q - p, SCENE_H - 138); c.globalAlpha = a;
       };
+      c.globalAlpha = a;
       if (x0 < BG_X0) { c.drawImage(this.bgCanvas, 0, 0, 1, H2, x0, 0, BG_X0 - x0 + 0.5, SCENE_H); side(x0, BG_X0); }
       if (x1 > BG_X1) { c.drawImage(this.bgCanvas, W2 - 1, 0, 1, H2, BG_X1 - 0.5, 0, x1 - BG_X1 + 0.5, SCENE_H); side(BG_X1, x1); }
+      c.globalAlpha = 1;
     },
-    /* 動く物にかぶせる照明の色（夕方・雨・くもり・かみなり）。
-     * 持ち場の輪（drawSoonSpots・drawSpots が _spotDiscs におぼえた円）は、くりぬいて色をかけない（契約の色を守る） */
-    drawMoveTint() {
-      const L = this.light;
-      if (!L.move) return;
-      const c = this.ctx, B = this.viewBounds();
-      c.fillStyle = L.move;
+    /* ノイズの模様（メインのキャンバスでは1つをおぼえて使う） */
+    noisePat(c) {
+      if (c === this.ctx && this._noisePat) return this._noisePat;
+      const p = c.createPattern(this.noiseTile(), 'repeat');
+      if (c === this.ctx) this._noisePat = p;
+      return p;
+    },
+    /* 芝のタイル（芝の色+ノイズ。照明ごと） */
+    grassPat(c, L) {
+      this._grassPat = this._grassPat || {};
+      if (this._grassPat[L.name]) return this._grassPat[L.name];
+      const t = document.createElement('canvas');
+      t.width = t.height = 96;
+      const g = t.getContext('2d');
+      g.fillStyle = L.grass; g.fillRect(0, 0, 96, 96);
+      g.globalAlpha = 0.9; g.drawImage(this.noiseTile(), 0, 0);
+      return (this._grassPat[L.name] = c.createPattern(t, 'repeat'));
+    },
+    /* 誘導路の下の路肩（舗装。プッシュバックで尾がふれても芝に出ない広さ）→ 芝。x0〜x1、y は SCENE_H〜y1 を描く */
+    paintOutsideBottom(c, L, x0, x1, y1, a, noise) {
+      if (x1 <= x0) return;
+      const sh = SHOULDER_Y1;
+      c.globalAlpha = a;
+      c.fillStyle = L.shoulder;
+      c.fillRect(x0, SCENE_H - 0.5, x1 - x0, sh - SCENE_H + 0.5);
+      c.fillStyle = L.grass;
+      c.fillRect(x0, sh, x1 - x0, Math.max(0, y1 - sh));
+      c.globalAlpha = a * 0.9;
+      c.fillStyle = noise;
+      c.fillRect(x0, SCENE_H - 0.5, x1 - x0, y1 - SCENE_H + 0.5);
+      const h01 = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+      /* 路肩の黄色いしま（使わない路肩のしるし）。誘導灯のあいだに、うすく */
+      c.strokeStyle = L.yel; c.globalAlpha = a * 0.42; c.lineWidth = 2.2;
       c.beginPath();
-      c.rect(B.x0 - 2, B.y0 - 2, B.x1 - B.x0 + 4, B.y1 - B.y0 + 4);
-      (this._spotDiscs || []).forEach(([x, y, r]) => { c.moveTo(x + r, y); c.arc(x, y, r, 0, TAU); });
-      c.fill('evenodd');
+      for (let x = Math.floor((x0 - 90) / 180) * 180 + 90; x < x1; x += 180) { c.moveTo(x, SCENE_H + 4); c.lineTo(x, sh - 7); }
+      c.stroke();
+      c.globalAlpha = a;
+      /* 路肩と芝の境（芝がわに陰） */
+      c.fillStyle = 'rgba(30,45,30,.20)';
+      c.fillRect(x0, sh, x1 - x0, 2.5);
+      c.fillStyle = 'rgba(255,255,255,.10)';
+      c.fillRect(x0, sh - 1.5, x1 - x0, 1.2);
+      /* ところどころの濃い草（大きさ・向き・位置をばらつかせる） */
+      c.fillStyle = 'rgba(40,60,35,.10)';
+      for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) {
+        const i = Math.round(x / 70);
+        for (let j = 0; j < 2; j++) {
+          const p = h01(i, j + 1), b = h01(i, j + 7), d = h01(i, j + 13);
+          c.beginPath();
+          c.ellipse(x + p * 70, sh + 18 + b * 64 + j * 30, 14 + d * 30, 4 + p * 6, (b - 0.5) * 0.5, 0, TAU);
+          c.fill();
+        }
+      }
+      c.globalAlpha = 1;
+    },
+    /* 下の路肩と芝の帯（x は BG_X0〜BG_X1、y は OUT_BAND_Y0〜OUT_BAND_Y1）を、照明ごとに1回だけ 1倍で描いておく
+     * （中身は低周波なので1倍で足りる。毎フレームは drawImage 1回） */
+    outsideBand(L) {
+      this._bands = this._bands || {};
+      if (this._bands[L.name]) return this._bands[L.name];
+      const cv = document.createElement('canvas');
+      cv.width = BG_X1 - BG_X0; cv.height = OUT_BAND_Y1 - OUT_BAND_Y0;
+      const g = cv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, -BG_X0, -OUT_BAND_Y0);
+      this.paintOutsideBottom(g, L, BG_X0, BG_X1, OUT_BAND_Y1, 1, g.createPattern(this.noiseTile(), 'repeat'));
+      return (this._bands[L.name] = cv);
+    },
+    /* 動く物にかぶせる照明の色（夕方・雨・くもり・かみなり）。a は不透明度（クロスフェード用）。
+     * 持ち場の輪（drawSoonSpots・drawSpots が _spotDiscs におぼえた円）は、くりぬいて色をかけない（契約の色を守る）。
+     * 輪どうしが重なっても、重なった所に色がもどらないよう、輪を1つずつくりぬいた範囲を重ねて clip する（くりぬきの和集合） */
+    drawMoveTint(L, a) {
+      if (!L.move || a <= 0.001) return;
+      const c = this.ctx, B = this.viewBounds();
+      const x = B.x0 - 2, y = B.y0 - 2, w = B.x1 - B.x0 + 4, h = B.y1 - B.y0 + 4;
+      c.save();
+      (this._spotDiscs || []).forEach(([dx, dy, r]) => {
+        c.beginPath();
+        c.rect(x, y, w, h);
+        c.moveTo(dx + r, dy); c.arc(dx, dy, r, 0, TAU);
+        c.clip('evenodd');
+      });
+      c.globalAlpha = a;
+      c.fillStyle = L.move;
+      c.fillRect(x, y, w, h);
+      c.restore();
     },
 
     /* ============ 背景（照明つき・静的部分はオフスクリーンに1回だけ描く） ============
      * 光源は画面左上で統一し、落ち影・面の明暗・コンクリートの質感を持たせる。
-     * 静止要素は bgCanvas にキャッシュ（2倍解像度）して毎フレームは1枚絵として貼るだけ。
+     * 静止要素は bgCanvas にキャッシュ（倍率 bgScale）して毎フレームは1枚絵として貼るだけ。
      * 動く要素（雲・遠くの機体・旗・管制塔ランプ・吹き流し）は drawSkyLife で毎フレーム描く。 */
     noiseTile() {
       if (this._noise) return this._noise;
@@ -1331,24 +1545,63 @@
       return t;
     },
 
-    ensureBg(state) {
-      const L = this.light || lightOf(state);
-      const st = state && state.stage;
-      const key = (st ? st.id : 0) + '|' + L.name;
-      if (this.bgCanvas && this.bgKey === key) return;
-      this.bgKey = key;
-      if (!this.bgCanvas) {
-        this.bgCanvas = document.createElement('canvas');
-        this.bgCanvas.width = (BG_X1 - BG_X0) * 2;
-        this.bgCanvas.height = SCENE_H * 2;
-      }
-      const g = this.bgCanvas.getContext('2d');
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
-      g.setTransform(2, 0, 0, 2, -BG_X0 * 2, 0);
+    /* 背景キャッシュの倍率: いちばん大きいズーム(2.6倍)×devicePixelRatio に合わせる（1〜1.93。0.1きざみ）。
+     * 幅は (BG_X1−BG_X0)×1.93=4092 で、4096 をこえない（古いスマホの GPU の上限） */
+    bgScale() {
+      const k = Math.ceil(this.baseScale() * this.dpr * 2.6 * 10) / 10;
+      return Math.min(1.93, Math.max(1, k || 1));
+    },
+    buildBg(L, k) {
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil((BG_X1 - BG_X0) * k);
+      cv.height = Math.ceil(SCENE_H * k);
+      const g = cv.getContext('2d');
+      g.setTransform(k, 0, 0, k, -BG_X0 * k, 0);
       const prev = this.ctx;
       this.ctx = g;   // rr()等のヘルパーを使うため一時的に差し替え
       try { this.renderBg(g, L); } finally { this.ctx = prev; }
+      return cv;
+    },
+    /* そのステージで照明が切りかわるか（かみなりのイベントがあるステージは、はれ→かみなり→くもり） */
+    weatherLights(st) {
+      return st && (st.events || []).some((e) => e.id === 'weather') ? ['storm', 'overcast'] : [];
+    },
+    ensureBg(state) {
+      if (!this.cw) return;
+      const L = this.light || lightOf(state);
+      const st = state && state.stage, sid = st ? st.id : 0;
+      const k = this.bgScale();
+      if (this._bgStage !== sid || this._bgK !== k) {
+        /* ステージか倍率が変わったら、前の背景を手放して作り直す */
+        Object.values(this._bgs || {}).forEach((cv) => { if (cv) { cv.width = 0; cv.height = 0; } });
+        if (this._bgFade && this._bgFade.from) { this._bgFade.from.width = 0; this._bgFade.from.height = 0; }
+        this._bgs = {};
+        this._bgFade = null;
+        this.bgCanvas = null;
+        this._bgLight = null;
+        this._bgStage = sid; this._bgK = k;
+      }
+      let cur = this._bgs[L.name];
+      if (!cur) cur = this._bgs[L.name] = this.buildBg(L, k);
+      if (this.bgCanvas && this.bgCanvas !== cur && this._bgLight) {
+        /* ステージのとちゅうで照明が切りかわった: 前の背景から約1.5秒でクロスフェード（動きを減らす設定では、すぐ切りかえる）。
+         * 前の背景は、このステージではもう使わないので、フェードのあと手放す */
+        const old = this.bgCanvas, oldL = this._bgLight;
+        if (this._bgFade && this._bgFade.from && this._bgFade.from !== cur && this._bgFade.from !== old) {
+          this._bgFade.from.width = 0; this._bgFade.from.height = 0;
+        }
+        Object.keys(this._bgs).forEach((n) => { if (this._bgs[n] === old) delete this._bgs[n]; });
+        if (reduceMotion()) { old.width = 0; old.height = 0; this._bgFade = null; }
+        else this._bgFade = { from: old, fromL: oldL, t: 0, dur: 1.5 };
+      }
+      this.bgCanvas = cur;
+      this._bgLight = L;
+      /* かみなりのあるステージは、時間が止まっているあいだ（はじめる前）に、かみなりとくもりの背景を先に作っておく
+       * （照明が変わるフレームで重い描き直しをしない）。1フレームに1枚ずつ */
+      if (st && state.clock === 0 && this.arrivalT == null) {
+        const name = this.weatherLights(st).find((n) => !this._bgs[n]);
+        if (name) this._bgs[name] = this.buildBg(LIGHT[name], k);
+      }
     },
 
     /* 静的背景（照明のプリセット L で1回だけ描く）。文字はここには描かない（スクリーン層の案内板で描く）。
@@ -1439,12 +1692,13 @@
       ap.addColorStop(0, L.apron[0]); ap.addColorStop(1, L.apron[1]);
       c.fillStyle = ap;
       c.fillRect(X0, 138, W, SCENE_H - 138);
-      const rows = [138, 230, 360, 490, 574];
-      for (let gx = from(120, 150); gx < X1; gx += 150) {
+      /* 板ごとの明暗のむら（目地と同じ JOINT 単位の格子。エプロンの板は実物で約7m角） */
+      const rows = JOINT_ROWS;
+      for (let gx = from(JOINT_X, JOINT); gx < X1; gx += JOINT) {
         for (let r = 0; r < rows.length - 1; r++) {
           const h = h01(gx, rows[r]) - 0.5;   // ±3%
           c.fillStyle = h > 0 ? `rgba(255,255,255,${(h * 0.12).toFixed(3)})` : `rgba(20,28,36,${(-h * 0.06).toFixed(3)})`;
-          c.fillRect(gx, rows[r], 150, rows[r + 1] - rows[r]);
+          c.fillRect(gx, rows[r], JOINT, rows[r + 1] - rows[r]);
         }
       }
       /* コンクリートの質感（ノイズ） */
@@ -1481,18 +1735,8 @@
         });
       }
       /* コンクリートのつなぎ目（影＋ハイライトの2重線で彫りを出す） */
-      for (let x = from(120, 150); x < X1; x += 150) {
-        c.strokeStyle = 'rgba(55,65,75,.14)'; c.lineWidth = 1.5;
-        c.beginPath(); c.moveTo(x, 138); c.lineTo(x, 574); c.stroke();
-        c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
-        c.beginPath(); c.moveTo(x + 1.5, 138); c.lineTo(x + 1.5, 574); c.stroke();
-      }
-      for (let y = 230; y < 574; y += 130) {
-        c.strokeStyle = 'rgba(55,65,75,.14)'; c.lineWidth = 1.5;
-        c.beginPath(); c.moveTo(X0, y); c.lineTo(X1, y); c.stroke();
-        c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
-        c.beginPath(); c.moveTo(X0, y + 1.5); c.lineTo(X1, y + 1.5); c.stroke();
-      }
+      const same = (col) => col;
+      this.bgJoints(c, X0, X1, same);
       /* 車と人の通り道の黒ずみ（区画の前のよこの通り道と、車が持ち場へ向かうたての道） */
       const band = c.createLinearGradient(0, 480, 0, 504);
       band.addColorStop(0, 'rgba(36,44,54,0)'); band.addColorStop(0.5, 'rgba(36,44,54,.07)'); band.addColorStop(1, 'rgba(36,44,54,0)');
@@ -1546,8 +1790,7 @@
         });
       }
       /* エプロンのふち取り（白線） */
-      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(X0, 143); c.lineTo(X1, 143); c.stroke();
+      this.bgApronEdge(c, X0, X1, same);
 
       /* --- 誘導路（タキシーウェイ）: 中心線は黄色の実線、ふちは黄色の2本線と青い誘導路灯 --- */
       const tw = c.createLinearGradient(0, 574, 0, 630);
@@ -1565,14 +1808,7 @@
       c.fillRect(X0, 574, W, 3);
       c.fillStyle = 'rgba(30,40,52,.10)';
       c.fillRect(X0, 630, W, 1.5);
-      c.strokeStyle = L.yel; c.lineWidth = 1.3;
-      c.beginPath();
-      [578, 581, 623, 626].forEach((y) => { c.moveTo(X0, y); c.lineTo(X1, y); });
-      c.stroke();
-      c.strokeStyle = 'rgba(34,36,32,.28)'; c.lineWidth = 4.6;
-      c.beginPath(); c.moveTo(X0, TAXI_Y); c.lineTo(X1, TAXI_Y); c.stroke();
-      c.strokeStyle = L.yel; c.lineWidth = 2.6;
-      c.beginPath(); c.moveTo(X0, TAXI_Y); c.lineTo(X1, TAXI_Y); c.stroke();
+      this.bgTaxiLines(c, L, X0, X1, same);
       const lamp = L.flood || L.name === 'storm';
       for (let x = from(-240, 60); x < X1; x += 60) {
         [571.5, 633.5].forEach((y) => {
@@ -1587,40 +1823,10 @@
         });
       }
 
-      /* --- スタンドの誘導線（前輪の通り道）・停止線 ---
-       * 誘導路のセンターラインから分かれ、左から入って機首を右に向けて止まる。黄色の線に黒いふち。 */
-      const yel = L.yel;
-      const lead = arrivalPaths().nose.filter((p) => p.s >= ARR_TAXI_L - 4);
-      const stopX = NOSE_X - NOSE_GEAR_U * PK;
-      const leadLine = (w, col) => {
-        c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round';
-        c.beginPath();
-        lead.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
-        c.lineTo(stopX + 16, PLANE_CY);
-        c.stroke();
-      };
-      leadLine(5.5, 'rgba(34,36,32,.38)');
-      leadLine(3, yel);
-      /* 停止線（A320の前輪が止まる位置）。胴体の幅より長くして、駐機中も機首の左右に見える */
-      c.strokeStyle = 'rgba(34,36,32,.40)'; c.lineWidth = 5.5;
-      c.beginPath(); c.moveTo(stopX, PLANE_CY - 29); c.lineTo(stopX, PLANE_CY + 29); c.stroke();
-      c.strokeStyle = yel; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(stopX, PLANE_CY - 28); c.lineTo(stopX, PLANE_CY + 28); c.stroke();
-      /* 搭乗橋の待機位置（駆動輪をとめる場所の白い枠） */
-      c.save();
-      c.translate(BRG.rot[0] + Math.cos(rad(BRG.parkAng)) * 37.6, BRG.rot[1] + Math.sin(rad(BRG.parkAng)) * 37.6);
-      c.rotate(rad(BRG.parkAng));
-      c.strokeStyle = 'rgba(255,255,255,.38)'; c.lineWidth = 1.2;
-      c.strokeRect(-6, -17, 12, 34);
-      c.restore();
-
-      /* 制限区域ライン（赤の実線。白いふちで地面から浮かせる）: 駐機中の機体（翼端・尾翼・機首の車）をぐるりと囲む。
-       * 機体が入ってくるまで、車や人はこの中に入らない。上の辺は搭乗橋の固定通路の下をくぐる */
-      const E = ZONE.era;
-      c.strokeStyle = 'rgba(255,255,255,.32)'; c.lineWidth = 4.4;
-      this.rr(E.x0, E.y0, E.x1 - E.x0, E.y1 - E.y0, 26); c.stroke();
-      c.strokeStyle = 'rgba(198,48,48,.80)'; c.lineWidth = 2.2;
-      this.rr(E.x0, E.y0, E.x1 - E.x0, E.y1 - E.y0, 26); c.stroke();
+      /* --- スタンドの誘導線（前輪の通り道）・停止線・搭乗橋の待機位置・制限区域ライン --- */
+      this.bgStandLines(c, L, same);
+      this.bgBridgePark(c, same);
+      this.bgEra(c, same);
 
       /* スタッフのまちあい（うっすら影つき） */
       const Z = ZONE.staff;
@@ -1632,11 +1838,7 @@
       c.beginPath(); c.moveTo(Z.x + 2, Z.y + 1.5); c.lineTo(Z.x + Z.w - 2, Z.y + 1.5); c.stroke();
       c.strokeStyle = '#87919a'; c.lineWidth = 2; this.rr(Z.x, Z.y, Z.w, Z.h, 8); c.stroke();
       /* はたらく車のおきば（白い区切り線） */
-      const V = ZONE.veh;
-      c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
-      [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
-        c.beginPath(); c.moveTo(x, V.y); c.lineTo(x, V.y + V.h - 2); c.stroke();
-      });
+      this.bgVehLines(c, same);
 
       /* エプロンにかぶせる色（くもり・雨は寒色、夕方は暖色）。区画・標示も同じ光の中に入れる */
       if (L.apronTint) {
@@ -1663,6 +1865,126 @@
       c.stroke();
       c.strokeStyle = 'rgba(58,72,88,.68)'; c.lineWidth = 0.8;
       c.strokeRect(fx0, fy0, 20, fy1 - fy0);
+    },
+
+    /* ---- 地面の線。背景キャッシュ（renderBg）と、大きく拡大したときのくっきり描きなおし（drawGroundLinesSharp）で同じものを描く。
+     * T は色の変換（キャッシュでは そのまま。描きなおしでは、キャッシュが線の上にかぶせているエプロンの色を先にまぜる） ---- */
+    bgJoints(c, x0, x1, T) {
+      const xs = JOINT_X - JOINT * Math.ceil((JOINT_X - x0) / JOINT);
+      const y0 = JOINT_ROWS[0], y1 = JOINT_ROWS[JOINT_ROWS.length - 1], ys = JOINT_ROWS.slice(1, -1);
+      /* 影の線と、そのとなりの光の線（彫りに見える）。うすく */
+      c.strokeStyle = T('rgba(55,65,75,.08)'); c.lineWidth = 1.5; c.beginPath();
+      for (let x = xs; x < x1; x += JOINT) { c.moveTo(x, y0); c.lineTo(x, y1); }
+      ys.forEach((y) => { c.moveTo(x0, y); c.lineTo(x1, y); });
+      c.stroke();
+      c.strokeStyle = T('rgba(255,255,255,.07)'); c.lineWidth = 1; c.beginPath();
+      for (let x = xs; x < x1; x += JOINT) { c.moveTo(x + 1.5, y0); c.lineTo(x + 1.5, y1); }
+      ys.forEach((y) => { c.moveTo(x0, y + 1.5); c.lineTo(x1, y + 1.5); });
+      c.stroke();
+    },
+    bgApronEdge(c, x0, x1, T) {
+      c.strokeStyle = T('rgba(255,255,255,.5)'); c.lineWidth = 3;
+      c.beginPath(); c.moveTo(x0, 143); c.lineTo(x1, 143); c.stroke();
+    },
+    /* 誘導路のふちの黄色の2本線と、中心線（黒いふちつき） */
+    bgTaxiLines(c, L, x0, x1, T) {
+      c.strokeStyle = T(L.yel); c.lineWidth = 1.3;
+      c.beginPath();
+      [578, 581, 623, 626].forEach((y) => { c.moveTo(x0, y); c.lineTo(x1, y); });
+      c.stroke();
+      c.strokeStyle = T('rgba(34,36,32,.28)'); c.lineWidth = 4.6;
+      c.beginPath(); c.moveTo(x0, TAXI_Y); c.lineTo(x1, TAXI_Y); c.stroke();
+      c.strokeStyle = T(L.yel); c.lineWidth = 2.6;
+      c.beginPath(); c.moveTo(x0, TAXI_Y); c.lineTo(x1, TAXI_Y); c.stroke();
+    },
+    /* スタンドの誘導線（前輪の通り道）と停止線。誘導路のセンターラインから分かれ、左から入って機首を右に向けて止まる。黄色の線に黒いふち */
+    bgStandLines(c, L, T) {
+      const yel = T(L.yel);
+      const lead = arrivalPaths().nose.filter((p) => p.s >= ARR_TAXI_L - 4);
+      const stopX = NOSE_X - NOSE_GEAR_U * PK;
+      const leadLine = (w, col) => {
+        c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round';
+        c.beginPath();
+        lead.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+        c.lineTo(stopX + 16, PLANE_CY);
+        c.stroke();
+      };
+      leadLine(5.5, T('rgba(34,36,32,.38)'));
+      leadLine(3, yel);
+      c.lineJoin = 'miter';
+      /* 停止線（A320の前輪が止まる位置）。前脚のところの胴体のはば（約±18）より十分長い ±40 にして、
+       * 機首の左右に「地面の線」として見えるようにする（黒いふちを両はしにも回す） */
+      c.strokeStyle = T('rgba(34,36,32,.55)'); c.lineWidth = 5.5;
+      c.beginPath(); c.moveTo(stopX, PLANE_CY - 41.5); c.lineTo(stopX, PLANE_CY + 41.5); c.stroke();
+      c.strokeStyle = yel; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(stopX, PLANE_CY - 40); c.lineTo(stopX, PLANE_CY + 40); c.stroke();
+    },
+    /* 搭乗橋の駆動輪の位置の標示: この機種（A320）のドアにつけたときに駆動輪が止まる所に、赤白のしまの枠を地面にぬる
+     * （実際のスポットにも、機種ごとの駆動輪の位置の枠がある）。枠の向きはドアにつけた搭乗橋と同じで、長い辺は通路と直角
+     * （駆動輪は通路と直角に2つならぶ）。つけているあいだは、通路の左右からしまの枠のはしがのぞく */
+    bgBridgePark(c, T) {
+      const D = this.bridgeGeom(1), a = D.a, s0 = BRG.rotR - 2, wx = s0 + (D.L - s0) * 0.6;
+      const w = 14, h = 40;
+      c.save();
+      c.translate(BRG.rot[0] + Math.cos(a) * wx, BRG.rot[1] + Math.sin(a) * wx);
+      c.rotate(a);
+      c.save();
+      c.beginPath(); c.rect(-w / 2, -h / 2, w, h); c.clip();
+      c.fillStyle = T('rgba(255,255,255,.24)'); c.fillRect(-w / 2, -h / 2, w, h);
+      c.strokeStyle = T('rgba(198,48,48,.40)'); c.lineWidth = 2.2;
+      c.beginPath();
+      for (let d = -h / 2 - w; d < h / 2; d += 6) { c.moveTo(-w / 2, d); c.lineTo(w / 2, d + w); }
+      c.stroke();
+      c.restore();
+      c.strokeStyle = T('rgba(198,48,48,.55)'); c.lineWidth = 1.6;
+      c.strokeRect(-w / 2, -h / 2, w, h);
+      c.restore();
+    },
+    /* 制限区域ライン（赤の実線。白いふちで地面から浮かせる）: 駐機中の機体（翼端・尾翼・機首の車）をぐるりと囲む。
+     * 機体が入ってくるまで、車や人はこの中に入らない。上の辺は搭乗橋の固定通路の下をくぐる */
+    bgEra(c, T) {
+      const E = ZONE.era;
+      c.strokeStyle = T('rgba(255,255,255,.32)'); c.lineWidth = 4.4;
+      this.rr(E.x0, E.y0, E.x1 - E.x0, E.y1 - E.y0, 26); c.stroke();
+      c.strokeStyle = T('rgba(198,48,48,.80)'); c.lineWidth = 2.2;
+      this.rr(E.x0, E.y0, E.x1 - E.x0, E.y1 - E.y0, 26); c.stroke();
+    },
+    /* はたらく車のおきばの白い区切り線（1区画に車1台） */
+    bgVehLines(c, T) {
+      const V = ZONE.veh;
+      c.strokeStyle = T('rgba(255,255,255,.5)'); c.lineWidth = 2;
+      c.beginPath();
+      VEH_BAY_LINES.forEach((x) => { c.moveTo(x, V.y); c.lineTo(x, V.y + V.h - 2); });
+      c.stroke();
+    },
+    /* 大きく拡大したとき（2.6倍まで）、高DPIの画面では背景キャッシュの線がにじむので、見えている所の地面の線だけを毎フレームのベクターで描きなおす。
+     * 色は、キャッシュで線の上にかぶせたエプロンの色（apronTint）を先にまぜる。半透明の線は、にじんだ線の上に重なるぶん、うすめにする */
+    drawGroundLinesSharp() {
+      if (!this.bgCanvas || this.cam.zoom <= 1.6 || this.dpr <= 1) return;
+      const L = this._bgLight || this.light, B = this.viewBounds();
+      const x0 = Math.max(BG_X0, B.x0 - 6), x1 = Math.min(BG_X1, B.x1 + 6);
+      if (x1 <= x0) return;
+      this._sharpMix = this._sharpMix || {};
+      const memo = this._sharpMix[L.name] || (this._sharpMix[L.name] = {});
+      const tint = L.apronTint ? parseRGBA(L.apronTint) : null;
+      const T = (col) => {
+        if (memo[col]) return memo[col];
+        const q = parseRGBA(col), ta = tint ? tint[3] : 0;
+        const ch = (i) => Math.round(q[i] * (1 - ta) + (tint ? tint[i] * ta : 0));
+        const a = q[3] >= 0.95 ? q[3] : q[3] * 0.6;
+        return (memo[col] = `rgba(${ch(0)},${ch(1)},${ch(2)},${+a.toFixed(3)})`);
+      };
+      const vis = (ax0, ay0, ax1, ay1) => ax1 > B.x0 && ax0 < B.x1 && ay1 > B.y0 && ay0 < B.y1;
+      const c = this.ctx, E = ZONE.era, V = ZONE.veh;
+      c.save();
+      if (vis(x0, 136, x1, 576)) this.bgJoints(c, x0, x1, T);
+      if (vis(x0, 140, x1, 146)) this.bgApronEdge(c, x0, x1, T);
+      if (vis(x0, 576, x1, 628)) this.bgTaxiLines(c, L, x0, x1, T);
+      if (vis(-80, 280, NOSE_X, 606)) this.bgStandLines(c, L, T);
+      if (vis(BRG.rot[0] - 10, BRG.rot[1] - 10, BRG.rot[0] + 60, BRG.rot[1] + 90)) this.bgBridgePark(c, T);
+      if (vis(E.x0 - 4, E.y0 - 4, E.x1 + 4, E.y1 + 4)) this.bgEra(c, T);
+      if (vis(V.x - 2, V.y, V.x + V.w + 2, V.y + V.h)) this.bgVehLines(c, T);
+      c.restore();
     },
 
     /* 雲のスプライト（大小の円を重ね、上が白・下が少し青い。照明ごとに1回だけ作る） */
@@ -1730,8 +2052,11 @@
         c.strokeStyle = '#8496a8'; c.lineWidth = 2;
         c.beginPath(); c.moveTo(fx, 30); c.lineTo(fx, 13); c.stroke();
         const col = ['#e2711d', '#0f8fb0', '#2f9e63'][i];
-        const fg = c.createLinearGradient(fx, 0, fx + 15, 0);
-        fg.addColorStop(0, 'rgba(0,0,0,.22)'); fg.addColorStop(0.35, 'rgba(0,0,0,0)');
+        const fg = this.gradOf('flag|' + fx, (g) => {
+          const lg = g.createLinearGradient(fx, 0, fx + 15, 0);
+          lg.addColorStop(0, 'rgba(0,0,0,.22)'); lg.addColorStop(0.35, 'rgba(0,0,0,0)');
+          return lg;
+        });
         c.fillStyle = col;
         c.beginPath();
         c.moveTo(fx, 13); c.lineTo(fx + 15, 16 + wave); c.lineTo(fx, 21);
@@ -1794,14 +2119,26 @@
         const q = poseAt(path, path[path.length - 1].s * p);
         pose = { x: q.x, y: q.y, h: q.h - Math.PI };   // うしろ向きに進むので、機首は進む向きの反対
       }
-      /* 出発: 誘導路を左へ走り去る（ゆっくり動き出して加速） */
+      /* 出発: 誘導路を左へ走り去る（ゆっくり動き出して加速）。カメラはとちゅうで止まり、機体が自分で画面の左へ出ていく。
+       * 半透明にはしない。機体（影・タキシーライトもふくむ）の外形の箱がキャンバスの外に全部出たら描かない */
       if (dep.status === 'active' || dep.status === 'done') {
         const p = dep.status === 'done' ? 1 : clamp(dep.progress / G.effDur(dep), 0, 1);
         const path = departPath();
         pose = poseAt(path, path[path.length - 1].s * p * p);
-        alpha = p > 0.8 ? clamp(1 - (p - 0.8) / 0.18, 0, 1) : 1;
+        alpha = this.planeOffCanvas(pose) ? 0 : 1;
       }
       return out(pose, alpha);
+    },
+    /* 主脚が pose（{x,y,h}）にある機体の外形の箱（影・灯火のぶんの余白つき）が、キャンバスの外に全部出ているか */
+    planeOffCanvas(pose) {
+      if (!this.cw || !this.ch) return false;
+      const m = 80, cs = Math.cos(pose.h), sn = Math.sin(pose.h);
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      [[SPR.x0 - m, SPR.y0 - m], [SPR.x0 + SPR.w + m, SPR.y0 - m], [SPR.x0 + SPR.w + m, SPR.y0 + SPR.h + m], [SPR.x0 - m, SPR.y0 + SPR.h + m]].forEach(([lx, ly]) => {
+        const p = this.sceneToScreen(pose.x + lx * cs - ly * sn, pose.y + lx * sn + ly * cs);
+        x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+      });
+      return x1 < 0 || x0 > this.cw || y1 < 0 || y0 > this.ch;
     },
 
     /* ============ 機体（上から見たA320） ============
@@ -1810,48 +2147,107 @@
      * 光源は画面の左上で固定。機体が向きを変えると光の当たる側が変わるので、絵は2通りキャッシュする:
      *   lit=-1 … 機体の左側（ポート）が光の側（駐機中・到着・プッシュバックの前半）
      *   lit=+1 … 機体の右側（スターボード）が光の側（プッシュバックの終わり〜出発で、機首が左を向いたとき） */
+    /* 機体の絵の解像度: いちばん大きいズーム(2.6倍)×devicePixelRatio に合わせた hi（2〜4）と、その半分の lo（1〜2）。
+     * ふだん（いまの S×dpr が lo 以下）は lo の絵だけを持ち、それより拡大したときだけ hi の絵を少しおくれて作る（メモリと縮小のむだをへらす） */
+    planeQ() {
+      const hi = clamp(Math.ceil(this.baseScale() * this.dpr * 2.6 - 0.15), 2, 4);
+      return { hi, lo: Math.max(1, Math.ceil(hi / 2)) };
+    },
+    /* 落ち影と接地の陰（シルエットをぼかした絵）。色は決まっていて照明によらないので、1回だけ作る（ぼかした絵なので1倍で足りる） */
+    planeShadows() {
+      if (this._planeSh) return this._planeSh;
+      const G = planeGeometry(), B = SPR_SH, FAR = 3000;
+      const soft = (shape, blur) => {
+        const cv = document.createElement('canvas');
+        cv.width = SPR.w + 2 * B; cv.height = SPR.h + 2 * B;
+        const sg = cv.getContext('2d');
+        sg.setTransform(1, 0, 0, 1, -SPR.x0 + B - FAR, -SPR.y0 + B);
+        sg.shadowColor = '#101a28'; sg.shadowBlur = blur; sg.shadowOffsetX = FAR;
+        sg.fillStyle = '#101a28';
+        sg.fill(shape);
+        return cv;
+      };
+      return (this._planeSh = { shadow: soft(G.silhouette, 6), ao: soft(G.aoShape, 3.5) });
+    },
+    /* 機体の絵（光の側 L・解像度 q・照明 light の ぬれ/夕日の色ごとにおぼえる。いちどに使うのは数枚なので、6枚をこえたら古いものから手放す） */
+    planeBody(L, q, light) {
+      const Lt = light || this.light, wet = !!Lt.wet, tint = Lt.planeTint || null;
+      const key = (wet ? 1 : 0) + '|' + (tint || '') + '|' + L + '|' + q;
+      const M = this._bodies || (this._bodies = new Map());
+      let body = M.get(key);
+      if (body) { M.delete(key); M.set(key, body); return body; }
+      body = document.createElement('canvas');
+      body.width = Math.ceil(SPR.w * q); body.height = Math.ceil(SPR.h * q);
+      const g = body.getContext('2d');
+      g.setTransform(q, 0, 0, q, -SPR.x0 * q, -SPR.y0 * q);
+      this.renderPlaneBody(g, planeGeometry(), wet, L);
+      if (tint) {
+        /* 夕方: 機体の絵（不透明な所だけ）に夕日の色を1回だけかさねる */
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.globalCompositeOperation = 'source-atop';
+        g.fillStyle = tint;
+        g.fillRect(0, 0, body.width, body.height);
+        g.globalCompositeOperation = 'source-over';
+      }
+      M.set(key, body);
+      while (M.size > 6) {
+        const [k0, cv0] = M.entries().next().value;
+        M.delete(k0); cv0.width = 0; cv0.height = 0;
+      }
+      return body;
+    },
     planeSprites(state, lit) {
-      const wet = !!this.light.wet;
-      const L = lit > 0 ? 1 : -1;
-      /* 解像度: 最大ズーム(2.6倍)×devicePixelRatio に合わせて2〜6倍 */
-      const q = clamp(Math.ceil(this.baseScale() * this.dpr * 2.6 - 0.15), 2, 6);
-      const tint = this.light.planeTint || null;
-      const key = q + '|' + (wet ? 1 : 0) + '|' + (tint || '');
-      const G = planeGeometry();
-      const mk = (w, h) => { const cv = document.createElement('canvas'); cv.width = Math.ceil(w); cv.height = Math.ceil(h); return cv; };
-      if (!this._plane || this._plane.key !== key) {
-        /* 落ち影と接地の陰（シルエットをぼかす。ぼかしは影オフセットの技法でにじませる） */
-        const B = SPR_SH, sq = 2, FAR = 3000;
-        const soft = (shape, blur) => {
-          const cv = mk((SPR.w + 2 * B) * sq, (SPR.h + 2 * B) * sq);
-          const sg = cv.getContext('2d');
-          sg.setTransform(sq, 0, 0, sq, (-SPR.x0 + B - FAR) * sq, (-SPR.y0 + B) * sq);
-          sg.shadowColor = '#101a28'; sg.shadowBlur = blur * sq; sg.shadowOffsetX = FAR * sq;
-          sg.fillStyle = '#101a28';
-          sg.fill(shape);
-          return cv;
-        };
-        this._plane = { key, body: {}, shadow: soft(G.silhouette, 6), ao: soft(G.aoShape, 3.5) };
-      }
-      const P = this._plane;
-      if (!P.body[L]) {
-        /* 右側が光の向き（出発のときだけ使う）は、動いている機体なので解像度をひかえめに */
-        const qq = L > 0 ? Math.min(q, 4) : q;
-        const body = mk(SPR.w * qq, SPR.h * qq);
-        const g = body.getContext('2d');
-        g.setTransform(qq, 0, 0, qq, -SPR.x0 * qq, -SPR.y0 * qq);
-        this.renderPlaneBody(g, G, wet, L);
-        if (tint) {
-          /* 夕方: 機体の絵（不透明な所だけ）に夕日の色を1回だけかさねる */
-          g.setTransform(1, 0, 0, 1, 0, 0);
-          g.globalCompositeOperation = 'source-atop';
-          g.fillStyle = tint;
-          g.fillRect(0, 0, body.width, body.height);
-          g.globalCompositeOperation = 'source-over';
+      const L = lit > 0 ? 1 : -1, Q = this.planeQ(), Lt = this.light;
+      const wet = !!Lt.wet, tint = Lt.planeTint || null;
+      const M = this._bodies || (this._bodies = new Map());
+      let body = null;
+      if (this.scale() * this.dpr > Q.lo + 0.01) {
+        /* 拡大している: hi の絵があれば使う。なければ lo で描いておき、hi はつぎのすきまに作る */
+        body = M.get((wet ? 1 : 0) + '|' + (tint || '') + '|' + L + '|' + Q.hi) || null;
+        if (body) this._hiUsedAt = this.time;
+        else if (!this._hiQueued) {
+          this._hiQueued = true;
+          setTimeout(() => { this._hiQueued = false; this._hiUsedAt = this.time; this.planeBody(L, Q.hi, Lt); }, 0);
         }
-        P.body[L] = body;
+      } else if (this._hiUsedAt != null && this.time - this._hiUsedAt > 3) {
+        /* 3秒より長く拡大していなければ、hi の絵を手放す */
+        this._hiUsedAt = null;
+        [...M.keys()].forEach((k) => { if (k.endsWith('|' + Q.hi)) { const cv = M.get(k); M.delete(k); cv.width = 0; cv.height = 0; } });
       }
-      return { body: P.body[L], shadow: P.shadow, ao: P.ao };
+      if (!body) body = this.planeBody(L, Q.lo, Lt);
+      const sh = this.planeShadows();
+      return { body, shadow: sh.shadow, ao: sh.ao };
+    },
+    /* 駐機中（向き0・不透明）の地面の影: 落ち影・垂直尾翼の影・接地の陰を、照明ごとに1枚の絵にまとめておく（毎フレームは drawImage 1回）。
+     * 重ねる順・濃さは、動いているときの drawPlane と同じ */
+    planeGround(Lt) {
+      if (this._ground && this._ground.key === Lt.name) return this._ground;
+      if (this._ground) { this._ground.cv.width = 0; this._ground.cv.height = 0; }
+      const sh = this.planeShadows(), B = SPR_SH, sA = Lt.shadowA, sL = Lt.shadowL, gq = 1.5;
+      const x0 = SPR.x0 - B - 4, y0 = SPR.y0 - B - 4;
+      const x1 = SPR.x0 + SPR.w + B + Math.max(8 * sL, 23.6 * sL + 1.3, 1.5) + 4;
+      const y1 = SPR.y0 + SPR.h + B + Math.max(11 * sL, 32.5 * sL + 1.3, 2.5) + 4;
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil((x1 - x0) * gq); cv.height = Math.ceil((y1 - y0) * gq);
+      const g = cv.getContext('2d');
+      g.setTransform(gq, 0, 0, gq, -x0 * gq, -y0 * gq);
+      let a = clamp(0.27 * sA, 0, 0.4);
+      g.globalAlpha = a;
+      g.drawImage(sh.shadow, SPR.x0 - B + 8 * sL, SPR.y0 - B + 11 * sL, SPR.w + 2 * B, SPR.h + 2 * B);
+      /* 垂直尾翼の影（drawPlane と同じ。globalAlpha は 1 をこえる値をうけつけないので、そのときは前の値のまま） */
+      const fa = clamp(sA, 0, 1.2);
+      if (fa <= 1) a = fa;
+      g.globalAlpha = a;
+      g.fillStyle = 'rgba(16,26,40,.075)';
+      [[0, 0], [1.3, 1.3], [-1.3, -1.3]].forEach(([dx, dy]) => {
+        g.fill(toPath([
+          [PX(28.7) + 8.8 * sL + dx, 12.1 * sL + dy], [PX(35.3) + 8.8 * sL + dx, 12.1 * sL + dy],
+          [PX(37.3) + 23.6 * sL + dx, 32.5 * sL + dy], [PX(34.8) + 23.6 * sL + dx, 32.5 * sL + dy],
+        ]));
+      });
+      g.globalAlpha = Lt.wet ? 0.3 : 0.38;
+      g.drawImage(sh.ao, SPR.x0 - B + 1.5, SPR.y0 - B + 2.5, SPR.w + 2 * B, SPR.h + 2 * B);
+      return (this._ground = { key: Lt.name, cv, x0, y0, w: x1 - x0, h: y1 - y0 });
     },
 
     /* 機体の静的な部分を描く。g は機体ローカル座標（主脚が原点・機首が+x・右主翼が+y）。
@@ -2192,33 +2588,56 @@
       const B = SPR_SH;
       const sA = Lt.shadowA, sL = Lt.shadowL;
       c.save();
-      /* 落ち影: 光源=左上 → 世界の右下へずらす（機体が向きを変えても影の向きは同じ）。濃さ・長さは照明のプリセットで */
-      c.globalAlpha = tr.alpha * clamp(0.27 * sA, 0, 0.4);
-      c.save(); c.translate(px + 8 * sL, py + 11 * sL); c.rotate(tr.rot);
-      c.drawImage(spr.shadow, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
-      c.restore();
-      /* 垂直尾翼の影: 背が高い（約12m）ので、先のほうほど遠くへ落ちる */
-      c.globalAlpha = tr.alpha * clamp(sA, 0, 1.2);
-      c.fillStyle = 'rgba(16,26,40,.075)';
-      [[0, 0], [1.3, 1.3], [-1.3, -1.3]].forEach(([dx, dy]) => {
-        c.fill(toPath([
-          W(PX(28.7), 0, 8.8 * sL + dx, 12.1 * sL + dy), W(PX(35.3), 0, 8.8 * sL + dx, 12.1 * sL + dy),
-          W(PX(37.3), 0, 23.6 * sL + dx, 32.5 * sL + dy), W(PX(34.8), 0, 23.6 * sL + dx, 32.5 * sL + dy),
-        ]));
-      });
-      /* 接地の陰（胴体とエンジンの真下） */
-      c.globalAlpha = tr.alpha * (Lt.wet ? 0.3 : 0.38);
-      c.save(); c.translate(px + 1.5, py + 2.5); c.rotate(tr.rot);
-      c.drawImage(spr.ao, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
-      c.restore();
+      if (tr.alpha >= 1 && tr.x === 0 && tr.y === 0 && tr.rot === 0) {
+        /* 駐機中: 落ち影・垂直尾翼の影・接地の陰は、照明ごとに1枚にまとめた絵を貼るだけ（planeGround） */
+        const gr = this.planeGround(Lt);
+        c.globalAlpha = 1;
+        c.drawImage(gr.cv, px + gr.x0, py + gr.y0, gr.w, gr.h);
+      } else {
+        /* 落ち影: 光源=左上 → 世界の右下へずらす（機体が向きを変えても影の向きは同じ）。濃さ・長さは照明のプリセットで */
+        c.globalAlpha = tr.alpha * clamp(0.27 * sA, 0, 0.4);
+        c.save(); c.translate(px + 8 * sL, py + 11 * sL); c.rotate(tr.rot);
+        c.drawImage(spr.shadow, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
+        c.restore();
+        /* 垂直尾翼の影: 背が高い（約12m）ので、先のほうほど遠くへ落ちる */
+        c.globalAlpha = tr.alpha * clamp(sA, 0, 1.2);
+        c.fillStyle = 'rgba(16,26,40,.075)';
+        [[0, 0], [1.3, 1.3], [-1.3, -1.3]].forEach(([dx, dy]) => {
+          c.fill(toPath([
+            W(PX(28.7), 0, 8.8 * sL + dx, 12.1 * sL + dy), W(PX(35.3), 0, 8.8 * sL + dx, 12.1 * sL + dy),
+            W(PX(37.3), 0, 23.6 * sL + dx, 32.5 * sL + dy), W(PX(34.8), 0, 23.6 * sL + dx, 32.5 * sL + dy),
+          ]));
+        });
+        /* 接地の陰（胴体とエンジンの真下） */
+        c.globalAlpha = tr.alpha * (Lt.wet ? 0.3 : 0.38);
+        c.save(); c.translate(px + 1.5, py + 2.5); c.rotate(tr.rot);
+        c.drawImage(spr.ao, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
+        c.restore();
+      }
+      /* 出発の地上走行中: 前脚のタキシーライトが機首の前の地面をうすく照らす（点滅しない。胴体の下の所は機体にかくれる） */
+      if (state.tasks.depart.status === 'active') {
+        c.globalAlpha = tr.alpha;
+        c.save(); c.translate(px, py); c.rotate(tr.rot); c.translate(PX(NOSE_GEAR_U), 0);
+        c.fillStyle = this.gradOf('taxiLight', (g) => {
+          const lg = g.createRadialGradient(0, 0, 0, 0, 0, 125);
+          lg.addColorStop(0, 'rgba(255,250,232,.30)'); lg.addColorStop(0.45, 'rgba(255,250,232,.18)'); lg.addColorStop(1, 'rgba(255,250,232,0)');
+          return lg;
+        });
+        c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 125, -0.26, 0.26); c.closePath(); c.fill();
+        c.restore();
+      }
       /* 下面の衝突防止灯が地面を赤く照らす（灯っているときだけ） */
       if (beacon > 0.02) {
-        c.globalAlpha = tr.alpha;
         const [gx, gy] = W(PX(15.5), 0, 0, 0);
-        const rg = c.createRadialGradient(gx, gy, 0, gx, gy, 44);
-        rg.addColorStop(0, `rgba(255,70,60,${(0.24 * beacon).toFixed(3)})`);
-        rg.addColorStop(1, 'rgba(255,70,60,0)');
-        c.fillStyle = rg; c.beginPath(); c.arc(gx, gy, 44, 0, TAU); c.fill();
+        c.globalAlpha = tr.alpha * beacon;
+        c.save(); c.translate(gx, gy);
+        c.fillStyle = this.gradOf('beaconGround', (g) => {
+          const rg = g.createRadialGradient(0, 0, 0, 0, 0, 44);
+          rg.addColorStop(0, 'rgba(255,70,60,.24)'); rg.addColorStop(1, 'rgba(255,70,60,0)');
+          return rg;
+        });
+        c.beginPath(); c.arc(0, 0, 44, 0, TAU); c.fill();
+        c.restore();
       }
       /* 機体（キャッシュした絵を回して貼る） */
       c.globalAlpha = tr.alpha;
@@ -2245,30 +2664,25 @@
       const f = (this.time * 1.15) % 1;
       return f < 0.12 ? 1 : f < 0.22 ? 1 - (f - 0.12) / 0.1 : 0;
     },
-    /* 機体の灯火（機体ローカル座標）: 上面の衝突防止灯（消えているときは暗い赤の小さい点）と、
-     * 出発中だけ翼端・尾端の白いストロボ（2回ずつ光る）。航法灯（左翼=赤・右翼=緑）は機体の絵にある */
+    /* 機体の灯火（機体ローカル座標）: 上面の衝突防止灯（消えているときは暗い赤の小さい点）。
+     * 航法灯（左翼=赤・右翼=緑）は機体の絵にある。白いストロボは滑走路に入るときに点けるので、地上走行（出発）では点けない
+     * （かわりに drawPlane が前脚のタキシーライトを描く） */
     drawPlaneLights(state, beacon) {
       const c = this.ctx;
       const bx = PX(16.8);
       if (beacon > 0.02) {
-        const bg = c.createRadialGradient(bx, 0, 0, bx, 0, 7);
-        bg.addColorStop(0, `rgba(255,86,72,${(beacon * 0.6).toFixed(3)})`);
-        bg.addColorStop(1, 'rgba(255,86,72,0)');
-        c.fillStyle = bg; c.beginPath(); c.arc(bx, 0, 7, 0, TAU); c.fill();
+        const a0 = c.globalAlpha;
+        c.globalAlpha = a0 * beacon;
+        c.fillStyle = this.gradOf('beaconTop', (g) => {
+          const bg = g.createRadialGradient(bx, 0, 0, bx, 0, 7);
+          bg.addColorStop(0, 'rgba(255,86,72,.6)'); bg.addColorStop(1, 'rgba(255,86,72,0)');
+          return bg;
+        });
+        c.beginPath(); c.arc(bx, 0, 7, 0, TAU); c.fill();
+        c.globalAlpha = a0;
       }
       c.fillStyle = beacon > 0.02 ? `rgba(255,66,58,${(0.35 + 0.65 * beacon).toFixed(3)})` : '#7a2b2b';
       c.beginPath(); c.arc(bx, 0, 1.4, 0, TAU); c.fill();
-      if (state.tasks.depart.status === 'active' && !reduceMotion()) {
-        const f = (this.time * 0.9) % 1;
-        const fl = (f < 0.05 || (f > 0.13 && f < 0.18)) ? 1 : 0;
-        if (fl) {
-          [[PX(20.9), -PY(17.2)], [PX(20.9), PY(17.2)], [PX(37.75), 0]].forEach(([x, y]) => {
-            const sg = c.createRadialGradient(x, y, 0, x, y, 9);
-            sg.addColorStop(0, 'rgba(255,255,255,.95)'); sg.addColorStop(0.3, 'rgba(235,245,255,.5)'); sg.addColorStop(1, 'rgba(235,245,255,0)');
-            c.fillStyle = sg; c.beginPath(); c.arc(x, y, 9, 0, TAU); c.fill();
-          });
-        }
-      }
     },
     /* 機内清掃のあいだ: 客室の窓に、前から順に明かりがつく（清掃の進み具合）。点滅はしない */
     drawCabinLights(state) {
@@ -2293,11 +2707,14 @@
         const hw = fusHW(u) * PK, x0 = PX(u + w / 2), ww = w * PK;
         c.fillStyle = '#1f272e';
         c.fillRect(x0, s > 0 ? hw * inner : -hw, ww, hw * (1 - inner));
-        /* 開いたドアから機内のあかりがこぼれる */
+        /* 開いたドアから機内のあかりがこぼれる（ドアごとに位置は決まっているので、グラデーションはおぼえておく） */
         const gx = x0 + ww / 2, gy = s * hw, r = 6 + ww * 0.4;
-        const gl = c.createRadialGradient(gx, gy, 0, gx, gy, r);
-        gl.addColorStop(0, 'rgba(255,212,140,.6)'); gl.addColorStop(1, 'rgba(255,212,140,0)');
-        c.fillStyle = gl; c.beginPath(); c.arc(gx, gy, r, 0, TAU); c.fill();
+        c.fillStyle = this.gradOf(`door|${u}|${s}`, (g) => {
+          const gl = g.createRadialGradient(gx, gy, 0, gx, gy, r);
+          gl.addColorStop(0, 'rgba(255,212,140,.6)'); gl.addColorStop(1, 'rgba(255,212,140,0)');
+          return gl;
+        });
+        c.beginPath(); c.arc(gx, gy, r, 0, TAU); c.fill();
       };
       if (this.bridge > 0.9) open(DOOR_U.L1, 0.85, -1, 0.66);           // L1: 搭乗橋がついたら開く
       if (t.catering.status === 'active') {                            // R2: ケータリング中
@@ -2363,12 +2780,17 @@
     drawBridgeShadow() {
       const c = this.ctx, Lt = this.light, P = this.bridgeParts(), B = P.B;
       const ox = 10 * Lt.shadowL, oy = 14 * Lt.shadowL;
-      const sh = new Path2D();
-      toPath(boxPts(B.rx + ox, B.ry + oy, B.a, P.s0, B.L, -10, 10), sh);
-      toPath(boxPts(B.ex + ox, B.ey + oy, B.phi, -1, 24, -15, 15), sh);
-      sh.moveTo(B.rx + ox + BRG.rotR, B.ry + oy); sh.arc(B.rx + ox, B.ry + oy, BRG.rotR, 0, TAU);
+      /* 影の形は、搭乗橋がのびちぢみしているときと照明が変わったときだけ作り直す */
+      const key = this.bridge.toFixed(4) + '|' + Lt.shadowL;
+      if (!this._brSh || this._brSh.key !== key) {
+        const sh = new Path2D();
+        toPath(boxPts(B.rx + ox, B.ry + oy, B.a, P.s0, B.L, -10, 10), sh);
+        toPath(boxPts(B.ex + ox, B.ey + oy, B.phi, -1, 24, -15, 15), sh);
+        sh.moveTo(B.rx + ox + BRG.rotR, B.ry + oy); sh.arc(B.rx + ox, B.ry + oy, BRG.rotR, 0, TAU);
+        this._brSh = { key, path: sh };
+      }
       c.fillStyle = `rgba(16,26,40,${clamp(0.17 * Lt.shadowA, 0, 0.24).toFixed(3)})`;
-      c.fill(sh);
+      c.fill(this._brSh.path);
       /* 駆動輪の脚の影（地面に立つ柱） */
       const wx = P.s0 + P.len * 0.6, wp = [B.rx + Math.cos(B.a) * wx, B.ry + Math.sin(B.a) * wx];
       c.fillStyle = `rgba(16,26,40,${clamp(0.2 * Lt.shadowA, 0, 0.28).toFixed(3)})`;
@@ -2393,9 +2815,12 @@
       P.sects.forEach(([f0, f1, w]) => {
         const a0 = P.s0 + P.len * f0, a1 = P.s0 + P.len * f1;
         c.save(); c.translate(B.rx, B.ry); c.rotate(B.a);
-        const gr = c.createLinearGradient(0, lit * w / 2, 0, -lit * w / 2);
-        gr.addColorStop(0, '#b4bfca'); gr.addColorStop(1, '#8796a4');
-        c.fillStyle = gr; c.fillRect(a0, -w / 2, a1 - a0, w);
+        c.fillStyle = this.gradOf(`brFloor|${w}|${lit}`, (g) => {
+          const gr = g.createLinearGradient(0, lit * w / 2, 0, -lit * w / 2);
+          gr.addColorStop(0, '#b4bfca'); gr.addColorStop(1, '#8796a4');
+          return gr;
+        });
+        c.fillRect(a0, -w / 2, a1 - a0, w);
         c.fillStyle = 'rgba(60,72,86,.22)'; c.fillRect(a0, -w / 2 + 3, a1 - a0, w - 6);   // 床のじゅうたん
         c.restore();
       });
@@ -2404,10 +2829,13 @@
       c.fillStyle = '#9aa7b3'; c.fillRect(-1, -15, 21, 30);
       c.fillStyle = 'rgba(60,72,86,.22)'; c.fillRect(2, -12, 15, 24);
       c.restore();
-      /* ロタンダの床 */
-      const rgd = c.createRadialGradient(B.rx - 4, B.ry - 4, 2, B.rx, B.ry, BRG.rotR);
-      rgd.addColorStop(0, '#c9d2da'); rgd.addColorStop(1, '#98a4af');
-      c.fillStyle = rgd; c.beginPath(); c.arc(B.rx, B.ry, BRG.rotR, 0, TAU); c.fill();
+      /* ロタンダの床（ロタンダは動かないので、グラデーションはおぼえておく） */
+      c.fillStyle = this.gradOf('rotFloor', (g) => {
+        const rgd = g.createRadialGradient(B.rx - 4, B.ry - 4, 2, B.rx, B.ry, BRG.rotR);
+        rgd.addColorStop(0, '#c9d2da'); rgd.addColorStop(1, '#98a4af');
+        return rgd;
+      });
+      c.beginPath(); c.arc(B.rx, B.ry, BRG.rotR, 0, TAU); c.fill();
     },
     /* 搭乗橋のガラスの屋根（寒色・うすい）とリブ。中の人ははっきり見えたまま「中にいる」と分かる */
     drawBridgeRoof() {
@@ -2416,9 +2844,12 @@
       P.sects.forEach(([f0, f1, w]) => {
         const a0 = P.s0 + P.len * f0, a1 = P.s0 + P.len * f1;
         c.save(); c.translate(B.rx, B.ry); c.rotate(B.a);
-        const gr = c.createLinearGradient(0, lit * w / 2, 0, -lit * w / 2);
-        gr.addColorStop(0, 'rgba(227,234,240,.42)'); gr.addColorStop(1, 'rgba(169,184,198,.32)');
-        c.fillStyle = gr; c.fillRect(a0, -w / 2, a1 - a0, w);
+        c.fillStyle = this.gradOf(`brRoof|${w}|${lit}`, (g) => {
+          const gr = g.createLinearGradient(0, lit * w / 2, 0, -lit * w / 2);
+          gr.addColorStop(0, 'rgba(227,234,240,.42)'); gr.addColorStop(1, 'rgba(169,184,198,.32)');
+          return gr;
+        });
+        c.fillRect(a0, -w / 2, a1 - a0, w);
         c.fillStyle = `rgba(255,255,255,.55)`; c.fillRect(a0, lit > 0 ? w / 2 - 1.6 : -w / 2, a1 - a0, 1.6);   // 光の側のふち
         c.strokeStyle = 'rgba(70,85,100,.25)'; c.lineWidth = 0.7; c.beginPath();
         for (let x = a0 + 3.5; x < a1 - 1; x += 7) { c.moveTo(x, -w / 2 + 0.5); c.lineTo(x, w / 2 - 0.5); }
@@ -2429,9 +2860,12 @@
       });
       /* キャブ（ドアにつく先頭の箱）: ガラスの屋根・暗い窓の帯・胴体側のじゃばら */
       c.save(); c.translate(B.ex, B.ey); c.rotate(B.phi);
-      const cg = c.createLinearGradient(0, -15, 0, 15);
-      cg.addColorStop(0, 'rgba(178,192,206,.45)'); cg.addColorStop(1, 'rgba(230,236,242,.45)');
-      c.fillStyle = cg; c.fillRect(-1, -15, 21, 30);
+      c.fillStyle = this.gradOf('cabRoof', (g) => {
+        const cg = g.createLinearGradient(0, -15, 0, 15);
+        cg.addColorStop(0, 'rgba(178,192,206,.45)'); cg.addColorStop(1, 'rgba(230,236,242,.45)');
+        return cg;
+      });
+      c.fillRect(-1, -15, 21, 30);
       c.fillStyle = 'rgba(30,44,60,.55)'; c.fillRect(15, -14, 3.2, 28);              // 窓の帯（ドアの前のガラス）
       c.fillStyle = 'rgba(190,220,240,.35)'; c.fillRect(15.4, -13, 1, 9);
       c.strokeStyle = 'rgba(70,85,100,.25)'; c.lineWidth = 0.7; c.beginPath();
@@ -2444,9 +2878,12 @@
       c.stroke();
       c.restore();
       /* ロタンダ（通路がまわる丸い部屋）の屋根 */
-      const rgd = c.createRadialGradient(B.rx - 4, B.ry - 4, 2, B.rx, B.ry, BRG.rotR);
-      rgd.addColorStop(0, 'rgba(232,238,243,.78)'); rgd.addColorStop(1, 'rgba(160,174,186,.7)');
-      c.fillStyle = rgd; c.beginPath(); c.arc(B.rx, B.ry, BRG.rotR, 0, TAU); c.fill();
+      c.fillStyle = this.gradOf('rotRoof', (g) => {
+        const rgd = g.createRadialGradient(B.rx - 4, B.ry - 4, 2, B.rx, B.ry, BRG.rotR);
+        rgd.addColorStop(0, 'rgba(232,238,243,.78)'); rgd.addColorStop(1, 'rgba(160,174,186,.7)');
+        return rgd;
+      });
+      c.beginPath(); c.arc(B.rx, B.ry, BRG.rotR, 0, TAU); c.fill();
       c.strokeStyle = 'rgba(58,72,88,.65)'; c.lineWidth = 0.8; c.stroke();
       c.fillStyle = 'rgba(152,164,175,.8)'; c.beginPath(); c.arc(B.rx, B.ry, 5.5, 0, TAU); c.fill();
     },
@@ -2533,27 +2970,40 @@
       const c = this.ctx;
       c.fillStyle = 'rgba(16,26,40,.30)';
       c.beginPath(); c.arc(1.5, 2.5, r, 0, TAU); c.fill();
-      const g = c.createRadialGradient(-4, -4, 1, 0, 0, r);
-      g.addColorStop(0, hi); g.addColorStop(1, disc);
-      c.fillStyle = g;
+      c.fillStyle = this.gradOf(`spotIcon|${r}|${disc}|${hi}`, (g) => {
+        const rg = g.createRadialGradient(-4, -4, 1, 0, 0, r);
+        rg.addColorStop(0, hi); rg.addColorStop(1, disc);
+        return rg;
+      });
       c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fill();
       const nm = window.Icons && window.Icons.task(id);
       if (nm) window.Icons.draw(c, nm, 0, 0, size, '#ffffff');
     },
-    /* 状態の印（色だけにたよらない）: はじめられる=▶ / あつまり中=… / まだ=かぎ */
-    spotMark(x, y, kind) {
+    /* 状態の印（色だけにたよらない）: はじめられる=▶ / あつまり中=… / まだ=かぎ。s は大きさの倍率（小さい画面で大きく） */
+    spotMark(x, y, kind, s) {
       const c = this.ctx, C = SPOT_COL;
       const col = kind === 'ready' ? C.ready : kind === 'gather' ? C.gather : C.locked;
-      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, 6.3, 0, TAU); c.fill();
-      c.fillStyle = col; c.beginPath(); c.arc(x, y, 5, 0, TAU); c.fill();
+      c.save();
+      c.translate(x, y);
+      if (s && s !== 1) c.scale(s, s);
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(0, 0, 6.3, 0, TAU); c.fill();
+      c.fillStyle = col; c.beginPath(); c.arc(0, 0, 5, 0, TAU); c.fill();
       c.fillStyle = '#ffffff';
       if (kind === 'ready') {
-        c.beginPath(); c.moveTo(x - 1.5, y - 2.7); c.lineTo(x + 2.9, y); c.lineTo(x - 1.5, y + 2.7); c.closePath(); c.fill();
+        c.beginPath(); c.moveTo(-1.5, -2.7); c.lineTo(2.9, 0); c.lineTo(-1.5, 2.7); c.closePath(); c.fill();
       } else if (kind === 'gather') {
-        [-2.2, 0, 2.2].forEach((d) => { c.beginPath(); c.arc(x + d, y, 0.95, 0, TAU); c.fill(); });
+        [-2.2, 0, 2.2].forEach((d) => { c.beginPath(); c.arc(d, 0, 0.95, 0, TAU); c.fill(); });
       } else if (window.Icons) {
-        window.Icons.draw(c, 'lock', x, y, 7.4, '#ffffff');
+        window.Icons.draw(c, 'lock', 0, 0, 7.4, '#ffffff');
       }
+      c.restore();
+    },
+    /* 小さい画面（S<0.6）では、輪の外形はそのままで、中のアイコンと状態の印を大きくする（小学2年生にも絵が分かるように）。
+     * 印の丸は画面で直径10px以上（r8.5 × S×k の下限0.6） */
+    spotInner() {
+      return this.scale() < 0.6
+        ? { r: 15, size: 21, soonR: 13.6, soonSize: 19, mark: 8.5 / 6.3, mx: 12.5, my: 12, smx: 9.5, smy: 9 }
+        : { r: 11, size: 16, soonR: 10, soonSize: 14, mark: 1, mx: 9, my: 8.5, smx: 9, smy: 8.5 };
     },
 
     /* 「もうすぐできる」持ち場の予告。前提の作業がぜんぶ進行中のときだけ、灰の点線の輪と「あと◯ぷん」を出す */
@@ -2566,20 +3016,21 @@
         const a = this.anchorOf(t.id);
         if (!a) return;
         (this._spotDiscs || (this._spotDiscs = [])).push([a[0], a[1], 21.5 * k]);
+        const In = this.spotInner();
         c.save();
         c.translate(a[0], a[1]); c.scale(k, k);
         this.spotRing(18.5, C.soon, true, 'rgba(255,255,255,.55)', 3);
-        this.spotIcon(t.id, 10, '#5f6f82', '#8796a8', 14);
-        this.spotMark(9, 8.5, 'lock');
+        this.spotIcon(t.id, In.soonR, '#5f6f82', '#8796a8', In.soonSize);
+        this.spotMark(In.smx, In.smy, 'lock', In.mark);
         c.restore();
         this.pushLabel({ prio: 4, sx: a[0], sy: a[1] + 23 * k, ay: 't', dy: 3, parts: [{ t: `あと${rest}${funPun(rest)}` }], base: 10, style: 'soon', minS: 0.55, ring: [a[0], a[1], 21.5 * k] });
       });
     },
 
     /* 作業の持ち場（はじめられる=青緑の点線・あつまり中=こはくの点線）。
-     * 人をえらんでいるときは、送れる持ち場を緑の太い実線の輪にする（大きさは変えない・脈打たない） */
+     * 人をえらんでいるときは、送れる持ち場を太い実線の輪（SPOT_COL.accept = --st-target）にする（大きさは変えない・脈打たない） */
     drawSpots(state, ui) {
-      const c = this.ctx, G = window.Game, C = SPOT_COL, k = this.spotK();
+      const c = this.ctx, G = window.Game, C = SPOT_COL, k = this.spotK(), In = this.spotInner();
       const selected = ui ? ui.selected : null;
       state.taskList.forEach((t) => {
         if (t.status !== 'ready' && t.status !== 'gathering') return;
@@ -2592,9 +3043,9 @@
         if (acceptable) this.spotRing(23, C.accept, false, 'rgba(255,255,255,.6)', 4);
         else if (selected) { c.globalAlpha = 0.6; this.spotRing(23, '#8a96a3', true, 'rgba(255,255,255,.35)', 2.5); c.globalAlpha = 1; }
         else this.spotRing(23, t.status === 'gathering' ? C.gather : C.ready, true, 'rgba(255,255,255,.55)', 3);
-        if (acceptable) { c.fillStyle = 'rgba(31,122,69,.16)'; c.beginPath(); c.arc(0, 0, 21, 0, TAU); c.fill(); }
-        this.spotIcon(t.id, 11, '#1e3a5f', '#3e6592', 16);
-        this.spotMark(9, 8.5, t.status === 'gathering' ? 'gather' : 'ready');
+        if (acceptable) { c.fillStyle = rgbaOf(C.accept, 0.16); c.beginPath(); c.arc(0, 0, 21, 0, TAU); c.fill(); }
+        this.spotIcon(t.id, In.r, '#1e3a5f', '#3e6592', In.size);
+        this.spotMark(In.mx, In.my, t.status === 'gathering' ? 'gather' : 'ready', In.mark);
         c.restore();
         /* あと何人・何台（アイコン+数字） */
         if (t.status === 'gathering') {
@@ -2614,9 +3065,9 @@
         }));
         this._emojiRes = m;
       }
-      const segs = (typeof Intl !== 'undefined' && Intl.Segmenter)
-        ? [...new Intl.Segmenter('ja', { granularity: 'grapheme' }).segment(String(str))].map((s) => s.segment)
-        : Array.from(String(str));
+      /* 文字の区切り（Intl.Segmenter は1つだけ作って使いまわす） */
+      if (this._seg === undefined) this._seg = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter('ja', { granularity: 'grapheme' }) : null;
+      const segs = this._seg ? [...this._seg.segment(String(str))].map((s) => s.segment) : Array.from(String(str));
       const parts = [];
       let buf = '';
       segs.forEach((g) => {
@@ -2634,14 +3085,17 @@
      * 文字の大きさは Math.max(13, 元のpx×S)（どの画面でも13px以上）。優先度の高い順に描き、
      * すでに描いた札と重なるものは描かない（選択 > 人数 > かんりょう > あと+アイコン > あと◯ぷん > 案内板） */
     pushLabel(l) { (this._labels || (this._labels = [])).push(l); },
-    /* 案内板（看板・ゲート・スポット番号・区画の名前）。小さすぎる画面（S<0.55）では描かない */
+    /* 案内板（看板・ゲート・スポット番号・区画の名前）。小さすぎる画面（S<0.55）では描かない。
+     * スマホでは、待機所と車のおきばの2つの看板だけ S≥0.28 でも出す（どこで待っているかの見当がつくように）。
+     * 区画の看板は、安全な範囲からはみ出すときは区画（zone）の画面上のはばの中で左右にずらす */
     addSignLabels(state) {
       const Z = ZONE.staff, E = ZONE.era, V = ZONE.veh;
+      const signS = isNarrowView() ? 0.28 : 0.55;
       this.pushLabel({ prio: 9, sx: 10, sy: 45, ax: 'l', parts: [{ i: 'plane' }, { t: 'そらみなと こくさいくうこう' }], base: 13, style: 'airport', minS: 0.55 });
       this.pushLabel({ prio: 9, sx: BRG.x, sy: 112, parts: [{ t: 'GATE 7' }], base: 13, style: 'gate', minS: 0.55 });
       if (!state || this._planeHome) this.pushLabel({ prio: 9, sx: 439, sy: PLANE_CY, parts: [{ t: 'S7' }], base: 13, style: 'spotno', minS: 0.55 });
-      this.pushLabel({ prio: 8, sx: Z.x + 2, sy: Z.y - 17, ax: 'l', parts: [{ t: 'スタッフのまちあい' }], base: 13, style: 'board', minS: 0.55 });
-      this.pushLabel({ prio: 8, sx: E.x1 + 12, sy: V.y - 19, ax: 'l', parts: [{ t: 'はたらく くるまの おきば' }], base: 13, style: 'board', minS: 0.55 });
+      this.pushLabel({ prio: 8, sx: Z.x + 2, sy: Z.y - 17, ax: 'l', parts: [{ t: 'スタッフのまちあい' }], base: 13, style: 'board', minS: signS, zone: [Z.x, Z.x + Z.w] });
+      this.pushLabel({ prio: 8, sx: E.x1 + 12, sy: V.y - 19, ax: 'l', parts: [{ t: 'はたらく くるまの おきば' }], base: 13, style: 'board', minS: signS, zone: [V.x, V.x + V.w] });
     },
     drawLabelsScreen(state, dt) {
       const c = this.ctx;
@@ -2672,20 +3126,23 @@
       const list = (this._labels || []).slice().sort((p, q) => p.prio - q.prio);
       const placed = [];
       const outOf = (q, m) => q.x < SR.l - m || q.x > SR.r + m || q.y < SR.t - m || q.y > SR.b + m;
-      c.save();
-      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      /* 粒（クリアのときだけ）は札の下に */
-      this.drawFxScreen(dt);
-      c.textBaseline = 'middle'; c.textAlign = 'left';
-      list.forEach((L) => {
-        if (L.minS && S < L.minS) return;
-        const p = L.scr ? { x: L.sx, y: L.sy } : this.sceneToScreen(L.sx, L.sy);
+      /* ときどき出る DOM（ストップ中の札・ヒント・知らせなど）の下に入る札は描かない（半分かくれた札を出さない） */
+      const covered = (Q) => (this._covers || []).some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
+      /* 持ち場の輪（はじめられる・あつまり中・もうすぐ）と進み具合の輪（画面座標の円）。案内板と、えらんだ人の札はこれにかからない所に出す */
+      const discs = (this._spotDiscs || []).concat(this._ringDiscs || []).map(([x, y, r]) => { const q = this.sceneToScreen(x, y); return [q.x, q.y, r * S]; });
+      const onDisc = (R) => discs.some(([x, y, r]) => { const qx = clamp(x, R.l, R.r), qy = clamp(y, R.t, R.b); return (x - qx) * (x - qx) + (y - qy) * (y - qy) < r * r; });
+      /* 1枚の札を置く場所を決める（置けないときは null） */
+      const place = (L) => {
+        if (L.minS && S < L.minS) return null;
+        const p = L.edge === 'top' ? { x: (SR.l + SR.r) / 2, y: SR.t + 4 } : L.edge === 'bottom' ? { x: (SR.l + SR.r) / 2, y: SR.b - 4 }
+          : L.scr ? { x: L.sx, y: L.sy } : this.sceneToScreen(L.sx, L.sy);
         /* 札が指す物（持ち場・人・人数の看板）が欄の下にあるときは、札も出さない（はしへ寄せて、物とはなれた所に出さない） */
-        if (!L.scr && L.prio > 0 && L.prio < 8) {
+        if ((!L.scr || L.edge) && L.prio > 0 && L.prio < 8) {
           const tp = L.ring ? this.sceneToScreen(L.ring[0], L.ring[1]) : L.tx != null ? this.sceneToScreen(L.tx, L.ty) : p;
-          if (outOf(tp, 2)) return;
+          if (outOf(tp, 2)) return null;
         }
-        const fs = Math.max(L.min || 13, L.base * S);
+        /* 文字の大きさ: 13px 以上（L.min があればそれ以上）で、大きい画面でも 18px まで（DOM の文字より大きくしない） */
+        const fs = clamp(L.base * S, L.min || 13, Math.max(L.min || 13, 18));
         c.font = `bold ${fs.toFixed(1)}px ${CF}`;
         const pad = fs * 0.55, gap = fs * 0.22, isz = fs * 1.08;
         let w = 0;
@@ -2695,14 +3152,21 @@
         const left = L.ax === 'l' ? x : x - bw / 2;
         const top = L.ay === 't' ? y : L.ay === 'b' ? y - bh : y - bh / 2;
         const R = { l: left, t: top, r: left + bw, b: top + bh };
-        if (R.r < SR.l || R.l > SR.r || R.b < SR.t || R.t > SR.b) return;
-        /* 案内板は、安全な範囲に全部入らなければ描かない。ほかの札は安全な範囲の中へずらす */
+        if (R.r < SR.l || R.l > SR.r || R.b < SR.t || R.t > SR.b) return null;
         const out = R.l < SR.l + 2 || R.t < SR.t + 2 || R.r > SR.r - 2 || R.b > SR.b - 2;
-        if (out && L.prio >= 8) return;
-        /* ときどき出る DOM（ストップ中の札・ヒント・知らせなど）の下に入る札は描かない（半分かくれた札を出さない） */
-        const covered = (Q) => (this._covers || []).some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
-        if (L.prio >= 8 && covered(R)) return;
-        if (out) {
+        if (L.prio >= 8) {
+          /* 案内板は、安全な範囲に全部入らなければ描かない。区画の看板だけは、区画の画面上のはばの中で左右にずらして入れる */
+          if (out) {
+            if (!L.zone || R.t < SR.t + 2 || R.b > SR.b - 2) return null;
+            const zl = this.sceneToScreen(L.zone[0], 0).x, zr = this.sceneToScreen(L.zone[1], 0).x;
+            const lo = Math.max(SR.l + 2, zl - 2), hi = Math.min(SR.r - 2 - bw, Math.max(zl, zr - bw) + 2);
+            if (hi < lo) return null;
+            const nl = clamp(R.l, lo, hi);
+            R.r += nl - R.l; R.l = nl;
+          }
+          if (covered(R) || onDisc(R)) return null;
+        } else if (out) {
+          /* ほかの札は安全な範囲の中へずらす */
           const dx = R.l < SR.l + 4 ? SR.l + 4 - R.l : R.r > SR.r - 4 ? Math.max(SR.l + 4 - R.l, SR.r - 4 - R.r) : 0;
           const dy = R.t < SR.t + 4 ? SR.t + 4 - R.t : R.b > SR.b - 4 ? Math.max(SR.t + 4 - R.t, SR.b - 4 - R.b) : 0;
           R.l += dx; R.r += dx; R.t += dy; R.b += dy;
@@ -2711,14 +3175,28 @@
             const rc = this.sceneToScreen(L.ring[0], L.ring[1]), rr = L.ring[2] * S;
             if (R.l < rc.x + rr && R.r > rc.x - rr && R.t < rc.y + rr && R.b > rc.y - rr) {
               R.t = rc.y - rr - 3 - bh; R.b = R.t + bh;
-              if (R.t < SR.t + 2) return;
+              if (R.t < SR.t + 2) return null;
             }
           }
         }
-        if (L.prio > 0 && covered(R)) return;
-        if (placed.some((q) => R.l < q.r && R.r > q.l && R.t < q.b && R.b > q.t)) return;
-        placed.push(R);
-        this.drawLabelBox(c, L, R, fs, pad, gap, isz);
+        if (L.prio > 0 && covered(R)) return null;
+        if (L.avoid && onDisc(R)) return null;
+        if (placed.some((q) => R.l < q.r && R.r > q.l && R.t < q.b && R.b > q.t)) return null;
+        return { R, fs, pad, gap, isz };
+      };
+      c.save();
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      /* 粒（クリアのときだけ）は札の下に */
+      this.drawFxScreen(dt);
+      c.textBaseline = 'middle'; c.textAlign = 'left';
+      list.forEach((L) => {
+        let got = place(L);
+        /* 置けないときは、ほかの置き場（L.alt）を順にためす。えらんだ人・車の札は、持ち場の輪にかかるなら
+         * えらんだ物の下 → 安全な範囲の上のはしの中央 → 下のはしの中央 の順。どこもだめなら出さない */
+        for (let i = 0; !got && L.alt && i < L.alt.length; i++) got = place(Object.assign({}, L, L.alt[i]));
+        if (!got) return;
+        placed.push(got.R);
+        this.drawLabelBox(c, L, got.R, got.fs, got.pad, got.gap, got.isz);
       });
       c.restore();
     },
@@ -2762,6 +3240,21 @@
       c.globalAlpha = 1;
     },
 
+    /* ローカル座標で値のかわらないグラデーションを、キーごとにおぼえておく（キャンバスごと。毎フレーム作り直さない）。
+     * mk(g) は、まだないときに g（いまのキャンバスの 2D コンテキスト）で作る関数 */
+    gradOf(key, mk) {
+      const c = this.ctx;
+      if (!this._gcache) this._gcache = new WeakMap();
+      let m = this._gcache.get(c);
+      if (!m) { m = new Map(); this._gcache.set(c, m); }
+      let g = m.get(key);
+      if (!g) {
+        if (m.size > 600) m.clear();
+        g = mk(c);
+        m.set(key, g);
+      }
+      return g;
+    },
     /* 車の見た目に使う光の向き（車両ローカル座標の「光の来る向き」）。this._vl があればそれ、なければ左上 */
     litGrad(x, y, w, h, base) {
       const c = this.ctx, Lv = this._vl || [-0.7071, -0.7071];
@@ -2792,11 +3285,17 @@
       c.fillStyle = '#22272e';
       list.forEach(([x, y]) => { this.rr(x - w / 2, y, w, h, 1.2); c.fill(); });
     },
+    /* 車の窓ガラス。光の向きは litGrad と同じく約3°きざみにして、グラデーションをおぼえておく */
     glass(x, y, w, h, r) {
-      const c = this.ctx, Lv = this._vl || [-0.7071, -0.7071];
-      const g = c.createLinearGradient(x + w / 2 + Lv[0] * w / 2, y + h / 2 + Lv[1] * h / 2, x + w / 2 - Lv[0] * w / 2, y + h / 2 - Lv[1] * h / 2);
-      g.addColorStop(0, '#a9c3d6'); g.addColorStop(0.5, '#56718a'); g.addColorStop(1, '#2d4052');
-      c.fillStyle = g; this.rr(x, y, w, h, r); c.fill();
+      const Lv = this._vl || [-0.7071, -0.7071];
+      const qa = Math.round(Math.atan2(Lv[1], Lv[0]) * 20);
+      this.ctx.fillStyle = this.gradOf(`glass|${x}|${y}|${w}|${h}|${qa}`, (c) => {
+        const a = qa / 20, lx = Math.cos(a), ly = Math.sin(a);
+        const g = c.createLinearGradient(x + w / 2 + lx * w / 2, y + h / 2 + ly * h / 2, x + w / 2 - lx * w / 2, y + h / 2 - ly * h / 2);
+        g.addColorStop(0, '#a9c3d6'); g.addColorStop(0.5, '#56718a'); g.addColorStop(1, '#2d4052');
+        return g;
+      });
+      this.rr(x, y, w, h, r); this.ctx.fill();
     },
 
     /* 車両の絵（車両ローカル座標。キャブは -x 側）。ずかんからも呼ぶので、引数の形は変えない。
@@ -2805,38 +3304,42 @@
       const c = this.ctx;
       switch (type) {
         case 'beltloader': {
-          /* 全長は実物（約8m）に合わせる。ベルトの先が貨物ドアの敷居（+64）にとどく（回さない） */
-          this.tires([[-28, -14.5], [-28, 10.5], [3, -14.5], [3, 10.5]], 9, 4);
-          this.litBox(-34, -12, 44, 24, 4, '#5f6c79');
-          c.fillStyle = shadeHex('#5f6c79', -0.12); this.rr(-34, -12, 15, 24, 4); c.fill();   // キャブ
-          this.glass(-31.5, -8, 8, 16, 2);
+          /* 全長は実物（約8m）に合わせる: 車台 −26..8・ベルト +2..+52 で 78（約8.5m）、はば 20（約2.2m）。
+           * ベルトの先（+52）が貨物ドアの敷居にとどく（回さない） */
+          this.tires([[-20, -12.2], [-20, 8.2], [3, -12.2], [3, 8.2]], 8, 4);
+          this.litBox(-26, -10, 34, 20, 3.5, '#5f6c79');
+          c.fillStyle = shadeHex('#5f6c79', -0.12); this.rr(-26, -10, 12, 20, 3.5); c.fill();   // キャブ
+          this.glass(-24, -6.5, 7, 13, 2);
           c.strokeStyle = 'rgba(30,38,48,.35)'; c.lineWidth = 0.8; c.beginPath();
-          for (let x = -14; x <= 4; x += 4.5) { c.moveTo(x, -9); c.lineTo(x, 9); }     // エンジンカバーのすきま
+          for (let x = -10; x <= 5; x += 4) { c.moveTo(x, -7.5); c.lineTo(x, 7.5); }     // エンジンカバーのすきま
           c.stroke();
           c.save();
           c.translate(2, 0);
           /* ベルトの枠（左右のレール） */
-          c.fillStyle = '#6f7a86'; this.rr(0, -6.5, 62, 13, 2.5); c.fill();
+          c.fillStyle = '#6f7a86'; this.rr(0, -5.5, 50, 11, 2.5); c.fill();
           c.strokeStyle = shadeHex('#6f7a86', -0.2); c.lineWidth = 1; c.stroke();
           /* ベルトの面: 作業中は先が持ち上がる（地上側が暗く、先端が明るい） */
-          const bg = c.createLinearGradient(0, 0, 62, 0);
-          if (active) { bg.addColorStop(0, '#9aa6b1'); bg.addColorStop(1, '#e3e8ec'); } else { bg.addColorStop(0, '#a9b3bd'); bg.addColorStop(1, '#b8c1ca'); }
-          c.fillStyle = bg; c.fillRect(1.5, -4.6, 59, 9.2);
+          c.fillStyle = this.gradOf('belt|' + (active ? 1 : 0), (g) => {
+            const bg = g.createLinearGradient(0, 0, 50, 0);
+            if (active) { bg.addColorStop(0, '#9aa6b1'); bg.addColorStop(1, '#e3e8ec'); } else { bg.addColorStop(0, '#a9b3bd'); bg.addColorStop(1, '#b8c1ca'); }
+            return bg;
+          });
+          c.fillRect(1.5, -3.8, 47, 7.6);
           /* ベルトの横の板（作業中は流れる） */
-          const off = active ? (((gt * 0.7 * 47) % 4.5) * (reverse ? -1 : 1) + 4.5) % 4.5 : 0;
+          const off = active ? (((gt * 0.7 * 37) % 4.5) * (reverse ? -1 : 1) + 4.5) % 4.5 : 0;
           c.strokeStyle = 'rgba(70,82,96,.30)'; c.lineWidth = 0.6; c.beginPath();
-          for (let x = 2 + off; x < 60.5; x += 4.5) { c.moveTo(x, -4.4); c.lineTo(x, 4.4); }
+          for (let x = 2 + off; x < 48.5; x += 4.5) { c.moveTo(x, -3.6); c.lineTo(x, 3.6); }
           c.stroke();
-          c.fillStyle = '#3b4550'; c.fillRect(59, -6, 3, 12);                       // 先のローラー
+          c.fillStyle = '#3b4550'; c.fillRect(47, -5, 3, 10);                       // 先のローラー
           if (active) {
             const cols = ['#2f3640', '#c96f5c', '#4a5563'];                         // 差し色の荷物は1つだけ
             for (let i = 0; i < 3; i++) {
               let p = (gt * 0.7 + i / 3) % 1;
               if (reverse) p = 1 - p;
-              const bx = 6 + p * 47;
-              c.fillStyle = cols[i]; this.rr(bx, -4, 9, 8, 1.6); c.fill();
-              c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(bx + 1, -4, 7, 1);   // 上面のハイライト
-              c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(bx + 1, 3, 7, 1);
+              const bx = 5 + p * 37;
+              c.fillStyle = cols[i]; this.rr(bx, -3.4, 8, 6.8, 1.4); c.fill();
+              c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(bx + 1, -3.4, 6, 1);   // 上面のハイライト
+              c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(bx + 1, 2.4, 6, 1);
             }
           }
           c.restore();
@@ -2871,9 +3374,12 @@
           this.litBox(-48, -11, 20, 22, 3, '#9b2f3a');
           this.glass(-45, -7, 8, 14, 2);
           const Lv = this._vl || [-0.7071, -0.7071], s = Lv[1] >= 0 ? 1 : -1;   // タンクの光の側（車両ローカルの y）
-          const tg = c.createLinearGradient(0, s * 13, 0, -s * 13);
-          tg.addColorStop(0, '#b9c1c9'); tg.addColorStop(0.22, '#f4f6f8'); tg.addColorStop(0.6, '#cfd5db'); tg.addColorStop(1, '#8f99a3');
-          c.fillStyle = tg; this.rr(-26, -13, 74, 26, 4); c.fill();
+          c.fillStyle = this.gradOf('tank|' + s, (g) => {
+            const tg = g.createLinearGradient(0, s * 13, 0, -s * 13);
+            tg.addColorStop(0, '#b9c1c9'); tg.addColorStop(0.22, '#f4f6f8'); tg.addColorStop(0.6, '#cfd5db'); tg.addColorStop(1, '#8f99a3');
+            return tg;
+          });
+          this.rr(-26, -13, 74, 26, 4); c.fill();
           c.strokeStyle = shadeHex('#cfd5db', -0.2); c.lineWidth = 1; c.stroke();
           c.fillStyle = '#b8434e'; c.fillRect(-24, -11.6, 70, 1.4); c.fillRect(-24, 10.2, 70, 1.4);   // 赤い帯
           c.fillStyle = 'rgba(64,74,86,.55)'; c.fillRect(-20, -3.2, 58, 6.4);                         // 歩み板
@@ -3185,9 +3691,9 @@
         c.restore();
       });
       if (active && type === 'beltloader') {
-        const k = (lx) => 1 + 2.2 * (lx - 2) / 62;
+        const k = (lx) => 1 + 2.2 * (lx - 2) / 50;
         c.beginPath();
-        [W(2, -6, k(2)), W(64, -6, k(64)), W(64, 6, k(64)), W(2, 6, k(2))].forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)));
+        [W(2, -5, k(2)), W(52, -5, k(52)), W(52, 5, k(52)), W(2, 5, k(2))].forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)));
         c.closePath(); c.fill();
       }
       if (active && type === 'catering') {
@@ -3227,6 +3733,26 @@
       c.restore();
     },
 
+    /* トーバー: 押す車の牽引フックから前脚（前輪）までの棒（長さ約6m・はば約0.3m）。押す車が持ち場についているあいだと、押しているあいだ。
+     * 機体より先に描くので、胴体の下にかかる所は機体にかくれ、機首の前に出ている所だけが見える */
+    drawTowbar(state, ents, tr) {
+      const it = ents.find((v) => v.e.kind === 'vehicle' && v.e.type === 'pushback' && v.e.status === 'working' && v.e.taskId === 'pushback');
+      if (!it || tr.alpha <= 0.02) return;
+      const c = this.ctx, Lt = this.light, sL = Lt.shadowL;
+      const a = it.ang, hx = it.x + Math.cos(a) * 29.5, hy = it.y + Math.sin(a) * 29.5;   // 牽引フック（車両ローカル +29.5）
+      const g = this.transformPoint(ux(NOSE_GEAR_U), PLANE_CY, tr);
+      const bar = (ox, oy, w, col) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(hx + ox, hy + oy); c.lineTo(g.x + ox, g.y + oy); c.stroke(); };
+      c.save();
+      c.lineCap = 'round';
+      bar(2.2 * sL, 3 * sL, 2.8, `rgba(${Lt.shadowCol},${clamp(0.22 * Lt.shadowA, 0, 0.3).toFixed(3)})`);   // 地面に落ちる影
+      bar(0, 0, 2.8, '#3a414a');
+      bar(-0.5, -0.5, 0.9, 'rgba(160,170,182,.55)');   // 上面の光
+      /* 前脚につなぐ金具と、フック側の輪 */
+      c.fillStyle = '#2d343d';
+      c.beginPath(); c.arc(g.x, g.y, 2.2, 0, TAU); c.fill();
+      c.beginPath(); c.arc(hx, hy, 2, 0, TAU); c.fill();
+      c.restore();
+    },
     drawStaffEnt(state, it, gt, ghost) {
       const { e, x, y } = it;
       const push = state.tasks.pushback;
@@ -3297,7 +3823,12 @@
       if (e.skill === 'vet') parts.push({ i: 'vet' }, { t: 'はやい' });
       else if (e.skill === 'rookie') parts.push({ i: 'rookie' }, { t: 'ゆっくり' });
       parts.push({ t: '─ いきさきを タップ！' });
-      this.pushLabel({ prio: 1, sx: cx, sy: cy - r - 3, ay: 'b', dy: -3, tx: cx, ty: cy, parts, base: 11, style: 'sel' });
+      /* ふつうは えらんだ物の上。行き先の持ち場の輪（・進み具合の輪）にかかるなら、えらんだ物の下 → 安全な範囲の上のはしの中央
+       * → 下のはしの中央。どこでもかかるなら札は出さない（持ち場の輪をかくさない） */
+      this.pushLabel({
+        prio: 1, sx: cx, sy: cy - r - 3, ay: 'b', dy: -3, tx: cx, ty: cy, parts, base: 11, style: 'sel', avoid: true,
+        alt: [{ sy: cy + r + 3, ay: 't', dy: 3 }, { edge: 'top', scr: true, ay: 't', dy: 0 }, { edge: 'bottom', scr: true, ay: 'b', dy: 0 }],
+      });
     },
 
     /* 駐機中のシーン座標の点が、いまの機体の姿勢でどこにあるか（中心=主脚） */
@@ -3367,10 +3898,11 @@
       this.pushLabel({ prio: 2, sx: PAX_SIGN[0], sy: PAX_SIGN[1], parts, base: 12, style: 'pax' });
     },
 
-    /* 作業の進み具合の輪（人の頭の上。小さい画面では k 倍）。かみなりでおやすみ中は灰青 */
+    /* 作業の進み具合の輪（人の頭の上。小さい画面では k 倍）。かみなりでおやすみ中は --st-paused の色。
+     * 小さい画面（S<0.6）では作業のアイコンを省き、弧と状態の印（直径10px以上）だけにする（輪の外形は同じ） */
     drawRings(state, trIn) {
       const c = this.ctx;
-      const G = window.Game, k = this.spotK();
+      const G = window.Game, k = this.spotK(), small = this.scale() < 0.6;
       const paused = G.outdoorPaused && G.outdoorPaused();
       state.taskList.forEach((t) => {
         if (t.status !== 'active' || t.id === 'depart') return;
@@ -3383,6 +3915,7 @@
         }
         const pct = clamp(t.progress / G.effDur(t), 0, 1);
         const rest = paused && t.def.outdoor;
+        (this._ringDiscs || (this._ringDiscs = [])).push([x, y - 40 * k, 13.5 * k]);
         c.save();
         c.translate(x, y - 40 * k); c.scale(k, k);
         c.fillStyle = 'rgba(16,26,40,.25)'; c.beginPath(); c.arc(1, 1.8, 12.5, 0, TAU); c.fill();
@@ -3390,14 +3923,22 @@
         c.beginPath(); c.arc(0, 0, 12.5, 0, TAU); c.fill();
         c.strokeStyle = '#d5dbe1'; c.lineWidth = 2.4;
         c.beginPath(); c.arc(0, 0, 10.6, 0, TAU); c.stroke();
-        c.strokeStyle = rest ? '#5b6f86' : SPOT_COL.ready; c.lineWidth = 3;
+        const col = rest ? SPOT_COL.paused : SPOT_COL.ready;
+        c.strokeStyle = col; c.lineWidth = 3;
         c.beginPath(); c.arc(0, 0, 10.6, -Math.PI / 2, -Math.PI / 2 + pct * TAU); c.stroke();
-        const nm = window.Icons && window.Icons.task(t.id);
-        if (nm) window.Icons.draw(c, nm, 0, 0, 13, '#1e3a5f');
         /* 状態の印: おしごと中=青緑に working（すすみぐあいの輪）/ かみなりでおやすみ=灰青に pause */
-        c.fillStyle = '#ffffff'; c.beginPath(); c.arc(9.5, 9, 6.3, 0, TAU); c.fill();
-        c.fillStyle = rest ? '#5b6f86' : SPOT_COL.ready; c.beginPath(); c.arc(9.5, 9, 5, 0, TAU); c.fill();
-        if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 9.5, 9, 7.6, '#ffffff');
+        if (small) {
+          /* 小さい画面: 輪のまん中に大きめの印だけ（r8.5 → 画面で直径10px以上） */
+          c.fillStyle = '#ffffff'; c.beginPath(); c.arc(0, 0, 8.5, 0, TAU); c.fill();
+          c.fillStyle = col; c.beginPath(); c.arc(0, 0, 6.8, 0, TAU); c.fill();
+          if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 0, 0, 10.2, '#ffffff');
+        } else {
+          const nm = window.Icons && window.Icons.task(t.id);
+          if (nm) window.Icons.draw(c, nm, 0, 0, 13, '#1e3a5f');
+          c.fillStyle = '#ffffff'; c.beginPath(); c.arc(9.5, 9, 6.3, 0, TAU); c.fill();
+          c.fillStyle = col; c.beginPath(); c.arc(9.5, 9, 5, 0, TAU); c.fill();
+          if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 9.5, 9, 7.6, '#ffffff');
+        }
         c.restore();
       });
     },
@@ -3409,14 +3950,24 @@
       const always = !!(state.stage && state.stage.rainAll);
       return storm ? 'storm' : always ? 'rain' : null;
     },
-    /* 地面の波紋（20個。広がりながらうすくなる）。機体・車・人・持ち場の輪より前（下）に描くので、それらの上には出ない */
-    drawRainGround(state) {
+    /* 雨の濃さ（0..1）: ずっと雨のステージはすぐ 1。かみなりの雨は 1.5秒でフェードイン・アウト（背景のクロスフェードと同じ長さ） */
+    rainLevel(state, dt) {
       const mode = this.rainMode(state);
-      if (!mode) return;
-      const storm = mode === 'storm';
+      if (mode) this._rainMode = mode;
+      if (mode === 'rain' || reduceMotion()) this._rainA = mode ? 1 : 0;
+      else this._rainA = clamp((this._rainA || 0) + (mode ? 1 : -1) * (dt || 0) / 1.5, 0, 1);
+      return this._rainA;
+    },
+    /* 地面の波紋（20個。広がりながらうすくなる）。機体・車・人・持ち場の輪より前（下）に描くので、それらの上には出ない */
+    drawRainGround(state, dt) {
+      const ra = this.rainLevel(state, dt);
+      if (ra <= 0.001) return;
+      const storm = this._rainMode === 'storm';
       const c = this.ctx, B = this.viewBounds(), T = this.time;
       const gy0 = Math.max(150, B.y0), gy1 = Math.min(SCENE_H, B.y1);
       if (gy1 <= gy0) return;
+      c.save();
+      c.globalAlpha = ra;
       c.lineWidth = 0.9;
       c.strokeStyle = storm ? 'rgba(220,234,248,.55)' : 'rgba(220,234,248,.45)';
       c.beginPath();
@@ -3428,27 +3979,33 @@
         c.moveTo(rx + r, ry); c.ellipse(rx, ry, r, r * 0.42, 0, 0, TAU);
       }
       c.stroke();
+      c.restore();
     },
+    /* 雨すじ: 画面の座標で描く（ズームしても長さ 14〜20px・太さ 1.2〜1.6px のまま）。本数はキャンバスの面積で決める */
     drawRain(state) {
-      const mode = this.rainMode(state);
-      if (!mode) return;
-      const storm = mode === 'storm';
-      const c = this.ctx, B = this.viewBounds(), T = this.time;
-      const W = B.x1 - B.x0 + 120, H = B.y1 - B.y0 + 60;
-      const L = storm ? 24 : 18;
+      const ra = this._rainA || 0;
+      if (ra <= 0.001 || !this.cw) return;
+      const storm = this._rainMode === 'storm';
+      const c = this.ctx, T = this.time, cw = this.cw, ch = this.ch;
+      const W = cw + 80, H = ch + 60;
+      const L = storm ? 19 : 15;
+      c.save();
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      c.beginPath(); c.rect(0, 0, cw, ch); c.clip();
+      c.globalAlpha = ra;
       c.strokeStyle = storm ? 'rgba(210,228,246,.72)' : 'rgba(210,228,246,.5)';
-      c.lineWidth = storm ? 2.0 : 1.5;
+      c.lineWidth = storm ? 1.6 : 1.2;
       c.lineCap = 'round';
       c.beginPath();
-      const n = Math.round((storm ? 80 : 52) * clamp((W * H) / (1320 * 700), 0.5, 2.4));
+      const n = Math.round((storm ? 80 : 52) * clamp((cw * ch) / (1280 * 720), 0.3, 2.4));
       for (let i = 0; i < n; i++) {
-        const x = B.x0 - 60 + ((((i * 149 + T * 340) % W) + W) % W);
-        const y = B.y0 - 30 + ((((i * 97 + T * 700) % H) + H) % H);
+        const x = -40 + ((((i * 149 + T * 340) % W) + W) % W);
+        const y = -30 + ((((i * 97 + T * 700) % H) + H) % H);
         c.moveTo(x, y);
         c.lineTo(x - 0.44 * L, y - 0.9 * L);
       }
       c.stroke();
-      c.lineCap = 'butt';
+      c.restore();
     },
   };
 
