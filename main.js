@@ -58,6 +58,14 @@
           this.save = Object.assign({ sound: true, bgm: true, tutorialSeen: false, best: {}, badges: {} }, d);
         }
       } catch (e) { /* 壊れたデータは初期値で続行 */ }
+      /* 型をそろえる（best・badges が null や配列のこわれたセーブでも、タイトル・ずかん・結果で止まらない）。新しいフィールドは足さない */
+      if (!this.save || typeof this.save !== 'object' || Array.isArray(this.save)) this.save = { sound: true, bgm: true, tutorialSeen: false, best: {}, badges: {} };
+      ['best', 'badges'].forEach((k) => {
+        const v = this.save[k];
+        if (!v || typeof v !== 'object' || Array.isArray(v)) this.save[k] = {};
+      });
+      const DEF = { sound: true, bgm: true, tutorialSeen: false };
+      Object.keys(DEF).forEach((k) => { if (typeof this.save[k] !== 'boolean') this.save[k] = DEF[k]; });
       UI.sfx.enabled = this.save.sound !== false;
       UI.bgm.enabled = this.save.bgm !== false;
     },
@@ -142,20 +150,45 @@
         onModalClosed: (kind) => {
           /* 設定・ながれマップ・設定から開いたモーダル(settings-sub)を閉じたら速度を元にもどす（ゲーム中のみ）。
            * 設定から別のモーダルへ移るときは silent で閉じるので、ここは呼ばれない（あいだに時間が進まない） */
-          if ((kind === 'settings' || kind === 'flow' || kind === 'settings-sub') && this.inGame() && this.begun && !this.ending && !Game.state.ended) {
+          if ((kind === 'settings' || kind === 'flow' || kind === 'settings-sub') && this.inGame() && this.begun && !this.ending && !this.cinematic && !Game.state.ended) {
             this.setSpeed(this.prevSpeed || 1);
           }
         },
       });
 
+      /* さいごの操作がキーボード（Tab・矢印）か、ポインタ（マウス・ゆび）か。
+       * :focus-visible は マウスで押したボタンでも キーを押した時点で true になる（Chrome）ので使わない */
+      this.kbNav = false;
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Tab' || /^Arrow/.test(ev.key)) this.kbNav = true;
+      }, true);
+      document.addEventListener('pointerdown', () => { this.kbNav = false; }, true);
+
       /* キーボード操作（PC向け）: スペース=一時停止/再開, 1/2=速度 */
       document.addEventListener('keydown', (ev) => {
-        if (!this.inGame() || !this.begun || (Game.state && Game.state.ended)) return;
+        if (!this.inGame() || (Game.state && Game.state.ended)) return;
         if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
-        /* モーダルを開いているときは何もしない。キーボードでボタンをえらんでいるときの Space はボタンを押す */
+        /* モーダルを開いているときは何もしない */
         const bd = document.getElementById('modal-backdrop');
         if (bd && !bd.classList.contains('hidden')) return;
-        if (ev.code === 'Space' && ev.target && ev.target.matches && ev.target.matches('button:focus-visible')) return;
+        /* キーボードでボタンをえらんでいるときの Space・Enter は、そのボタンを押す（ボタンにまかせる） */
+        const onBtn = ev.target && ev.target.tagName === 'BUTTON';
+        if (!this.begun) {
+          /* スタートの案内が出ている間: Space・Enter・1・2 で はじめる（2 なら はやいで） */
+          const ov = document.getElementById('start-overlay');
+          if (!ov || ov.classList.contains('hidden')) return;
+          const isBegin = ev.target && ev.target.id === 'btn-begin';
+          if (ev.code === 'Space' || ev.key === 'Enter') {
+            if (onBtn && (isBegin || this.kbNav)) return;   // ボタン自身が押される（「はじめる」なら begin になる）
+            ev.preventDefault();
+            this.begin();
+          } else if (ev.key === '1' || ev.key === '2') {
+            this.pendingSpeed = ev.key === '2' ? 2 : 1;
+            this.begin();
+          }
+          return;
+        }
+        if (ev.code === 'Space' && onBtn && this.kbNav) return;
         if (ev.code === 'Space') {
           ev.preventDefault();
           this.setSpeed(this.speed === 0 ? (this.prevSpeed || 1) : 0);
@@ -216,6 +249,7 @@
       this.begun = false;
       this.ending = false;
       this.cinematic = false;
+      this.pendingSpeed = null;
       this.speed = 0;
       this.prevSpeed = 1;
       Game.newRun(id);
@@ -223,6 +257,8 @@
       UI.setSpeedUI(0);
       UI.showScreen('game');
       this.startLoop();
+      /* キーボードで すぐ はじめられるように「はじめる」へ。チュートリアルを閉じたあとも ここへもどる */
+      UI.focusBegin();
       if (!this.save.tutorialSeen) {
         UI.openTutorial(() => {
           this.save.tutorialSeen = true;
@@ -236,25 +272,35 @@
       this.begun = true;
       UI.hideStartOverlay();
       UI.bgm.start();
+      /* はじめる前・とうちゃく中に えらんだ はやさ（2=はやい・0=とめる）。えらんでいなければ ふつう */
+      const speedAfter = () => (this.pendingSpeed != null ? this.pendingSpeed : 1);
       if (this.debug) {
         /* デバッグ時は到着シネマティックを省略（自動テストを決定的にする） */
-        this.setSpeed(1);
+        this.setSpeed(speedAfter());
+        this.pendingSpeed = null;
         UI.coachBegin();
         return;
       }
       this.cinematic = true;
       UI.scene.playArrival(() => {
         this.cinematic = false;
-        this.setSpeed(1);
+        this.setSpeed(speedAfter());
+        this.pendingSpeed = null;
         UI.coachBegin();
       });
     },
 
     setSpeed(n) {
       if (!this.inGame()) return;
-      if (this.cinematic) return;
+      if (this.cinematic) {
+        /* とうちゃく中に押した はやさは おぼえておき、とまったら その はやさで はじめる（とめる なら とめたまま） */
+        this.pendingSpeed = n;
+        UI.setSpeedUI(n);
+        UI.toast('✈ いま とうちゃくしているよ。とまったら はじめよう', 'info');
+        return;
+      }
       if (Game.state && Game.state.ended) n = 0;
-      if (!this.begun && n > 0) { this.begin(); return; }
+      if (!this.begun && n > 0) { this.pendingSpeed = n; this.begin(); return; }
       if (n > 0) this.prevSpeed = n;
       this.speed = n;
       UI.setSpeedUI(n);
@@ -279,7 +325,7 @@
     },
 
     openSettings() {
-      if (this.inGame() && this.begun && !this.ending) {
+      if (this.inGame() && this.begun && !this.ending && !this.cinematic) {
         this.prevSpeed = this.speed > 0 ? this.speed : this.prevSpeed;
         this.setSpeed(0);
       }
@@ -371,7 +417,8 @@
           nextGoal = `バッジ「${notYet.name}」: ${notYet.desc}`;
           goalNote = starGoal;
         } else {
-          nextGoal = starGoal || 'かんぺき！ つぎのステージや、まだ取っていないバッジに ちょうせんしよう！';
+          /* ここに来るのは ★3つ・100点で、バッジも ぜんぶ とったとき */
+          nextGoal = starGoal || `かんぺき！ ぜんぶの バッジと 100${TEN}を とったね。べつの ステージでも 100${TEN}を めざそう！`;
         }
       }
 
