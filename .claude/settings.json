@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] || exit 0; [ -d /tmp/node_modules/puppeteer-core ] && exit 0; cd /tmp && npm i --no-audit --no-fund --silent puppeteer-core@23 >/dev/null 2>&1 || echo 'puppeteer-core の自動インストールに失敗しました(cd /tmp && npm i puppeteer-core@23 を手で実行)'",
+            "timeout": 300,
+            "statusMessage": "クラウド環境: 画面の確認に使う puppeteer-core を /tmp に入れています"
+          }
+        ]
+      }
+    ]
+  }
+}
