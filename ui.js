@@ -718,6 +718,7 @@
     /* 自分でズーム・パンしたら、機体を追うのをやめる */
     _userCam(mode) {
       this._endTween();
+      this._needFit = false;   // はじめの画角を決める前に自分で動かしたら、その画角を優先する
       this.camMode = mode || 'user';
       if (this._follow) this._followOff = true;
     },
