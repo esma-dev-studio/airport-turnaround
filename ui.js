@@ -2899,7 +2899,7 @@
           kind,
           cls: 'tut',
           title: st.title,
-          body: `<div class="tut-page">${st.body}</div>`,
+          body: `<div class="tut-page">${this.rubyWords(rubi(st.body))}</div>`,
           foot: `<div class="tut-foot" aria-label="${idx + 1} / ${steps.length} ページ"><div class="tut-dots" aria-hidden="true">${dots}</div><span class="tut-count">${idx + 1} / ${steps.length}</span></div>`,
           buttons,
           dismissible: false,
@@ -3067,6 +3067,15 @@
       });
       flush();
       return out;
+    },
+
+    /* わかち書きの文（チュートリアル）で、ルビの語と、空白までの となりの字を 1つの <span class="phr"> にまとめる。
+     * keep-all でも Chrome はルビの前後で改行してしまう（「作戦｜タイム！」「時間｜の」）ため。タグはまたがない。
+     * 入力は rubi() のあとの HTML */
+    rubyWords(html) {
+      const RB = '<ruby>[\\s\\S]*?<\\/ruby>';
+      const re = new RegExp(`[^\\s<>　]*${RB}(?:[^\\s<>　]*${RB})*[^\\s<>　]*`, 'g');
+      return String(html).replace(re, (m) => `<span class="phr">${m}</span>`);
     },
 
     /* ルビが親文字より広いとき、となりが かな・記号（ルビのない字）なら、ルビを そちらへ少し はみ出させて、
