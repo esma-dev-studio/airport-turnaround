@@ -2698,7 +2698,7 @@
         const LOOK = {
           ramp: 'きいろの ベスト', baggage: 'オレンジの ベスト', cleaning: 'みどりの ベスト',
           maintenance: 'あかい いろが めじるし', gate: 'あおい ベスト',
-          beltloader: 'ななめに のびる ながい ベルト', cart: 'にもつを のせた だいしゃを つなげて ひっぱる',
+          beltloader: 'ながい ベルトが ついている', cart: 'にもつを のせた だいしゃを つなげて ひっぱる',
           fuel: 'しろい タンクに あかい せん', catering: 'しろい はこの 荷台', pushback: 'ひくくて きいろが めじるし',
         };
         const item = (kind, type, m) => {
