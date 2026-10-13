@@ -968,8 +968,16 @@
       let anchor = null;
       if (px == null) {
         const I = this.insets;
-        const m = this.sceneToScreen(PLANE_MID[0], PLANE_MID[1]);
-        if (this._planeHome !== false && m.x > I.l && m.x < this.cw - I.r && m.y > I.t && m.y < this.ch - I.b) anchor = { x: PLANE_MID[0], y: PLANE_MID[1] };
+        const inView = (q) => q.x > I.l && q.x < this.cw - I.r && q.y > I.t && q.y < this.ch - I.b;
+        if (this._pushActive && this._lastTr) {
+          /* プッシュバック中は「機首+押す車」の中心へ（押す車がスコア板の下に かくれない） */
+          const n = this.transformPoint(NOSE_X, PLANE_CY, this._lastTr), t = this.transformPoint(TUG_SLOT[0], TUG_SLOT[1], this._lastTr);
+          const mid = { x: (n.x + t.x) / 2, y: (n.y + t.y) / 2 };
+          if (inView(this.sceneToScreen(mid.x, mid.y))) anchor = mid;
+        } else {
+          const m = this.sceneToScreen(PLANE_MID[0], PLANE_MID[1]);
+          if (this._planeHome !== false && inView(m)) anchor = { x: PLANE_MID[0], y: PLANE_MID[1] };
+        }
       }
       const before = anchor || this.screenToScene(pivot.x, pivot.y);
       this.cam.zoom = clamp(this.cam.zoom * factor, this.zoomFloor(), 2.6);
@@ -1283,6 +1291,9 @@
         this.stepTween(dtReal);
       }
       const tr = state ? this.planeTransform(state) : null;
+      /* ボタンで拡大・縮小するときの基準（zoomAt）に使う */
+      this._lastTr = tr;
+      this._pushActive = !!(state && state.tasks.pushback.status === 'active');
       if (state && this.cw) this.updateFollow(state, tr, dtReal);
       this.clampCam();
 
@@ -3099,8 +3110,9 @@
       this.pushLabel({ prio: 9, sx: 10, sy: 45, ax: 'l', parts: [{ i: 'plane' }, { t: 'そらみなと こくさいくうこう' }], base: 13, style: 'airport', minS: 0.55 });
       this.pushLabel({ prio: 9, sx: BRG.x, sy: 112, parts: [{ t: 'GATE 7' }], base: 13, style: 'gate', minS: 0.55 });
       if (!state || this._planeHome) this.pushLabel({ prio: 9, sx: 439, sy: PLANE_CY, parts: [{ t: 'S7' }], base: 13, style: 'spotno', minS: 0.55 });
-      this.pushLabel({ prio: 8, sx: Z.x + 2, sy: Z.y - 17, ax: 'l', parts: [{ t: 'スタッフのまちあい' }], base: 13, style: 'board', minS: signS, zone: [Z.x, Z.x + Z.w] });
-      this.pushLabel({ prio: 8, sx: E.x1 + 12, sy: V.y - 19, ax: 'l', parts: [{ t: 'はたらく くるまの おきば' }], base: 13, style: 'board', minS: signS, zone: [V.x, V.x + V.w] });
+      /* 区画の看板（zone: 区画の左右のはし、zoneBelow: 区画の下はし。上に置けないときは 区画の下に置く） */
+      this.pushLabel({ prio: 8, sx: Z.x + 2, sy: Z.y - 17, ax: 'l', parts: [{ t: 'スタッフのまちあい' }], base: 13, style: 'board', minS: signS, zone: [Z.x, Z.x + Z.w], zoneBelow: Z.y + Z.h });
+      this.pushLabel({ prio: 8, sx: E.x1 + 12, sy: V.y - 19, ax: 'l', parts: [{ t: 'はたらく くるまの おきば' }], base: 13, style: 'board', minS: signS, zone: [V.x, V.x + V.w], zoneBelow: V.y + V.h });
     },
     drawLabelsScreen(state, dt) {
       const c = this.ctx;
@@ -3135,7 +3147,23 @@
       const covered = (Q) => (this._covers || []).some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
       /* 持ち場の輪（はじめられる・あつまり中・もうすぐ）と進み具合の輪（画面座標の円）。案内板と、えらんだ人の札はこれにかからない所に出す */
       const discs = (this._spotDiscs || []).concat(this._ringDiscs || []).map(([x, y, r]) => { const q = this.sceneToScreen(x, y); return [q.x, q.y, r * S]; });
-      const onDisc = (R) => discs.some(([x, y, r]) => { const qx = clamp(x, R.l, R.r), qy = clamp(y, R.t, R.b); return (x - qx) * (x - qx) + (y - qy) * (y - qy) < r * r; });
+      const onDisc = (R, m) => discs.some(([x, y, r]) => { const qx = clamp(x, R.l, R.r), qy = clamp(y, R.t, R.b), rr = r + (m || 0); return (x - qx) * (x - qx) + (y - qy) * (y - qy) < rr * rr; });
+      /* 区画の看板がよける物: 駐機スポットの赤い枠の線（制限区域ライン）と、機体の翼の先（画面座標） */
+      const E = ZONE.era, e0 = this.sceneToScreen(E.x0, E.y0), e1 = this.sceneToScreen(E.x1, E.y1);
+      const frameLines = [
+        { x0: e0.x, x1: e1.x, y0: e0.y, y1: e0.y }, { x0: e0.x, x1: e1.x, y0: e1.y, y1: e1.y },
+        { x0: e0.x, x1: e0.x, y0: e0.y, y1: e1.y }, { x0: e1.x, x1: e1.x, y0: e0.y, y1: e1.y },
+      ];
+      const onFrame = (R, m) => frameLines.some((q) => R.l - m < q.x1 && R.r + m > q.x0 && R.t - m < q.y1 && R.b + m > q.y0);
+      const tipDiscs = [];
+      if (state && this._lastTr && this._lastTr.alpha > 0.05) {
+        const tipX = (ux(W_TIP_LE) + ux(W_TIP_TE)) / 2, tipR = 14;
+        [PLANE_CY - W_TIP * PK, PLANE_CY + W_TIP * PK].forEach((ty) => {
+          const p = this.transformPoint(tipX, ty, this._lastTr), q = this.sceneToScreen(p.x, p.y);
+          tipDiscs.push([q.x, q.y, tipR * S]);
+        });
+      }
+      const onTip = (R, m) => tipDiscs.some(([x, y, r]) => { const qx = clamp(x, R.l, R.r), qy = clamp(y, R.t, R.b), rr = r + m; return (x - qx) * (x - qx) + (y - qy) * (y - qy) < rr * rr; });
       /* 1枚の札を置く場所を決める（置けないときは null） */
       const place = (L) => {
         if (L.minS && S < L.minS) return null;
@@ -3159,16 +3187,32 @@
         const R = { l: left, t: top, r: left + bw, b: top + bh };
         if (R.r < SR.l || R.l > SR.r || R.b < SR.t || R.t > SR.b) return null;
         const out = R.l < SR.l + 2 || R.t < SR.t + 2 || R.r > SR.r - 2 || R.b > SR.b - 2;
-        if (L.prio >= 8) {
-          /* 案内板は、安全な範囲に全部入らなければ描かない。区画の看板だけは、区画の画面上のはばの中で左右にずらして入れる */
-          if (out) {
-            if (!L.zone || R.t < SR.t + 2 || R.b > SR.b - 2) return null;
-            const zl = this.sceneToScreen(L.zone[0], 0).x, zr = this.sceneToScreen(L.zone[1], 0).x;
-            const lo = Math.max(SR.l + 2, zl - 2), hi = Math.min(SR.r - 2 - bw, Math.max(zl, zr - bw) + 2);
-            if (hi < lo) return null;
-            const nl = clamp(R.l, lo, hi);
-            R.r += nl - R.l; R.l = nl;
+        const free0 = (Q) => !covered(Q) && !onDisc(Q, 6) && !onFrame(Q, 3) && !onTip(Q, 3) && !placed.some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
+        if (L.prio >= 8 && L.zone) {
+          /* 区画の看板: 区画の上（決めた高さ）→ 区画の下 の順に、区画の画面上のはばの中で左右にずらして、
+           * DOM の欄・持ち場の輪と進み具合の輪（6px あける）・駐機スポットの赤い枠の線・翼の先・ほかの札に かからない所に置く。
+           * どこにも置けないときは描かない */
+          const zl = this.sceneToScreen(L.zone[0], 0).x, zr = this.sceneToScreen(L.zone[1], 0).x;
+          const lo = Math.max(SR.l + 2, zl - 2), hi = Math.min(SR.r - 2 - bw, Math.max(zl, zr - bw) + 2);
+          /* 安全な範囲に入っていれば、まず決めた位置のまま */
+          if (!out && free0(R)) return { R, fs, pad, gap, isz };
+          if (hi < lo) return null;
+          const tops = [R.t];
+          if (L.zoneBelow != null) tops.push(this.sceneToScreen(0, L.zoneBelow).y + 3);
+          for (const t of tops) {
+            if (t < SR.t + 2 || t + bh > SR.b - 2) continue;
+            const want = clamp(R.l, lo, hi), lefts = [want];
+            for (let d = 6; d <= hi - lo + 6; d += 6) { if (want - d >= lo) lefts.push(want - d); if (want + d <= hi) lefts.push(want + d); }
+            for (const l of lefts) {
+              const Q = { l, t, r: l + bw, b: t + bh };
+              if (free0(Q)) return { R: Q, fs, pad, gap, isz };
+            }
           }
+          return null;
+        }
+        if (L.prio >= 8) {
+          /* 案内板は、安全な範囲に全部入らなければ描かない */
+          if (out) return null;
           if (covered(R) || onDisc(R)) return null;
         } else if (out) {
           /* ほかの札は安全な範囲の中へずらす */
@@ -3904,10 +3948,14 @@
     },
 
     /* 作業の進み具合の輪（人の頭の上。小さい画面では k 倍）。かみなりでおやすみ中は --st-paused の色。
-     * 小さい画面（S<0.6）では作業のアイコンを省き、弧と状態の印（直径10px以上）だけにする（輪の外形は同じ） */
+     * まんなかに作業のアイコン、右下に状態の印（おしごと中=青緑に working / おやすみ=灰青に pause）のバッジ。
+     * 小さい画面（S<0.6）では、輪を画面で直径25px ほどまで大きくして（最大2.2倍。大きくした分は上へのばし、輪の下はしは同じ高さ）、
+     * 作業のアイコンを 紺の円に白抜きで出す（何の作業か わかるように） */
     drawRings(state, trIn) {
       const c = this.ctx;
-      const G = window.Game, k = this.spotK(), small = this.scale() < 0.6;
+      const G = window.Game, k = this.spotK(), S = this.scale(), small = S < 0.6;
+      const kr = small ? clamp(1 / S, k, 2.2) : k;
+      const lift = 40 * k + 12.5 * (kr - k);
       const paused = G.outdoorPaused && G.outdoorPaused();
       state.taskList.forEach((t) => {
         if (t.status !== 'active' || t.id === 'depart') return;
@@ -3920,9 +3968,9 @@
         }
         const pct = clamp(t.progress / G.effDur(t), 0, 1);
         const rest = paused && t.def.outdoor;
-        (this._ringDiscs || (this._ringDiscs = [])).push([x, y - 40 * k, 13.5 * k]);
+        (this._ringDiscs || (this._ringDiscs = [])).push([x, y - lift, 13.5 * kr]);
         c.save();
-        c.translate(x, y - 40 * k); c.scale(k, k);
+        c.translate(x, y - lift); c.scale(kr, kr);
         c.fillStyle = 'rgba(16,26,40,.25)'; c.beginPath(); c.arc(1, 1.8, 12.5, 0, TAU); c.fill();
         c.fillStyle = 'rgba(255,255,255,.95)';
         c.beginPath(); c.arc(0, 0, 12.5, 0, TAU); c.fill();
@@ -3931,19 +3979,16 @@
         const col = rest ? SPOT_COL.paused : SPOT_COL.ready;
         c.strokeStyle = col; c.lineWidth = 3;
         c.beginPath(); c.arc(0, 0, 10.6, -Math.PI / 2, -Math.PI / 2 + pct * TAU); c.stroke();
-        /* 状態の印: おしごと中=青緑に working（すすみぐあいの輪）/ かみなりでおやすみ=灰青に pause */
+        const nm = window.Icons && window.Icons.task(t.id);
         if (small) {
-          /* 小さい画面: 輪のまん中に大きめの印だけ（r8.5 → 画面で直径10px以上） */
-          c.fillStyle = '#ffffff'; c.beginPath(); c.arc(0, 0, 8.5, 0, TAU); c.fill();
-          c.fillStyle = col; c.beginPath(); c.arc(0, 0, 6.8, 0, TAU); c.fill();
-          if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 0, 0, 10.2, '#ffffff');
-        } else {
-          const nm = window.Icons && window.Icons.task(t.id);
-          if (nm) window.Icons.draw(c, nm, 0, 0, 13, '#1e3a5f');
-          c.fillStyle = '#ffffff'; c.beginPath(); c.arc(9.5, 9, 6.3, 0, TAU); c.fill();
-          c.fillStyle = col; c.beginPath(); c.arc(9.5, 9, 5, 0, TAU); c.fill();
-          if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 9.5, 9, 7.6, '#ffffff');
-        }
+          /* 小さい画面: 紺の円に 白抜きの作業アイコン */
+          c.fillStyle = '#1e3a5f'; c.beginPath(); c.arc(0, 0, 8.4, 0, TAU); c.fill();
+          if (nm) window.Icons.draw(c, nm, 0, 0, 11, '#ffffff');
+        } else if (nm) window.Icons.draw(c, nm, 0, 0, 13, '#1e3a5f');
+        /* 状態の印（右下のバッジ） */
+        c.fillStyle = '#ffffff'; c.beginPath(); c.arc(9.5, 9, 6.3, 0, TAU); c.fill();
+        c.fillStyle = col; c.beginPath(); c.arc(9.5, 9, 5, 0, TAU); c.fill();
+        if (window.Icons) window.Icons.draw(c, rest ? 'pause' : 'working', 9.5, 9, 7.6, '#ffffff');
         c.restore();
       });
     },
