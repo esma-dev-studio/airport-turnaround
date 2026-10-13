@@ -3148,13 +3148,9 @@
       /* 持ち場の輪（はじめられる・あつまり中・もうすぐ）と進み具合の輪（画面座標の円）。案内板と、えらんだ人の札はこれにかからない所に出す */
       const discs = (this._spotDiscs || []).concat(this._ringDiscs || []).map(([x, y, r]) => { const q = this.sceneToScreen(x, y); return [q.x, q.y, r * S]; });
       const onDisc = (R, m) => discs.some(([x, y, r]) => { const qx = clamp(x, R.l, R.r), qy = clamp(y, R.t, R.b), rr = r + (m || 0); return (x - qx) * (x - qx) + (y - qy) * (y - qy) < rr * rr; });
-      /* 区画の看板がよける物: 駐機スポットの赤い枠の線（制限区域ライン）と、機体の翼の先（画面座標） */
+      /* 区画の看板がよける物: 駐機スポットの赤い枠（制限区域ライン。線と その中。区画の看板を枠の中に置かない）と、機体の翼の先（画面座標） */
       const E = ZONE.era, e0 = this.sceneToScreen(E.x0, E.y0), e1 = this.sceneToScreen(E.x1, E.y1);
-      const frameLines = [
-        { x0: e0.x, x1: e1.x, y0: e0.y, y1: e0.y }, { x0: e0.x, x1: e1.x, y0: e1.y, y1: e1.y },
-        { x0: e0.x, x1: e0.x, y0: e0.y, y1: e1.y }, { x0: e1.x, x1: e1.x, y0: e0.y, y1: e1.y },
-      ];
-      const onFrame = (R, m) => frameLines.some((q) => R.l - m < q.x1 && R.r + m > q.x0 && R.t - m < q.y1 && R.b + m > q.y0);
+      const onFrame = (R, m) => R.l - m < e1.x && R.r + m > e0.x && R.t - m < e1.y && R.b + m > e0.y;
       const tipDiscs = [];
       if (state && this._lastTr && this._lastTr.alpha > 0.05) {
         const tipX = (ux(W_TIP_LE) + ux(W_TIP_TE)) / 2, tipR = 14;
@@ -3190,7 +3186,7 @@
         const free0 = (Q) => !covered(Q) && !onDisc(Q, 6) && !onFrame(Q, 3) && !onTip(Q, 3) && !placed.some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
         if (L.prio >= 8 && L.zone) {
           /* 区画の看板: 区画の上（決めた高さ）→ 区画の下 の順に、区画の画面上のはばの中で左右にずらして、
-           * DOM の欄・持ち場の輪と進み具合の輪（6px あける）・駐機スポットの赤い枠の線・翼の先・ほかの札に かからない所に置く。
+           * DOM の欄・持ち場の輪と進み具合の輪（6px あける）・駐機スポットの赤い枠（線と その中）・翼の先・ほかの札に かからない所に置く。
            * どこにも置けないときは描かない */
           const zl = this.sceneToScreen(L.zone[0], 0).x, zr = this.sceneToScreen(L.zone[1], 0).x;
           const lo = Math.max(SR.l + 2, zl - 2), hi = Math.min(SR.r - 2 - bw, Math.max(zl, zr - bw) + 2);
