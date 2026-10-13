@@ -55,6 +55,11 @@
   --st-issue: #b3261e;
   --st-locked: #5b6b80;
   --st-paused: #4a5584;   /* まだ（#5b6b80）と見分けられる 青むらさき寄りの灰（白文字 7.2） */
+  /* えらんだ人が いける持ち場（駐機場の太い実線の輪・チュートリアルの凡例）。あかむらさき。
+   * かんりょうの緑・はじめられるの青緑・あつまり中のこはく・まだの灰・おやすみ・トラブルの赤と、
+   * 1型/2型/3型の見え方でも 色差(CIEDE2000) 11.8 以上はなれる。白地 4.71:1（コンクリートの上では白いふちどりをつける） */
+  --st-target: #c026d3;
+  --st-target-bg: #f8e5fb;
 
   /* 重なり順（z-index の段） */
   --z-fx: 1;
@@ -1271,6 +1276,19 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .start-trivia .ico { width: 16px; height: 16px; color: var(--accent-d); }
 .start-card p .ico { width: 17px; height: 17px; }
+/* カードが HUD・リボンと スタッフ帯の あいだに入らないとき（UI.placeStartCard）: カードの中を スクロールする。
+ * 「はじめる」を まめちしきより上にして、スクロールしなくても見えるようにする */
+.start-card.sc-tight { display: flex; flex-direction: column; overflow-y: auto; }
+.start-card.sc-tight > * { flex: none; }
+.start-card.sc-tight #start-trivia { order: 1; margin: 14px 0 0; }
+.start-card.sc-tight #btn-begin { align-self: center; }
+.start-card.scroll-more {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+}
+/* 背の低い画面で カードを幕の高さいっぱいまで使うときは、幕の下の スタッフ帯を かくす（カードが帯に かかって見えない）。
+ * スマホと低い画面（幕が画面ぜんたい）では HUD・ながれリボンも（下の @media） */
+#screen-game.start-cover #panel-resources { visibility: hidden; }
 
 /* ---------------- 右上パネル（スコアのもと: 2×2） ---------------- */
 #panel-status {
@@ -1402,6 +1420,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .game-log .lg-ok { background: #eef8f1; }
 .game-log .lg-warn { background: #fdf6dd; }
 .game-log .lg-bad { background: #fdeaea; color: #8f2f2f; }
+/* まだ1行もないとき: 「まだ きろくは ないよ」を まんなかに */
+.game-log .lg-empty { background: none; margin: auto 0; text-align: center; color: var(--ink-2); font-size: var(--fs-min); }
 
 /* ---------------- 下パネル（スタッフ・はたらく車。表示だけ・押せない見た目） ---------------- */
 #panel-resources {
@@ -1795,7 +1815,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .tsw-badge .ico { width: 9px; height: 9px; }
 .tsw-wait { border: 3px solid var(--st-wait); background: var(--st-wait-bg); }
-.tsw-target { border: 4px solid var(--st-done); background: #e3f5ea; }
+.tsw-target { border: 4px solid var(--st-target); background: var(--st-target-bg); }
 .tsw-soon { border: 2px dotted var(--st-locked); background: #f4f7fa; }
 .tut-mark { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; vertical-align: -0.35em; }
 .tut-mark.ready { border: 2px solid var(--st-ready); color: var(--st-ready); background: #fff; }
@@ -2305,6 +2325,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   .start-card { margin: auto; max-width: 100%; display: flex; flex-direction: column; }
   #start-trivia { order: 1; margin: 14px 0 0; }
   #btn-begin { align-self: center; }
+  #screen-game.start-cover #hud,
+  #screen-game.start-cover #flow-ribbon { visibility: hidden; }
 }
 /* ---------------- レスポンシブ（スマホは縦積みに戻す） ---------------- */
 @media (max-width: 700px) {
@@ -2446,6 +2468,9 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     z-index: var(--z-sheet);
   }
   #panel-status.log-open .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 18px; }
+  /* きろくのリストは シートの のこりの高さに おさめて、シートの中で スクロールする
+   * （高さ 360px ほどの画面では 260px を とれないので、シートを画面の高さいっぱいにして その中で読む） */
+  #panel-status.log-open #game-log { flex: 1 1 0; min-height: 0; }
   /* 一時停止は 上の知らせに積まない（持ち場・スタッフ帯・ズームに かぶらない）。HUD の「とめているよ」で知らせる
    * （ステージ名の下、天気の となり。とめている間は 天気を アイコンだけにして、時計の箱に かからない） */
   .top-rail > .pause-chip { display: none; }

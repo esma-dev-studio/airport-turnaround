@@ -348,6 +348,8 @@
         this.rafId = requestAnimationFrame(loop);
         const dtReal = this.lastTs == null ? 0 : Math.min((ts - this.lastTs) / 1000, 0.25);
         this.lastTs = ts;
+        /* 駐機場の DOM の計測（キャンバスの大きさ・見える範囲）は、Game.tick が DOM を書きかえる前にすませる（強制レイアウトを起こさない） */
+        if (UI.scene && UI.scene.preFrame) UI.scene.preFrame(dtReal);
         if (this.begun && this.speed > 0 && Game.state && !Game.state.ended) {
           Game.tick((dtReal / REAL_SEC_PER_GAME_MIN) * this.speed);
         }

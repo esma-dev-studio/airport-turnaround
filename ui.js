@@ -221,8 +221,8 @@
     beltloader: 'ベルト', cart: 'カート', fuel: 'きゅうゆ', catering: 'きないしょく', pushback: 'おすくるま',
   };
   /* 持ち場の色（DOM と同じ。:root の --st-* があればそれを使う）。
-   * 「えらんだ人が いける ところ」は --st-target（チュートリアルの凡例と同じトークン）。まだ無いときは --st-done のまま */
-  const SPOT_COL = { ready: '#0b6f8a', gather: '#c98a00', accept: '#1f7a45', soon: '#8796a8', unlock: '#0b6f8a', done: '#1f7a45', locked: '#5b6b80', paused: '#4a5584' };
+   * 「えらんだ人が いける ところ」は --st-target（あかむらさき。チュートリアルの凡例と同じトークン。かんりょうの緑とは別の色） */
+  const SPOT_COL = { ready: '#0b6f8a', gather: '#c98a00', accept: '#c026d3', soon: '#8796a8', unlock: '#0b6f8a', done: '#1f7a45', locked: '#5b6b80', paused: '#4a5584' };
   let _spotColRead = false;
   const spotCol = () => {
     if (!_spotColRead && typeof getComputedStyle === 'function' && document.documentElement) {
@@ -230,7 +230,7 @@
       const cs = getComputedStyle(document.documentElement);
       const pick = (k, v) => { const x = (cs.getPropertyValue(v) || '').trim(); if (/^#[0-9a-f]{6}$/i.test(x)) { SPOT_COL[k] = x; return true; } return false; };
       pick('ready', '--st-ready'); pick('gather', '--st-wait'); pick('done', '--st-done'); pick('locked', '--st-locked'); pick('paused', '--st-paused');
-      if (!pick('accept', '--st-target')) pick('accept', '--st-done');
+      pick('accept', '--st-target');
       SPOT_COL.unlock = SPOT_COL.ready;
     }
     return SPOT_COL;
@@ -897,12 +897,12 @@
       this._hold = hold;
       this._lock = phase || hold;
       this._relax = phase || hold || !!this._tween;   // 補間のあいだは、ゆるい範囲のまま（はしでとばない）
-      /* 出発: 機首が安全な範囲の左から25%の所まで来たら（または進み具合60%で）追うのをやめて、カメラを止める。
-       * そのあとは機体が自分で画面の左（ドロワーの下・キャンバスの外）へ走っていく（半透明にして消さない） */
-      if (dep === 'active' && !this._depStop && this.cw) {
-        const t = state.tasks.depart, p = clamp(t.progress / window.Game.effDur(t), 0, 1);
-        const n = this.transformPoint(NOSE_X, PLANE_CY, tr), ns = this.sceneToScreen(n.x, n.y);
-        if (p >= 0.6 || ns.x < this.insets.l + this.safeW() * 0.25) this._depStop = true;
+      /* 出発: 機体を追いつづけ（カメラは誘導路の左はしで止まる）、機体の後ろはし（右のはし。影のぶんの余白つき）が
+       * 安全な範囲の左はし（insets.l。広い画面ではドロワーの右はし）より左へ出てから、追うのをやめてカメラを止める。
+       * 見えている地面の上で機体がドロワーの下へすべりこまない。そのあとは機体が自分で画面の左へ走っていく（半透明にして消さない） */
+      if (dep === 'active' && !this._depStop && this.cw && tr) {
+        const b = this.planeScreenBox({ x: tr.x + PIVOT_X, y: tr.y + PLANE_CY, h: tr.rot }, 24);
+        if (b.x1 < this.insets.l) this._depStop = true;
       }
       this._follow = phase && !this._followOff && !this._depStop && tr.alpha > 0.05 ? true : null;
       /* 余白だけの補間（camFixed）のあいだは追いつづける。カメラを動かす補間（到着から はじめの画角へ など）のあいだは止める */
@@ -2129,16 +2129,21 @@
       }
       return out(pose, alpha);
     },
-    /* 主脚が pose（{x,y,h}）にある機体の外形の箱（影・灯火のぶんの余白つき）が、キャンバスの外に全部出ているか */
-    planeOffCanvas(pose) {
-      if (!this.cw || !this.ch) return false;
-      const m = 80, cs = Math.cos(pose.h), sn = Math.sin(pose.h);
+    /* 主脚が pose（{x,y,h}）にある機体の外形の箱（機体スプライトの範囲に余白 m をつけたもの）を、いまの画角の画面座標で返す */
+    planeScreenBox(pose, m) {
+      const cs = Math.cos(pose.h), sn = Math.sin(pose.h);
       let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
       [[SPR.x0 - m, SPR.y0 - m], [SPR.x0 + SPR.w + m, SPR.y0 - m], [SPR.x0 + SPR.w + m, SPR.y0 + SPR.h + m], [SPR.x0 - m, SPR.y0 + SPR.h + m]].forEach(([lx, ly]) => {
         const p = this.sceneToScreen(pose.x + lx * cs - ly * sn, pose.y + lx * sn + ly * cs);
         x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
       });
-      return x1 < 0 || x0 > this.cw || y1 < 0 || y0 > this.ch;
+      return { x0, y0, x1, y1 };
+    },
+    /* 主脚が pose（{x,y,h}）にある機体の外形の箱（影・灯火のぶんの余白つき）が、キャンバスの外に全部出ているか */
+    planeOffCanvas(pose) {
+      if (!this.cw || !this.ch) return false;
+      const b = this.planeScreenBox(pose, 80);
+      return b.x1 < 0 || b.x0 > this.cw || b.y1 < 0 || b.y0 > this.ch;
     },
 
     /* ============ 機体（上から見たA320） ============
@@ -4074,6 +4079,8 @@
       this.els['btn-log-toggle'].addEventListener('click', () => {
         const open = this.els['panel-status'].classList.toggle('log-open');
         this.setLogToggle(open);
+        /* スマホで きろくを開いている間に ためていたトーストを、閉じたら 1枚だけ出す */
+        if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
       });
 
       /* ズーム（持ち場のポップを開いていたら、持ち場のそばへ置きなおす） */
@@ -4141,7 +4148,7 @@
       }
       this._lastW = window.innerWidth;
       window.addEventListener('resize', () => {
-        this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH();
+        this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH(); this.placeStartCard();
         if (this.spotPopTask) {
           if (this.isNarrow()) {
             /* 横向き → 縦向き: 広い画面で決めた位置・高さを消して、下からのシートにもどす */
@@ -4738,23 +4745,11 @@
     },
 
     /* 持ち場の画面上の位置（キャンバスの左上から）。カメラが補間で動いている間は、動き終わったときの位置
-     * （開いた瞬間から 正しい所に置き、補間のあいだ ポップを ゆらさない）。Scene の値は 読んで もどすだけで、かえない */
+     * （開いた瞬間から 正しい所に置き、補間のあいだ ポップを ゆらさない）。余白だけを補間しているとき（機体を追っているあいだ）は、
+     * カメラは今の値のまま（Scene.sceneToScreenAt が決める）。Scene の値は かえない */
     spotScreenPos(taskId) {
       const a = Scene.anchorOf(taskId) || [615, 320];
-      const tw = Scene._tween;
-      if (tw && tw.to && Scene.cam && Scene.insets && isFinite(tw.to.zoom)) {
-        const cam0 = { zoom: Scene.cam.zoom, cx: Scene.cam.cx, cy: Scene.cam.cy };
-        const ins0 = Scene.insets;
-        try {
-          Object.assign(Scene.cam, { zoom: tw.to.zoom, cx: tw.to.cx, cy: tw.to.cy });
-          if (tw.to.ins) Scene.insets = { ...tw.to.ins };
-          return Scene.sceneToScreen(a[0], a[1]);
-        } finally {
-          Object.assign(Scene.cam, cam0);
-          Scene.insets = ins0;
-        }
-      }
-      return Scene.sceneToScreen(a[0], a[1]);
+      return Scene.sceneToScreenAt ? Scene.sceneToScreenAt(a[0], a[1]) : Scene.sceneToScreen(a[0], a[1]);
     },
     /* 広い画面: カメラが動いたら（ドロワーの開け閉め・ズーム・機体を追う など）、ポップを持ち場のそばへ置きなおす。
      * 4px 以上動いたときだけ。ゆびで ポップを押している間は動かさない。持ち場が画面の外へ出たら とじる */
@@ -4875,8 +4870,9 @@
       const pop = this.els['spot-pop'];
       pop.classList.add('hidden');
       pop.style.maxHeight = '';
-      /* スマホのシートを開いている間に ためていたトーストを、閉じたら 1枚だけ出す（モーダルと同じ） */
-      if (was && !this.modalKind && this._toastQ && this._toastQ.length) this.flushToastQ();
+      /* スマホのシートを開いている間に ためていたトーストを、閉じたら 1枚だけ出す（モーダルと同じ。まだ ためておく間なら 出さない）。
+       * シートの「はじめる」などは 閉じてから作業を動かすので、その処理が すんでから（はじめた作業を のぞいて）出す */
+      if (was && this._toastQ && this._toastQ.length) Promise.resolve().then(() => this.flushToastQ());
     },
 
     showScreen(name) {
@@ -4888,6 +4884,8 @@
       el.scrollTop = 0;
       /* モーダルが開いたままなら、新しい画面もモーダルの裏として操作できないようにする */
       if (this.modalKind) { el.inert = true; this._inertEl = el; }
+      /* スタートの案内のカードは、画面を出した その場で 帯の あいだに置く */
+      if (name === 'game') this.placeStartCard();
     },
 
     /* ---------------- ステージ選択 ---------------- */
@@ -4987,7 +4985,8 @@
       this.els['hud-stage-name'].textContent = state.stage.shortName;
       this.updateWeatherHud();
       this.els['hud-std'].textContent = window.fmtClock(state.stage.std);
-      this.els['game-log'].innerHTML = '';
+      /* きろくが まだ 1行もないときは、空欄だけに しない */
+      this.els['game-log'].innerHTML = `<li class="lg-empty">${window.rubi('まだ きろくは ないよ')}</li>`;
       this.els['event-banner'].classList.add('hidden');
       this.els['screen-game'].classList.remove('has-event');
       this.els['toast-area'].innerHTML = '';
@@ -5010,6 +5009,7 @@
         : this.gx(state.stage.name);
       this.els['start-overlay-text'].innerHTML = this.gx(state.stage.intro).replace(/\n/g, '<br>');
       document.getElementById('start-trivia').innerHTML = this.ico('info') + ' まめちしき: ' + this.gx(pickTrivia());
+      this.placeStartCard();
       this.els['pause-chip'].classList.add('hidden');
       this.prevMetrics = { safety: 100, punct: 100, sat: 100, cost: 100 };
 
@@ -5086,13 +5086,56 @@
       this.updateClock(true);
       this.syncDrawer();
       this.updateTouchAction();
-      requestAnimationFrame(() => { this.measureResH(); this.updateResMore(); this.updateRibbonMore(); this.applyViewInsets(); });
+      requestAnimationFrame(() => { this.measureResH(); this.updateResMore(); this.updateRibbonMore(); this.applyViewInsets(); this.placeStartCard(); });
       setTimeout(() => { if (this.state === state) this.applyViewInsets(); }, 300);
     },
 
     hideStartOverlay() {
       this.els['start-overlay'].classList.add('hidden');
+      this.els['screen-game'].classList.remove('start-cover');
       this.closeSpotPop();   // はじめる前に開いていたポップを、何もない駐機場の上に残さない
+    },
+    /* スタートの案内のカードを、上の HUD・ながれリボンと 下のスタッフ帯の あいだに置く（カードが帯・リボンに かからない）。
+     *  ・入るとき: そのあいだの まんなか
+     *  ・入らないとき: カードの高さを そのあいだに おさえて、カードの中を スクロールする（「はじめる」は まめちしきより上にして、いつも見える）
+     *  ・そのあいだに「はじめる」まで入らない 背の低い画面（スマホの横向きなど）: 幕の下の HUD・リボン・スタッフ帯を かくして、
+     *    カードは画面の高さいっぱいまで使う（文は へらさない） */
+    placeStartCard() {
+      const ov = this.els['start-overlay'], sg = this.els['screen-game'];
+      if (!ov || ov.classList.contains('hidden') || !sg.classList.contains('active')) return;
+      const card = ov.querySelector('.start-card');
+      if (!card._scrollBound) { card._scrollBound = true; card.addEventListener('scroll', () => this.updateScrollMore(card), { passive: true }); }
+      ov.style.paddingTop = ''; ov.style.paddingBottom = '';
+      card.style.maxHeight = '';
+      card.classList.remove('sc-tight', 'scroll-more');
+      sg.classList.remove('start-cover');
+      const o = ov.getBoundingClientRect();
+      if (o.height < 1) return;
+      const box = (id) => {
+        const el = this.els[id] || document.getElementById(id);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return r.width >= 1 && r.height >= 1 ? r : null;
+      };
+      let top = o.top + 16, bot = o.bottom - 16;
+      ['hud', 'flow-ribbon'].forEach((id) => { const r = box(id); if (r && r.bottom > o.top && r.top < o.top + o.height / 2) top = Math.max(top, r.bottom + 8); });
+      const st = box('panel-resources');
+      if (st && st.top < o.bottom && st.bottom > o.top + o.height / 2) bot = Math.min(bot, st.top - 8);
+      const room = Math.floor(bot - top);
+      const pad = () => { ov.style.paddingTop = Math.round(top - o.top) + 'px'; ov.style.paddingBottom = Math.round(o.bottom - bot) + 'px'; };
+      if (card.offsetHeight <= room) { pad(); return; }
+      /* 入らない: 「はじめる」を まめちしきより上にした形で、「はじめる」の下はしまでが入るか */
+      card.classList.add('sc-tight');
+      const need = Math.ceil(this.els['btn-begin'].getBoundingClientRect().bottom - card.getBoundingClientRect().top + parseFloat(getComputedStyle(card).paddingBottom));
+      if (need <= room) {
+        pad();
+        card.style.maxHeight = room + 'px';
+      } else {
+        sg.classList.add('start-cover');
+        const r2 = ov.getBoundingClientRect();
+        card.style.maxHeight = Math.max(200, Math.floor(r2.height - 32)) + 'px';
+      }
+      this.updateScrollMore(card);
     },
     /* スタートの案内を出したら「はじめる」へフォーカス（キーボードで すぐ はじめられる） */
     focusBegin() {
@@ -5503,6 +5546,8 @@
       const mark = /^\p{Extended_Pictographic}/u.test(msg) ? null : ({ warn: 'alert', bad: 'alert', ok: 'check' })[entry.cls];
       li.innerHTML = `<span class="lg-t">${window.fmtClock(entry.t)}</span>${mark ? this.ico(mark) + ' ' : ''}${this.gx(msg)}`;
       const ul = this.els['game-log'];
+      const empty = ul.querySelector('.lg-empty');
+      if (empty) empty.remove();
       ul.prepend(li);
       while (ul.children.length > 40) ul.removeChild(ul.lastChild);
     },
@@ -5513,13 +5558,20 @@
       if (type === 'coach') { this.showCoach(msg); return; }
       this.pushToast(this.gx(msg), type);
     },
-    pushToast(html, type) {
+    /* トーストを ためておく間: モーダルを開いている間・スマホで持ち場のシートや「きろく」を開いている間
+     * （シートの うしろに かくれて 見えないまま 消えないように。きろくの行を かくさないように） */
+    holdToasts() {
+      if (!this.els['screen-game'].classList.contains('active')) return false;
+      if (this.modalKind) return true;
+      return this.isNarrow() && (!!this.spotPopTask || this.els['panel-status'].classList.contains('log-open'));
+    },
+    /* ids: 「はじめられるよ！」('open') の作業の id。ためたあと出すときに、まだ はじめられるかを 確かめなおす */
+    pushToast(html, type, ids) {
       const gameOn = this.els['screen-game'].classList.contains('active');
-      /* モーダルを開いている間・スマホで持ち場のシートを開いている間は ためておき、閉じたあとで1枚だけ出す
-       * （シートの うしろに かくれて 見えないまま 消えないように） */
-      if (gameOn && (this.modalKind || (this.isNarrow() && this.spotPopTask))) {
+      /* ためておく間は、閉じたあとで1枚だけ出す */
+      if (gameOn && this.holdToasts()) {
         this._toastQ = this._toastQ || [];
-        this._toastQ.push({ html, type });
+        this._toastQ.push({ html, type, ids: ids ? ids.slice() : null });
         if (this._toastQ.length > 8) this._toastQ.shift();
         return null;
       }
@@ -5561,7 +5613,7 @@
         o.t = now;
         return;
       }
-      const el = this.pushToast(this.openToastHtml(ids), 'open');
+      const el = this.pushToast(this.openToastHtml(ids), 'open', ids);
       this._openToast = el ? { el, ids: ids.slice(), t: now } : null;
     },
     /* 「はじめられるよ！」を先に言い、名前は アイコン+名前 を「・」でつなぐ。スマホは2つ・広い画面は3つまで（のこりは「ほか Nこ」） */
@@ -5574,11 +5626,26 @@
       const more = ids.length > max ? ` ほか ${ids.length - max}こ` : '';
       return this.ico('unlock') + ' はじめられるよ！ ' + names + more;
     },
+    /* ためていたトーストを1枚だけ出す（まだ ためておく間なら 何もしない）。
+     * 「はじめられるよ！」は、ためた間に はじめた・おわった作業を のぞいて1枚にまとめなおす（のこりが なければ 出さない） */
     flushToastQ() {
-      const q = this._toastQ || [];
+      if (this.holdToasts()) return;
+      const q0 = this._toastQ || [];
       this._toastQ = [];
+      if (!q0.length) return;
+      const ready = (id) => { const t = this.state && this.state.tasks[id]; return !!t && t.status === 'ready'; };
+      const openIds = [];
+      q0.forEach((x) => { if (x.type === 'open') (x.ids || []).forEach((id) => { if (ready(id) && !openIds.includes(id)) openIds.push(id); }); });
+      let lastOpen = -1;
+      q0.forEach((x, i) => { if (x.type === 'open') lastOpen = i; });
+      const q = q0.filter((x, i) => x.type !== 'open' || (i === lastOpen && openIds.length));
       if (!q.length) return;
       const pick = [...q].reverse().find((x) => x.type === 'bad') || [...q].reverse().find((x) => x.type === 'warn') || q[q.length - 1];
+      if (pick.type === 'open') {
+        const el = this.pushToast(this.openToastHtml(openIds), 'open', openIds);
+        this._openToast = el ? { el, ids: openIds.slice(), t: performance.now() } : null;
+        return;
+      }
       this.pushToast(pick.html, pick.type);
     },
 
@@ -6382,7 +6449,7 @@
         {
           title: `${I.svg('list')} おしごとの すすめかた`,
           body: `<p><strong>① おまかせ</strong>：作業カードの「${I.svg('play')} はじめる」を おすと、ひつような 人と車が じぶんで うごくよ。</p>
-                 <p><strong>② 自分で 配置</strong>：駐機場の スタッフや <ruby>車<rt>くるま</rt></ruby>を タップして えらび、<strong>みどりの ふとい わ</strong>の 持ち場を タップ。そろうと はじまるよ。</p>
+                 <p><strong>② 自分で 配置</strong>：駐機場の スタッフや <ruby>車<rt>くるま</rt></ruby>を タップして えらび、<strong>あかむらさきの ふとい わ</strong>の 持ち場を タップ。そろうと はじまるよ。</p>
                  <p>${I.svg('vet')} ベテランは はやい、${I.svg('rookie')} 新人は ゆっくり。だれを おくるかも 作戦だよ。</p>
                  <p>${I.svg('lock')} は まだ はじめられない しるし。${I.svg('unlock')}「はじめられるよ！」の おしらせが 合図だよ。</p>`,
         },
