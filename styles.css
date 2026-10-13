@@ -1135,7 +1135,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   margin-top: 10px; padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-.modal-btns .btn { text-wrap: balance; word-break: auto-phrase; }
+.modal-btns .btn { text-wrap: balance; word-break: auto-phrase; min-height: calc(var(--tap) + 2px); }   /* 44px を小数の誤差でも下回らない */
 
 /* ---------------- イベント（4つのマスで、えらんだときの「よくなる・わるくなる」をそろえて見せる） ---------------- */
 .ev-legend {
@@ -1242,7 +1242,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   background: none; border: none; box-shadow: none;
   color: var(--ink-2); font-weight: 500;
   text-decoration: underline; text-underline-offset: 3px;
-  min-height: 44px; padding: 4px 8px 5px;   /* ほかのボタンと同じ高さ（ページで並びの高さが変わらない） */
+  min-height: calc(var(--tap) + 2px); padding: 4px 8px 5px;   /* ほかのボタンと同じ高さ（ページで並びの高さが変わらない） */
 }
 .tut-lead { margin-bottom: 6px; }
 .tut-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
