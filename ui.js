@@ -2651,12 +2651,11 @@
       const tabBtns = '<div class="zk-tabs" role="tablist">' + tabs.map(([k, ico, l]) =>
         `<button type="button" role="tab" aria-selected="${k === tab}" class="zk-tab ${k === tab ? 'on' : ''}" data-tab="${k}">${I.svg(ico)}${l}</button>`).join('') + '</div>';
       let body = '';
-      let wide = false;
+      /* ずかんはどのタブも同じ広い板（タブを切りかえても幅が変わらない） */
       if (tab === 'flow') {
         body = this.buildFlowHtml(false);
       } else if (tab === 'tasks') {
         /* ステップ1〜7 の見出しでまとめる。カードは名前と1行の説明。なぜ・安全メモは「くわしく」の中（最初のカードだけ開いておく） */
-        wide = true;
         let first = true;
         body = '<div class="zk-list zk-cards">' + window.FLOW_ROWS.map((r) => {
           const head = `<h3 class="zk-stephead"><span class="flow-stepnum" style="--sc:var(--s${r.step})">${r.step}</span>${rubi(r.title)}</h3>`;
@@ -2689,8 +2688,8 @@
             return `<div class="zk-item badge-item ${got ? 'bd-got' : 'bd-notyet'}">
               <span class="medal${got ? '' : ' off'}" aria-hidden="true">${got ? this.emojiRaw(b.icon) : I.svg('lock')}</span>
               <div>
-                <div class="zk-head">${rubi(b.name)}${got ? ' <span class="bd-mark">もらった！</span>' : ''}</div>
-                <p>${got ? '' : '<span class="bd-how">とりかた：</span>'}${rubi(b.desc)}</p>
+                <div class="zk-head"><span>${this.phraseBreaks(rubi(b.name))}</span>${got ? ' <span class="bd-mark">もらった！</span>' : ''}</div>
+                <p>${got ? '' : '<span class="bd-how">とりかた：</span>'}${this.phraseBreaks(rubi(b.desc))}</p>
               </div>
             </div>`;
           }).join('') + '</div>';
@@ -2708,14 +2707,14 @@
             <div><div class="zk-head">${I.svg(I.res(type))}${rubi(m.label)}</div>
             <p>${rubi(m.desc)}</p>${LOOK[type] ? `<p class="zk-look">めじるし：${rubi(LOOK[type])}</p>` : ''}</div></div>`;
         };
-        body = '<div class="zk-list"><h3 class="zk-cat">スタッフ</h3>' +
+        body = '<div class="zk-list zk-cards"><h3 class="zk-cat">スタッフ</h3>' +
           Object.keys(window.RES_META.staff).map((k) => item('staff', k, window.RES_META.staff[k])).join('') +
           '<h3 class="zk-cat">はたらく<ruby>車<rt>くるま</rt></ruby>（GSE）</h3>' +
           Object.keys(window.RES_META.vehicles).map((k) => item('veh', k, window.RES_META.vehicles[k])).join('') + '</div>';
       }
       this.openModal({
         kind: 'zukan',
-        cls: wide ? 'wide' : '',
+        cls: 'wide',
         title: '📖 空港ずかん',
         body: tabBtns + body,
         buttons: [{ label: 'とじる', cls: 'btn-primary' }],
@@ -3045,7 +3044,7 @@
       starsEl.setAttribute('role', 'img');
       starsEl.setAttribute('aria-label', `スター ${extras.stars} / 3`);
       starsEl.innerHTML = [1, 2, 3].map((i) => (i <= extras.stars
-        ? `<i class="on" style="animation-delay:${0.2 + i * 0.2}s">${I.svg('star')}</i>`
+        ? `<i class="on" style="animation-delay:${0.1 + i * 0.15}s">${I.svg('star')}</i>`
         : `<i>${I.svg('star-outline')}</i>`)).join('');
 
       /* 新しくとれたバッジ（クリアできなかった回は祝わない: しずかな見た目・🎉なし・はんこの動きなし） */

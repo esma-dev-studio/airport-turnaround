@@ -1101,7 +1101,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .modal-title { flex: 1; min-width: 0; font-size: 1.1rem; font-weight: 700; color: var(--navy); line-height: 1.9; padding-top: 3px; }
 .modal-title .ico { color: var(--navy-2); }
 .modal-x {
-  flex: none; width: 44px; height: 44px; margin: -4px -12px 0 0;
+  flex: none; width: 46px; height: 46px; margin: -5px -12px 0 0;
   display: inline-flex; align-items: center; justify-content: center;
   border: none; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
   cursor: pointer; line-height: 1;
@@ -1209,7 +1209,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .switch {
   flex: none;
   display: inline-flex; align-items: center; gap: 8px;
-  min-height: var(--tap); padding: 0 4px;
+  min-height: calc(var(--tap) + 2px); padding: 0 4px;
   border: none; background: none; cursor: pointer;
   font: inherit; font-size: var(--fs-sm); font-weight: 700; color: var(--ink-2); line-height: 1.35;
 }
@@ -1431,6 +1431,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 }
 .zk-badge-sum .ico { color: #b07d10; }
 .badge-item { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; }
+.badge-item .zk-head { flex-wrap: wrap; row-gap: 0; }
 .badge-item.bd-got { border-color: #eabf4d; background: #fffdf4; }
 .medal {
   width: 44px; height: 44px; border-radius: 50%;
