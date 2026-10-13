@@ -1654,8 +1654,8 @@
       new MutationObserver(() => this.syncDrawer()).observe(this.els['panel-tasks'], { attributes: true, attributeFilter: ['class'] });
       /* スタッフ帯の高さ → --res-h */
       if (window.ResizeObserver) {
-        new ResizeObserver(() => { this.measureResH(); this.updateResMore(); }).observe(this.els['panel-resources']);
-        new ResizeObserver(() => this.placeRail()).observe(this.els['panel-status']);
+        new ResizeObserver(() => { this.measureResH(); this.updateResMore(); this.applyViewInsets(); }).observe(this.els['panel-resources']);
+        new ResizeObserver(() => { this.placeRail(); this.applyViewInsets(); }).observe(this.els['panel-status']);
       }
       window.addEventListener('resize', () => {
         this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH();
@@ -2293,6 +2293,7 @@
       this.syncDrawer();
       this.updateTouchAction();
       requestAnimationFrame(() => { this.measureResH(); this.updateResMore(); this.updateRibbonMore(); this.applyViewInsets(); });
+      setTimeout(() => { if (this.state === state) this.applyViewInsets(); }, 300);
     },
 
     hideStartOverlay() {
@@ -2825,8 +2826,16 @@
       if (!Scene.setViewInsets) return;
       const pt = this.els['panel-tasks'], aw = this.els['apron-wrap'];
       const open = !pt.classList.contains('closed');
+      /* 左: ひらいたドロワーの右はし（すべっている途中でも、とまったときの位置で測る） */
       const l = (!this.isNarrow() && open) ? Math.max(0, pt.offsetLeft + pt.offsetWidth - aw.offsetLeft + 8) : 0;
-      Scene.setViewInsets({ l, r: 0, t: 0, b: 0 });
+      /* 右・上・下（スコア板・スタッフ帯）: Scene に DOM の欄を測る方法があれば、その値を使う（0 で上書きして欄の下に機体を入れない） */
+      let r = 0, t = 0, b = 0;
+      if (Scene.resize && aw.clientWidth && (Scene.cw !== aw.clientWidth || Scene.ch !== aw.clientHeight)) Scene.resize();
+      if (Scene.freeRect && Scene.cw && Scene.ch) {
+        const f = Scene.freeRect();
+        r = Math.max(0, Scene.cw - f.r); t = Math.max(0, f.t); b = Math.max(0, Scene.ch - f.b);
+      }
+      Scene.setViewInsets({ l, r, t, b });
     },
     /* 701〜1099px: 駐機場をさわったとき・持ち場ポップを開いたときは、ドロワーをとじる */
     autoCloseDrawer() {
