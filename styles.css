@@ -322,7 +322,7 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 #hud-std { color: #9fdcb3; text-shadow: 0 0 8px rgba(159, 220, 179, 0.3); }
 /* 「のこり」がいちばん大事なので、数字を大きく・太く */
 #hud-remain { font-size: 1.5rem; font-weight: 900; }
-#hud-remain .rem-u { font-size: max(13px, 0.58em); font-weight: 700; line-height: 1.85; margin-left: 2px; letter-spacing: 0; }
+#hud-remain .rem-u { font-size: max(13px, 0.58em); font-weight: 700; line-height: 1.9; margin-left: 2px; letter-spacing: 0; }
 #hud-remain .rem-done { font-size: 0.72em; }
 /* 遅れは赤い数字と「+N分遅れ」の文で伝える（点滅はしない） */
 #hud-remain.late { color: #ff8d8d; text-shadow: 0 0 8px rgba(255, 120, 120, 0.4); }
