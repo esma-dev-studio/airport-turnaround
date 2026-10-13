@@ -100,25 +100,60 @@
   /* Canvas用フォント（Webフォント読みこみ後に適用される） */
   const CF = '"Zen Kaku Gothic New", "Segoe UI", Meiryo, sans-serif';
 
-  /* 作業ごとの持ち場（x, y, [車両の向きdeg]） */
+  /* ---------- 機体の寸法（エアバスA320相当。単位はメートル） ----------
+   * u = 機首からの距離（うしろへ+）、v = 中心線からの横の距離（右主翼＝スターボード側が+）。
+   * 機首は右向き。右向きの機体を上から見ると、画面の上が左側（ポート）、下が右側（スターボード）。
+   * だから搭乗橋は上のL1ドアにつき、貨物ドア・ケータリング（R2）・給油口（右主翼の下）は下側にくる。 */
+  const PK = 9.2;                          // 1m = 9.2px（全長37.6m→346px・翼幅35.8m→329px）
+  const NOSE_X = 856, PLANE_CY = 316;      // 駐機位置の機首先端のxと、胴体の中心線のy
+  const PIVOT_U = 17.7;                    // 主脚の位置（向きを変えるときの中心）
+  const PIVOT_X = NOSE_X - PIVOT_U * PK;
+  const NOSE_GEAR_U = 5.1;
+  const WHEELBASE = (PIVOT_U - NOSE_GEAR_U) * PK;
+  const PLANE_MID = [NOSE_X - 18.8 * PK, PLANE_CY];
+  const ux = (u) => +(NOSE_X - u * PK).toFixed(1);     // 機首からu[m]の位置のx（駐機中）
+  const FUS_R = 1.975;                     // 胴体の半径（幅3.95m）
+  /* 胴体の平面形（半幅[m]）。機首はレドームの丸み、うしろはテールコーンへしぼる */
+  const fusHW = (u) => {
+    if (u <= 0) return 0;
+    if (u < 6.5) { const t = u / 6.5; return FUS_R * Math.pow(1 - (1 - t) * (1 - t), 0.6); }
+    if (u <= 28) return FUS_R;
+    const s = Math.min(1, (u - 28) / 9.6);
+    return 0.3 + (FUS_R - 0.3) * (1 - Math.pow(s, 1.8));
+  };
+  /* 主翼: 前縁の後退角は約28.5°（25%翼弦で約25°）。後縁は胴体近くがまっすぐで、キンクから先が後退する */
+  const W_LE0 = 12.5, W_SWEEP = 0.543, W_KINK = 6.3, W_TE_IN = 19.0, W_TIP = 17.05, W_TIP_CHORD = 1.5;
+  const wingLE = (v) => W_LE0 + (Math.abs(v) - 1.98) * W_SWEEP;
+  const W_TIP_LE = wingLE(W_TIP), W_TIP_TE = W_TIP_LE + W_TIP_CHORD;
+  const wingTE = (v) => {
+    const a = Math.abs(v);
+    return a <= W_KINK ? W_TE_IN : W_TE_IN + (a - W_KINK) * ((W_TIP_TE - W_TE_IN) / (W_TIP - W_KINK));
+  };
+  const ENG_V = 5.75;                      // エンジンは中心線から5.75m（パイロンで主翼の前下に吊る）
+  const DOOR_U = { L1: 5.3, R2: 30.4, fwdCargo: 8.8, aftCargo: 24.4 };
+  const BELT_Y = 397;                      // ベルトの先が貨物ドアの敷居にとどく位置
+
+  /* 作業ごとの持ち場（x, y, [車両の向きdeg]）。人や車が翼・エンジンに重ならないように置く */
   const SLOTS = {
-    deboard:   { staff: [[378, 252]] },
-    board:     { staff: [[378, 252]] },
-    doorclose: { staff: [[392, 262]] },
-    clean:     { staff: [[350, 222], [368, 240]] },
-    unload:    { staff: [[468, 420], [552, 420]], vehicles: { beltloader: [[505, 398, -90]], cart: [[505, 458, 0]] } },
-    load:      { staff: [[718, 420], [800, 420]], vehicles: { beltloader: [[755, 398, -90]], cart: [[755, 458, 0]] } },
-    bagmatch:  { staff: [[762, 432]] },
-    refuel:    { staff: [[602, 448]], vehicles: { fuel: [[646, 472, 0]] } },
-    catering:  { staff: [[832, 416]], vehicles: { catering: [[864, 396, -90]] } },
-    inspect:   { staff: [[298, 392]] },
-    pushback:  { staff: [[252, 392]], vehicles: { pushback: [[233, 321, 0]] } },
+    deboard:   { staff: [[744, 186]] },                      // 搭乗橋の入口のそば（ターミナル側）
+    board:     { staff: [[744, 186]] },
+    doorclose: { staff: [[794, 248]] },                      // 搭乗橋の先（L1ドアの手前）
+    clean:     { staff: [[791, 238], [801, 258]] },                 // 搭乗橋を通って機内へ
+    unload:    { staff: [[800, 432], [889, 457]], vehicles: { beltloader: [[ux(DOOR_U.fwdCargo), BELT_Y, -90]], cart: [[835, 452, 0]] } },
+    load:      { staff: [[604, 432], [502, 457]], vehicles: { beltloader: [[ux(DOOR_U.aftCargo), BELT_Y, -90]], cart: [[560, 452, 0]] } },
+    bagmatch:  { staff: [[612, 470]] },
+    refuel:    { staff: [[716, 434]], vehicles: { fuel: [[732, 455, 0]] } },     // 右主翼の前（給油口は翼の下）
+    catering:  { staff: [[548, 405]], vehicles: { catering: [[ux(DOOR_U.R2), 377, -90]] } },
+    inspect:   { staff: [[898, 296]] },                      // 機首の前から一周
+    pushback:  { staff: [[890, 362]], vehicles: { pushback: [[884, 316, 180]] } },  // 機首の前で押す
     depart:    {},
   };
-  /* 点検スタッフが機体を一周する経路 */
+  const TUG_SLOT = SLOTS.pushback.vehicles.pushback[0];
+  /* 点検スタッフが機体を一周する経路（機首→左側→尾翼→右側→機首。エンジンの前で立ちどまる位置を通る） */
   const INSPECT_LOOP = [
-    [295, 385], [268, 322], [320, 270], [600, 250], [860, 268], [958, 300],
-    [958, 342], [860, 374], [600, 392], [320, 374],
+    [898, 296], [833, 289], [782, 288], [760, 263], [704, 246], [661, 277], [608, 288], [543, 248],
+    [495, 284], [492, 316], [495, 348], [543, 384], [608, 344], [661, 355], [704, 386], [760, 369],
+    [782, 344], [833, 343], [902, 334],
   ];
   const VEHICLE_HOME = {
     beltloader: [[500, 516, 0]],
@@ -127,7 +162,176 @@
     catering: [[892, 516, 0]],
     pushback: [[996, 516, 0]],
   };
-  const BRIDGE_PATH = [[402, 284], [347, 207], [340, 150]];
+  /* 搭乗橋: ターミナルから出る固定通路（背景）→ ロタンダ（回転部）→ のびちぢみする通路 → キャブ */
+  const BRG = { x: 770, rot: [770, 198], rotR: 14, dock: [ux(DOOR_U.L1), 274.6], parkLen: 44, parkAng: 45 };
+  const BRIDGE_PATH = [[ux(DOOR_U.L1), 297], [ux(DOOR_U.L1), 284], [770, 198], [770, 132]];
+  const PAX_SIGN = [880, 169];             // 降機・搭乗の人数カウンターの位置
+
+  /* ---------- 地上走行の経路（直線と円弧をつないでサンプリング） ---------- */
+  function taxiPath(x, y, hDeg, segs) {
+    let h = rad(hDeg), s = 0;
+    const out = [{ x, y, h, s }];
+    segs.forEach((g) => {
+      if (g.L != null) {
+        const n = Math.max(1, Math.ceil(g.L / 3)), x0 = x, y0 = y, s0 = s;
+        for (let i = 1; i <= n; i++) {
+          const d = (g.L * i) / n;
+          x = x0 + Math.cos(h) * d; y = y0 + Math.sin(h) * d;
+          out.push({ x, y, h, s: s0 + d });
+        }
+        s += g.L;
+      } else {
+        /* a>0 は右（時計まわり）、a<0 は左へ曲がる */
+        const a = rad(g.a), sg = Math.sign(a), R = g.R, h0 = h, s0 = s;
+        const cx = x - sg * R * Math.sin(h), cy = y + sg * R * Math.cos(h);
+        const n = Math.max(2, Math.ceil((Math.abs(a) * R) / 3));
+        for (let i = 1; i <= n; i++) {
+          h = h0 + (a * i) / n;
+          x = cx + sg * R * Math.sin(h); y = cy - sg * R * Math.cos(h);
+          out.push({ x, y, h, s: s0 + (Math.abs(a) * R * i) / n });
+        }
+        s += Math.abs(a) * R;
+      }
+    });
+    return out;
+  }
+  function poseAt(path, s) {
+    if (s <= 0) return path[0];
+    const last = path[path.length - 1];
+    if (s >= last.s) return last;
+    let lo = 0, hi = path.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (path[m].s <= s) lo = m; else hi = m; }
+    const a = path[lo], b = path[hi], k = (s - a.s) / ((b.s - a.s) || 1);
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, h: a.h + (b.h - a.h) * k, s };
+  }
+  /* 到着: 誘導路（左）からスタンドの誘導線に入り、停止線で止まる。
+   * 誘導線は前輪の通り道。主脚は前輪のあとを追いかけるので、機体の向き＝主脚→前輪。 */
+  let _arrival = null;
+  function arrivalPaths() {
+    if (_arrival) return _arrival;
+    const stopX = NOSE_X - NOSE_GEAR_U * PK;
+    const nose = taxiPath(-200, 602, 0, [{ L: 240 }, { R: 110, a: -90 }, { L: 66 }, { R: 110, a: 90 }, { L: stopX - 260 }]);
+    let mx = nose[0].x - WHEELBASE, my = nose[0].y;
+    const main = nose.map((n) => {
+      const dx = n.x - mx, dy = n.y - my, d = Math.hypot(dx, dy) || 1;
+      mx = n.x - (dx / d) * WHEELBASE; my = n.y - (dy / d) * WHEELBASE;
+      return { x: mx, y: my, h: Math.atan2(dy, dx), s: n.s };
+    });
+    _arrival = { nose, main };
+    return _arrival;
+  }
+  /* プッシュバック: トーイングカーが機首を押して、まっすぐうしろ（左）へ。
+   * 出発: 右へ曲がって誘導路へ出て、右へ走り去る（左の翼が搭乗橋に当たらない半径） */
+  const PUSH_DIST = 170;
+  let _depart = null;
+  const departPath = () => _depart || (_depart = taxiPath(PIVOT_X - PUSH_DIST, PLANE_CY, 0, [{ R: 120, a: 90 }, { R: 166, a: -90 }, { L: 660 }]));
+
+  /* ---------- 機体の形（機体ローカル座標: 主脚が原点・機首が+x・右主翼が+y。単位px） ---------- */
+  const PX = (u) => (PIVOT_U - u) * PK;
+  const PY = (v) => v * PK;
+  const SPR = { x0: -196, y0: -174, w: 372, h: 348 };   // 機体スプライトの範囲
+  const SPR_SH = 12;                                     // 影スプライトのぼかし余白
+  /* 多角形の向きをそろえる（左右反転した形も union で正しく塗れるように） */
+  const orient = (pts) => {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a += p[0] * q[1] - q[0] * p[1];
+    }
+    return a < 0 ? pts.slice().reverse() : pts;
+  };
+  const toPath = (pts, path) => {
+    const p = path || new Path2D();
+    pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y)));
+    p.closePath();
+    return p;
+  };
+  let _geo = null;
+  function planeGeometry() {
+    if (_geo) return _geo;
+    const G = {};
+    /* 胴体 */
+    const us = [];
+    for (let u = 0.05; u < 6.5; u += 0.15) us.push(u);
+    for (let u = 6.5; u < 37.6; u += 0.4) us.push(u);
+    us.push(37.6);
+    const fus = [[PX(0), 0]];
+    us.forEach((u) => fus.push([PX(u), -fusHW(u) * PK]));
+    for (let i = 1; i < 8; i++) {
+      const a = -Math.PI / 2 - (i / 8) * Math.PI;
+      fus.push([PX(37.6) + Math.cos(a) * 0.3 * PK, Math.sin(a) * 0.3 * PK]);
+    }
+    us.slice().reverse().forEach((u) => fus.push([PX(u), fusHW(u) * PK]));
+    G.fus = orient(fus);
+    /* 主翼（s=+1 右/下、s=-1 左/上） */
+    G.wing = (s) => orient([
+      [PX(12.2), s * PY(1.0)], [PX(W_LE0), s * PY(1.98)], [PX(W_TIP_LE), s * PY(W_TIP)],
+      [PX(W_TIP_TE), s * PY(W_TIP)], [PX(W_TE_IN), s * PY(W_KINK)], [PX(W_TE_IN), s * PY(1.0)],
+    ]);
+    /* シャークレット（翼端の上向きの小翼。上から見ると後ろへ流れる細い帯） */
+    G.shark = (s) => orient([
+      [PX(W_TIP_LE + 0.02), s * PY(16.98)], [PX(21.95), s * PY(17.78)], [PX(22.55), s * PY(17.9)], [PX(W_TIP_TE), s * PY(16.98)],
+    ]);
+    /* 水平尾翼（翼幅12.5m・後退角約29°） */
+    G.hstab = (s) => orient([
+      [PX(31.95), s * PY(0.5)], [PX(35.7), s * PY(6.22)], [PX(37.0), s * PY(6.22)], [PX(35.48), s * PY(0.5)],
+    ]);
+    /* エンジンナセル（長さ4.4m・直径2.1m）。吸気口の唇→最大径→ノズルへしぼる */
+    const nacR = (u) => {
+      if (u < 11.55) return 0.9 + ((u - 11.3) / 0.25) * 0.12;
+      if (u < 12.4) return 1.02 + ((u - 11.55) / 0.85) * 0.03;
+      if (u < 13.9) return 1.05;
+      return 1.05 - ((u - 13.9) / 1.8) * 0.27;
+    };
+    G.nac = (s) => {
+      const vc = s * ENG_V, top = [], bot = [];
+      for (let u = 11.3; u <= 15.71; u += 0.2) { top.push([PX(u), PY(vc - nacR(u))]); bot.push([PX(u), PY(vc + nacR(u))]); }
+      return orient(top.concat(bot.reverse()));
+    };
+    G.plug = (s) => orient([[PX(15.6), PY(s * ENG_V - 0.42)], [PX(16.45), PY(s * ENG_V)], [PX(15.6), PY(s * ENG_V + 0.42)]]);
+    G.pylon = (s) => orient([[PX(12.25), PY(s * ENG_V - 0.24)], [PX(15.2), PY(s * ENG_V - 0.24)], [PX(15.2), PY(s * ENG_V + 0.24)], [PX(12.25), PY(s * ENG_V + 0.24)]]);
+    /* フラップのレール覆い（カヌー型。後縁から少し後ろへ飛び出す） */
+    G.fairings = (s) => [4.4, 8.6, 11.0, 13.4].map((v) => {
+      const u0 = wingTE(v) - 1.4, u1 = wingTE(v) + 1.3, top = [], bot = [];
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10, u = u0 + (u1 - u0) * t;
+        const w = 0.22 * (t < 0.3 ? Math.sqrt(t / 0.3) : Math.pow(1 - (t - 0.3) / 0.7, 0.9));
+        top.push([PX(u), s * PY(v - w)]); bot.push([PX(u), s * PY(v + w)]);
+      }
+      return orient(top.concat(bot.reverse()));
+    });
+    /* 垂直尾翼（上から見ると、細く後ろへのびた帯） */
+    const finProf = [[26.6, 0], [28.0, 0.1], [29.4, 0.26], [31.2, 0.33], [33.4, 0.31], [35.6, 0.2], [37.1, 0.08], [37.55, 0]];
+    G.fin = orient(finProf.map(([u, t]) => [PX(u), -PY(t)]).concat(finProf.slice(1, -1).reverse().map(([u, t]) => [PX(u), PY(t)])));
+    /* 主翼のつけ根のフェアリング（胴体からほんの少しはみ出す） */
+    G.rootFair = (() => {
+      /* 角丸の長方形（u方向に長い） */
+      const pts = [];
+      const r = 1.2, a0 = 10.6, a1 = 22.2, hw = 2.22;
+      const arc = (cu, cv, from, to) => { for (let i = 0; i <= 6; i++) { const a = from + ((to - from) * i) / 6; pts.push([PX(cu + Math.cos(a) * r), PY(cv + Math.sin(a) * r)]); } };
+      arc(a0 + r, -(hw - r), Math.PI, Math.PI * 1.5);
+      arc(a1 - r, -(hw - r), Math.PI * 1.5, Math.PI * 2);
+      arc(a1 - r, hw - r, 0, Math.PI / 2);
+      arc(a0 + r, hw - r, Math.PI / 2, Math.PI);
+      return orient(pts);
+    })();
+    /* パスにまとめる */
+    G.fusP = toPath(G.fus);
+    G.wingP = { 1: toPath(G.wing(1)), [-1]: toPath(G.wing(-1)) };
+    G.hstabP = { 1: toPath(G.hstab(1)), [-1]: toPath(G.hstab(-1)) };
+    G.nacP = { 1: toPath(G.nac(1)), [-1]: toPath(G.nac(-1)) };
+    G.finP = toPath(G.fin);
+    const sil = new Path2D();
+    [G.fus, G.wing(1), G.wing(-1), G.shark(1), G.shark(-1), G.hstab(1), G.hstab(-1), G.nac(1), G.nac(-1), G.fin]
+      .forEach((pts) => toPath(pts, sil));
+    G.silhouette = sil;
+    const ao = new Path2D();
+    [G.fus, G.nac(1), G.nac(-1)].forEach((pts) => toPath(pts, ao));
+    G.aoShape = ao;
+    _geo = G;
+    return G;
+  }
+
   const PAX_COLORS = ['#e5867c', '#7ca3d8', '#d8c07c', '#8fc98f', '#b493cf', '#7cc2c9'];
   const PAX_TOTAL = 112;
 
@@ -200,13 +404,13 @@
     },
     stepArrival(dtReal) {
       if (this.arrivalT == null) return;
-      this.arrivalT += dtReal / 3.0;
+      this.arrivalT += dtReal / 4.0;
       if (this.arrivalT >= 1) {
         this.arrivalT = null;
         this.planeParked = true;
         const cb = this.arrivalCb;
         this.arrivalCb = null;
-        this.float(615, 250, '✈ とうちゃく！ じゅんびスタート！', '#0e6f8c');
+        this.float(PLANE_MID[0], 236, '✈ とうちゃく！ じゅんびスタート！', '#0e6f8c');
         if (cb) cb();
       }
     },
@@ -255,7 +459,12 @@
     },
     zoomAt(factor, px, py) {
       if (!this.cw || !this.ch) return;   // キャンバスがまだ表示されていない
-      const pivot = (px != null) ? { x: px, y: py } : { x: this.cw / 2, y: this.ch / 2 };
+      /* ボタンで拡大するときは、機体が画面に見えていれば機体を中心に（機首や尾翼が切れにくい） */
+      let pivot = (px != null) ? { x: px, y: py } : { x: this.cw / 2, y: this.ch / 2 };
+      if (px == null) {
+        const m = this.sceneToScreen(PLANE_MID[0], PLANE_MID[1]);
+        if (m.x > 0 && m.x < this.cw && m.y > 0 && m.y < this.ch) pivot = m;
+      }
       const before = this.screenToScene(pivot.x, pivot.y);
       this.cam.zoom = clamp(this.cam.zoom * factor, this.minZoom(), 2.6);
       const S = this.scale();
@@ -315,15 +524,15 @@
       return null;
     },
 
-    /* 機体エリアを避けるL字経路をつくる */
+    /* 機体エリアを避けるL字経路をつくる（上側＝搭乗橋のまわりへは、機首の前を回りこむ） */
     route(from, to) {
       const pts = [from.slice(0, 2)];
-      const CORR = 472;      // 横移動用の通路
-      const SIDE = 207;      // 機首を回りこむ縦通路
+      const CORR = 480;      // 横移動用の通路（機体の下側と車両置き場のあいだ）
+      const SIDE = 912;      // 機首の前を回りこむ縦通路
       const topSide = (p) => p[1] < 300;
       const a = from, b = to;
       if (topSide(a) && topSide(b)) {
-        pts.push([SIDE, a[1]], [SIDE, b[1]]);
+        /* 搭乗橋のまわりどうしは、そのまま歩く */
       } else if (topSide(b)) {
         pts.push([a[0], CORR], [SIDE, CORR], [SIDE, b[1]]);
       } else if (topSide(a)) {
@@ -454,7 +663,11 @@
         return;
       }
       let a = this.anchorOf(taskId);
-      if (taskId === 'pushback') a = [280, 300];
+      if (taskId === 'pushback') {
+        /* 押し終わった位置（トーイングカーのところ）で祝う */
+        const p = this.transformPoint(TUG_SLOT[0], TUG_SLOT[1], this.planeTransform(state));
+        a = [p.x, p.y];
+      }
       if (!a) a = [615, 320];
       this.burst(a[0], a[1] - 14, 14, colors);
       const def = window.TASK_MAP[taskId];
@@ -523,13 +736,18 @@
       this.drawSkyLife(state);
       if (state) {
         this.updateBridge(state, dtReal);
-        this.drawPlane(state);
+        /* 到着・出発で走っているときは、地上の車や人より上（翼の下にかくれる） */
+        const dep = state.tasks.depart.status;
+        const planeTop = this.arrivalT != null || dep === 'active' || dep === 'done';
+        if (!planeTop) this.drawPlane(state);
         this.drawBridge(state);
         this.drawEffectsUnder(state, gt);
         this.drawSoonSpots(state);
         this.drawSpots(state, ui);
         this.drawSpotPops(dtReal);
         this.drawEntities(state, gt, ui);
+        this.drawPlaneOverlay(state);
+        if (planeTop) this.drawPlane(state);
         this.drawPax(state, gt);
         this.drawRings(state);
         this.drawPaxCounter(state);
@@ -634,13 +852,13 @@
       c.font = 'bold 13px ' + CF;
       c.textAlign = 'left'; c.textBaseline = 'middle';
       c.fillText('✈ そらみなと国際空港', 21, 46);
-      /* ゲート表示 */
+      /* ゲート表示（搭乗橋の根元の上） */
       c.fillStyle = '#22405f';
-      this.rr(292, 104, 92, 24, 6); c.fill();
+      this.rr(BRG.x - 46, 100, 92, 24, 6); c.fill();
       c.fillStyle = '#ffd24a';
       c.font = 'bold 13px ' + CF;
       c.textAlign = 'center';
-      c.fillText('GATE 7', 338, 117);
+      c.fillText('GATE 7', BRG.x, 113);
       /* 管制塔（右面に陰） */
       c.fillStyle = wet ? '#b8c1ca' : '#d6dee6';
       c.fillRect(1082, 48, 24, 78);
@@ -704,9 +922,18 @@
       [[210, 320, 60, 20], [1030, 260, 56, 18], [400, 462, 40, 12], [980, 440, 52, 16], [700, 200, 70, 16]].forEach(([x, y, w, h]) => {
         c.beginPath(); c.ellipse(x, y, w, h, 0.3, 0, TAU); c.fill();
       });
-      c.strokeStyle = 'rgba(40,50,60,.10)'; c.lineWidth = 5;
-      c.beginPath(); c.moveTo(560, 574); c.quadraticCurveTo(590, 545, 610, 480); c.stroke();
-      c.beginPath(); c.moveTo(664, 574); c.quadraticCurveTo(648, 542, 622, 480); c.stroke();
+      /* 主脚のタイヤあと（誘導線に入るときに主脚が通るところ。左右2本） */
+      c.strokeStyle = 'rgba(40,48,58,.06)'; c.lineWidth = 4; c.lineCap = 'round';
+      [-1, 1].forEach((s) => {
+        c.beginPath();
+        arrivalPaths().main.forEach((p, i) => {
+          if (p.s < 300 || p.s > 760 || i % 3) return;
+          const x = p.x - Math.sin(p.h) * s * 3.8 * PK, y = p.y + Math.cos(p.h) * s * 3.8 * PK;
+          if (p.s < 303) c.moveTo(x, y); else c.lineTo(x, y);
+        });
+        c.stroke();
+      });
+      c.lineCap = 'butt';
       /* 雨の日: 水たまりと路面の照りかえし */
       if (wet) {
         [[350, 300, 70, 14], [820, 250, 90, 16], [520, 470, 60, 12], [1000, 480, 80, 14]].forEach(([x, y, w, h]) => {
@@ -738,24 +965,49 @@
       c.beginPath(); c.moveTo(0, 602); c.lineTo(SCENE_W, 602); c.stroke();
       c.setLineDash([]);
 
-      /* --- スタンド導入線・停止線・スポット番号の標識 --- */
-      c.strokeStyle = wet ? '#c8ae44' : '#e8c84a'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(615, 574); c.lineTo(615, 330); c.stroke();
-      c.beginPath(); c.moveTo(597, 330); c.lineTo(633, 330); c.stroke();
-      c.fillStyle = 'rgba(30,40,52,.20)';
-      this.rr(568.5, 546.5, 50, 26, 6); c.fill();
-      c.fillStyle = '#fbfcfd';
-      this.rr(566, 544, 50, 26, 6); c.fill();
-      c.strokeStyle = '#8b959e'; c.lineWidth = 1.5; this.rr(566, 544, 50, 26, 6); c.stroke();
-      c.fillStyle = '#46505b';
-      c.font = 'bold 17px ' + CF;
-      c.textAlign = 'center';
-      c.fillText('S7', 591, 558);
+      /* --- スタンドの誘導線（前輪の通り道）・停止線・スポット番号 ---
+       * 誘導路のセンターラインから分かれ、左から入って機首を右に向けて止まる。黄色の線に黒いふち。 */
+      const yel = wet ? '#c8ae44' : '#e8c84a';
+      const lead = arrivalPaths().nose.filter((p) => p.s >= 236);
+      const stopX = NOSE_X - NOSE_GEAR_U * PK;
+      const leadLine = (w, col) => {
+        c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round';
+        c.beginPath();
+        lead.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+        c.lineTo(stopX + 16, PLANE_CY);
+        c.stroke();
+      };
+      leadLine(5.5, 'rgba(34,36,32,.38)');
+      leadLine(3, yel);
+      /* 停止線（A320の前輪が止まる位置。駐機中は機体の下にかくれる） */
+      c.strokeStyle = 'rgba(34,36,32,.38)'; c.lineWidth = 5.5;
+      c.beginPath(); c.moveTo(stopX, PLANE_CY - 13); c.lineTo(stopX, PLANE_CY + 13); c.stroke();
+      c.strokeStyle = yel; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(stopX, PLANE_CY - 12); c.lineTo(stopX, PLANE_CY + 12); c.stroke();
+      /* スポット番号（誘導線の上に黄色の地・黒の文字でペイント） */
+      c.fillStyle = 'rgba(34,36,32,.5)';
+      this.rr(419, PLANE_CY - 10.5, 40, 21, 3); c.fill();
+      c.fillStyle = yel;
+      this.rr(421, PLANE_CY - 8.5, 36, 17, 2); c.fill();
+      c.fillStyle = '#22262b';
+      c.font = 'bold 13px ' + CF;
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('S7', 439, PLANE_CY + 0.5);
+      /* 搭乗橋の待機位置（駆動輪をとめる場所の白い枠） */
+      c.save();
+      c.translate(BRG.rot[0] + Math.cos(rad(BRG.parkAng)) * 37.6, BRG.rot[1] + Math.sin(rad(BRG.parkAng)) * 37.6);
+      c.rotate(rad(BRG.parkAng));
+      c.strokeStyle = 'rgba(255,255,255,.38)'; c.lineWidth = 1.2;
+      c.strokeRect(-6, -17, 12, 34);
+      c.restore();
 
-      /* 制限区域ライン（赤の点線） */
+      /* 制限区域ライン（赤の点線）: 駐機中の機体（翼端・尾翼・機首の車）を囲む。ターミナル側はあけておく */
       c.strokeStyle = 'rgba(214,69,69,.45)'; c.lineWidth = 2.5;
       c.setLineDash([14, 10]);
-      this.rr(225, 195, 790, 275, 30); c.stroke();
+      c.beginPath();
+      c.moveTo(472, 150); c.lineTo(472, 458); c.arcTo(472, 484, 498, 484, 26);
+      c.lineTo(906, 484); c.arcTo(932, 484, 932, 458, 26); c.lineTo(932, 150);
+      c.stroke();
       c.setLineDash([]);
 
       /* スタッフ待機所（うっすら影つき） */
@@ -766,14 +1018,15 @@
       c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
       c.beginPath(); c.moveTo(252, 485.5); c.lineTo(420, 485.5); c.stroke();
       c.strokeStyle = '#87919a'; c.lineWidth = 2; this.rr(250, 484, 172, 58, 8); c.stroke();
+      /* 名前は区画の下に（上は機体の制限区域ラインと重なるため） */
       c.fillStyle = '#57626d';
       c.font = '11px ' + CF;
-      c.textAlign = 'left';
-      c.fillText('スタッフのまちあい', 256, 478);
+      c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillText('スタッフのまちあい', 256, 558);
 
       /* 車両置き場 */
       c.fillStyle = '#57626d';
-      c.fillText('はたらく車のおきば', 452, 478);
+      c.fillText('はたらく車のおきば', 452, 558);
       c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2;
       [450, 552, 648, 742, 844, 948, 1046].forEach((x) => {
         c.beginPath(); c.moveTo(x, 486); c.lineTo(x, 548); c.stroke();
@@ -782,6 +1035,20 @@
       /* 吹き流しのポール（本体はdrawSkyLifeで動かす） */
       c.strokeStyle = '#7c858e'; c.lineWidth = 3;
       c.beginPath(); c.moveTo(1128, 188); c.lineTo(1128, 154); c.stroke();
+
+      /* 搭乗橋の固定通路（ターミナルからロタンダまで。動かないので背景に描く。光は左上→左の面が明るい） */
+      const fx0 = BRG.x - 10, fy0 = 124, fy1 = BRG.rot[1] - BRG.rotR + 3;
+      c.fillStyle = 'rgba(16,26,40,.17)';
+      c.fillRect(fx0 + 10, Math.max(fy0 + 14, 140), 20, fy1 + 14 - Math.max(fy0 + 14, 140));
+      const fgr = c.createLinearGradient(fx0, 0, fx0 + 20, 0);
+      fgr.addColorStop(0, '#e0e7ed'); fgr.addColorStop(0.45, '#c9d2da'); fgr.addColorStop(1, '#a3afba');
+      c.fillStyle = fgr; c.fillRect(fx0, fy0, 20, fy1 - fy0);
+      c.strokeStyle = 'rgba(86,102,118,.28)'; c.lineWidth = 0.6;
+      c.beginPath();
+      for (let y = fy0 + 4; y < fy1 - 1; y += 4.5) { c.moveTo(fx0 + 1, y); c.lineTo(fx0 + 19, y); }
+      c.stroke();
+      c.strokeStyle = 'rgba(58,72,88,.68)'; c.lineWidth = 0.8;
+      c.strokeRect(fx0, fy0, 20, fy1 - fy0);
     },
 
     /* 動きのある背景要素（毎フレーム描画。数が少ないので軽い） */
@@ -832,194 +1099,407 @@
       const push = state.tasks.pushback;
       const dep = state.tasks.depart;
       const G = window.Game;
-      let x = 0, y = 0, rot = 0, alpha = 1;
       const ease = (t) => t * t * (3 - 2 * t);
-      /* 到着シネマティック（出発経路の逆再生でスポットイン） */
+      const out = (p, alpha) => ({ x: p.x - PIVOT_X, y: p.y - PLANE_CY, rot: p.h, alpha });
+      /* 到着シネマティック: 誘導路から誘導線をたどってスポットへ（減速して停止線で止まる） */
       if (this.arrivalT != null) {
-        const a = ease(clamp(this.arrivalT, 0, 1));
-        if (a < 0.72) {
-          const p = 1 - a / 0.72;
-          x = p * 470; y = 85 + p * 210; rot = rad(16) + p * rad(30);
-        } else {
-          const p = 1 - (a - 0.72) / 0.28;
-          y = p * 85; rot = p * rad(16);
-        }
-        alpha = this.arrivalT < 0.05 ? this.arrivalT / 0.05 : 1;
-        return { x, y, rot, alpha };
+        const t = clamp(this.arrivalT, 0, 1);
+        const main = arrivalPaths().main;
+        const L = main[main.length - 1].s, s = L * (1 - (1 - t) * (1 - t));
+        const p = poseAt(main, s);
+        /* 最後の直線で、ぴったり駐機位置（向き0）へなめらかに合わせる */
+        const w = ease(clamp((s / L - 0.8) / 0.2, 0, 1));
+        const fit = { x: p.x + (PIVOT_X - p.x) * w, y: p.y + (PLANE_CY - p.y) * w, h: p.h * (1 - w) };
+        return out(fit, t < 0.05 ? t / 0.05 : 1);
       }
+      let pose = { x: PIVOT_X, y: PLANE_CY, h: 0 }, alpha = 1;
+      /* プッシュバック: 機首のトーイングカーが、まっすぐうしろ（左）へ押し出す */
       if (push.status === 'active' || push.status === 'done') {
         const p = push.status === 'done' ? 1 : ease(clamp(push.progress / G.effDur(push), 0, 1));
-        y = p * 85; rot = p * rad(16);
+        pose = { x: PIVOT_X - PUSH_DIST * p, y: PLANE_CY, h: 0 };
       }
+      /* 出発: 右へ曲がって誘導路に出て、右へ走り去る */
       if (dep.status === 'active' || dep.status === 'done') {
         const p = dep.status === 'done' ? 1 : ease(clamp(dep.progress / G.effDur(dep), 0, 1));
-        x = p * 470; y = 85 + p * 210; rot = rad(16) + p * rad(30);
+        const path = departPath();
+        pose = poseAt(path, path[path.length - 1].s * p);
         alpha = p > 0.75 ? clamp(1 - (p - 0.75) / 0.22, 0, 1) : 1;
       }
-      return { x, y, rot, alpha };
+      return out(pose, alpha);
+    },
+
+    /* ============ 機体（上から見たA320） ============
+     * 形・塗装・陰影・パネルライン・窓・航行灯は、オフスクリーンに高解像度で1回だけ描いてキャッシュする。
+     * 毎フレームは「影・機体の絵を回して貼る」「ドアの開閉」「衝突防止灯の点滅」だけを描く。 */
+    planeSprites(state) {
+      const wet = !!(state && state.stage && state.stage.rainAll);
+      const q = clamp(Math.round(this.baseScale() * this.dpr * 2.6), 2, 5);
+      /* Webフォントが読めたら1回だけ描き直す（以後は読みこみ中に戻っても描き直さない） */
+      this._fontOk = this._fontOk || !document.fonts || document.fonts.status === 'loaded';
+      const fontOk = this._fontOk;
+      const key = q + '|' + (wet ? 1 : 0) + '|' + (fontOk ? 1 : 0);
+      if (this._plane && this._plane.key === key) return this._plane;
+      const G = planeGeometry();
+      const mk = (w, h) => { const cv = document.createElement('canvas'); cv.width = Math.ceil(w); cv.height = Math.ceil(h); return cv; };
+      /* 機体 */
+      const body = mk(SPR.w * q, SPR.h * q);
+      const g = body.getContext('2d');
+      g.setTransform(q, 0, 0, q, -SPR.x0 * q, -SPR.y0 * q);
+      this.renderPlaneBody(g, G, wet);
+      /* 落ち影と接地の陰（シルエットをぼかす。ぼかしは影オフセットの技法でにじませる） */
+      const B = SPR_SH, sq = 2, FAR = 3000;
+      const soft = (shape, blur) => {
+        const cv = mk((SPR.w + 2 * B) * sq, (SPR.h + 2 * B) * sq);
+        const sg = cv.getContext('2d');
+        sg.setTransform(sq, 0, 0, sq, (-SPR.x0 + B - FAR) * sq, (-SPR.y0 + B) * sq);
+        sg.shadowColor = '#101a28'; sg.shadowBlur = blur * sq; sg.shadowOffsetX = FAR * sq;
+        sg.fillStyle = '#101a28';
+        sg.fill(shape);
+        return cv;
+      };
+      this._plane = { key, body, shadow: soft(G.silhouette, 6), ao: soft(G.aoShape, 3.5) };
+      return this._plane;
+    },
+
+    /* 機体の静的な部分を描く。g は機体ローカル座標（主脚が原点・機首が+x・右主翼が+y）。
+     * 光源は左上: 上（左側）のふちが明るく、下（右側）のふちと右主翼のつけ根に胴体の陰。 */
+    renderPlaneBody(g, G, wet) {
+      const X = PX, Y = PY, R = FUS_R * PK;
+      const LINE = 'rgba(70,86,104,.6)';
+      const P = (u, v) => [X(u), Y(v)];
+      const fillP = (pts, style) => { g.fillStyle = style; g.fill(toPath(pts)); };
+      const strokeP = (path, style, w) => { g.strokeStyle = style; g.lineWidth = w; g.stroke(path); };
+      const seg = (pairs, style, w) => {
+        g.strokeStyle = style; g.lineWidth = w; g.beginPath();
+        pairs.forEach(([a, b]) => { g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); });
+        g.stroke();
+      };
+      const fusShade = () => { g.save(); g.translate(6, 8.5); g.fillStyle = 'rgba(28,42,60,.22)'; g.fill(G.fusP); g.restore(); };
+
+      /* 1) フラップのレール覆い（翼の下から後ろへ飛び出した部分だけ見える） */
+      [1, -1].forEach((s) => G.fairings(s).forEach((pts) => {
+        fillP(pts, s > 0 ? '#cfd6dc' : '#c6cdd4');
+        strokeP(toPath(pts), 'rgba(70,86,104,.45)', 0.45);
+      }));
+
+      /* 2) エンジン（主翼より下にあるので先に描く。前半が翼の前に出て見える） */
+      [1, -1].forEach((s) => {
+        const vc = s * ENG_V, path = G.nacP[s];
+        g.fillStyle = '#59636e'; g.fill(toPath(G.plug(s)));      // 排気コーン（上からは翼にかくれる）
+        const gr = g.createLinearGradient(0, Y(vc - 1.05), 0, Y(vc + 1.05));
+        gr.addColorStop(0, '#d7dee5'); gr.addColorStop(0.22, '#fbfcfd'); gr.addColorStop(0.5, '#edf1f4');
+        gr.addColorStop(0.8, '#bdc6cf'); gr.addColorStop(1, '#9ca7b2');
+        g.fillStyle = gr; g.fill(path);
+        g.save(); g.clip(path);
+        g.fillStyle = 'rgba(255,255,255,.8)';                       // 吸気口の唇（みがいた金属）
+        g.fillRect(X(11.5), Y(vc - 1.2), X(11.3) - X(11.5), PY(2.4));
+        g.fillStyle = 'rgba(47,127,196,.85)';                       // あおぞら航空の青いライン
+        g.fillRect(X(11.92), Y(vc - 1.2), X(11.74) - X(11.92), PY(2.4));
+        g.fillStyle = '#161d24';                                    // 吸気口の暗いのぞき
+        g.beginPath(); g.ellipse(X(11.3) + 0.4, Y(vc), 2.1, PY(0.78), 0, 0, TAU); g.fill();
+        g.restore();
+        strokeP(path, LINE, 0.6);
+        const py = toPath(G.pylon(s));                              // パイロン（主翼から吊る柱）
+        g.fillStyle = '#cdd4da'; g.fill(py);
+        strokeP(py, 'rgba(70,86,104,.5)', 0.45);
+        seg([[P(12.35, vc - 0.08 * s), P(15.1, vc - 0.08 * s)]], 'rgba(255,255,255,.7)', 0.4);
+      });
+
+      /* 3) 主翼 */
+      const hinge = (v) => wingTE(v) - (0.25 * (wingTE(v) - wingLE(v)) + 0.15);
+      [1, -1].forEach((s) => {
+        const path = G.wingP[s];
+        g.fillStyle = s > 0 ? '#dbe1e6' : '#d1d8de';   // 上反角: 右翼は少し光のほうへ、左翼は少し背を向ける
+        g.fill(path);
+        g.save(); g.clip(path);
+        /* 翼型のふくらみのハイライト（前縁から2〜4割） */
+        const hi = [], lo = [];
+        for (let v = 1.0; v <= W_TIP + 0.01; v += 0.5) {
+          const le = v < 1.98 ? W_LE0 : wingLE(v), ch = wingTE(v) - le;
+          hi.push(P(le + ch * 0.16, s * v)); lo.push(P(le + ch * 0.42, s * v));
+        }
+        fillP(hi.concat(lo.reverse()), 'rgba(255,255,255,.3)');
+        /* 前縁のまるみ（前を向く面は光の反対で少し暗い） */
+        const le1 = [], le2 = [];
+        for (let v = 1.0; v <= W_TIP + 0.01; v += 0.5) {
+          const le = v < 1.98 ? W_LE0 : wingLE(v);
+          le1.push(P(le - 0.2, s * v)); le2.push(P(le + 0.35, s * v));
+        }
+        fillP(le1.concat(le2.reverse()), 'rgba(80,96,112,.10)');
+        /* 後縁の動翼（フラップ・補助翼）は少し暗い */
+        const fl = [], te = [];
+        for (let v = 1.0; v <= 16.31; v += 0.5) { fl.push(P(hinge(v), s * v)); te.push(P(wingTE(v) + 0.3, s * v)); }
+        fillP(fl.concat(te.reverse()), 'rgba(70,86,102,.09)');
+        if (s > 0) fusShade();                       // 胴体の落とす影（右翼のつけ根）
+        g.restore();
+        /* 線: スラット・ヒンジ・スポイラー・ノーステップ枠 */
+        const L = [];
+        [[2.3, 5.35], [6.15, 8.6], [8.6, 11.2], [11.2, 13.9], [13.9, 16.9]].forEach(([a, b]) => {
+          L.push([P(wingLE(a) + 0.55, s * a), P(wingLE(b) + 0.55, s * b)]);
+          L.push([P(wingLE(a), s * a), P(wingLE(a) + 0.55, s * a)]);
+        });
+        for (let v = 1.98; v < 16.3; v += 0.5) {
+          const v2 = Math.min(16.3, v + 0.5);
+          L.push([P(hinge(v), s * v), P(hinge(v2), s * v2)]);
+        }
+        [6.3, 12.4, 16.3].forEach((v) => L.push([P(hinge(v), s * v), P(wingTE(v), s * v)]));
+        [[3.0, 5.1], [6.6, 12.2]].forEach(([a, b]) => {
+          for (let v = a; v < b - 0.01; v += 0.5) {
+            const v2 = Math.min(b, v + 0.5);
+            L.push([P(hinge(v) - 0.9, s * v), P(hinge(v2) - 0.9, s * v2)]);
+          }
+        });
+        [3.0, 5.1, 6.6, 8.0, 9.4, 10.8, 12.2].forEach((v) => L.push([P(hinge(v) - 0.9, s * v), P(hinge(v), s * v)]));
+        seg(L, 'rgba(70,86,104,.36)', 0.45);
+        const walk = [P(wingLE(2.4) + 0.9, s * 2.4), P(wingLE(5.0) + 0.9, s * 5.0), P(hinge(5.0) - 1.15, s * 5.0), P(hinge(2.4) - 1.15, s * 2.4)];
+        strokeP(toPath(walk), 'rgba(30,36,44,.42)', 0.4);
+        strokeP(path, LINE, 0.6);
+      });
+
+      /* 4) シャークレット（翼端の小翼。あおぞら航空の青） */
+      [1, -1].forEach((s) => {
+        const pts = G.shark(s);
+        fillP(pts, s < 0 ? '#4a94d5' : '#22659c');
+        strokeP(toPath(pts), 'rgba(16,46,80,.65)', 0.5);
+      });
+
+      /* 5) 水平尾翼 */
+      [1, -1].forEach((s) => {
+        const path = G.hstabP[s];
+        g.fillStyle = s > 0 ? '#d9dfe4' : '#d0d7dd';
+        g.fill(path);
+        g.save(); g.clip(path);
+        fillP([P(32.3, s * 0.5), P(35.95, s * 6.22), P(36.3, s * 6.22), P(33.2, s * 0.5)], 'rgba(255,255,255,.26)');
+        if (s > 0) fusShade();
+        g.restore();
+        seg([[P(34.43, s * 0.6), P(36.6, s * 6.05)]], 'rgba(70,86,104,.42)', 0.45);   // 昇降舵のヒンジ
+        strokeP(path, LINE, 0.6);
+      });
+
+      /* 6) 主翼のつけ根のフェアリング */
+      fillP(G.rootFair, '#dde2e7');
+      strokeP(toPath(G.rootFair), 'rgba(70,86,104,.35)', 0.5);
+
+      /* 7) 胴体（白い円筒。上のふちが明るく、下のふちに陰） */
+      const fp = G.fusP;
+      const hull = g.createLinearGradient(0, -R, 0, R);
+      hull.addColorStop(0, '#dde4ea'); hull.addColorStop(0.12, '#f3f6f8'); hull.addColorStop(0.24, '#ffffff');
+      hull.addColorStop(0.45, '#f7f9fa'); hull.addColorStop(0.68, '#e6ebef'); hull.addColorStop(0.86, '#cdd5dc');
+      hull.addColorStop(1, '#b2bcc6');
+      g.fillStyle = hull; g.fill(fp);
+      g.save(); g.clip(fp);
+      /* 尾部の青（垂直尾翼のつけ根から胴体の上へ、細くまわりこむ塗装） */
+      const tw = (u) => 0.58 * Math.pow(Math.min(1, (u - 26.0) / 6), 0.7);   // 前はとがり、うしろほど少し太い
+      const tb = [];
+      for (let u = 26.0; u <= 38.0; u += 0.3) tb.push(P(u, -tw(u)));
+      for (let u = 38.0; u >= 26.0; u -= 0.3) tb.push(P(u, tw(u)));
+      const bg = g.createLinearGradient(0, -PY(0.95), 0, PY(0.95));
+      bg.addColorStop(0, '#4b97d8'); bg.addColorStop(0.5, '#2f7fc4'); bg.addColorStop(1, '#205f99');
+      fillP(tb, bg);
+      /* レドーム（機首の先）はわずかに色がちがう */
+      fillP([P(-0.5, -2), P(1.55, -2), P(1.55, 2), P(-0.5, 2)], 'rgba(150,162,174,.12)');
+      seg([[P(1.55, -fusHW(1.55)), P(1.55, fusHW(1.55))]], 'rgba(100,115,130,.4)', 0.5);
+      /* 機首の先は光から背を向ける → 少し暗い */
+      const nd = g.createRadialGradient(X(0), 0, 0, X(0), 0, PY(3.2));
+      nd.addColorStop(0, 'rgba(58,74,92,.22)'); nd.addColorStop(1, 'rgba(58,74,92,0)');
+      g.fillStyle = nd; g.fillRect(X(3.3), -R, PY(3.4), 2 * R);
+      /* つやのハイライト（上寄りに細く） */
+      g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(X(4.5), -0.5 * R); g.lineTo(X(28.4), -0.5 * R); g.stroke();
+      /* パネルのつなぎ目（ごく薄く） */
+      const pl = [];
+      [6.5, 10.6, 13.2, 21.8, 26.0, 28.6, 33.0].forEach((u) => pl.push([P(u, -fusHW(u)), P(u, fusHW(u))]));
+      pl.push([P(3.2, -0.42 * FUS_R), P(29.5, -0.42 * FUS_R)], [P(3.2, 0.42 * FUS_R), P(29.5, 0.42 * FUS_R)]);
+      seg(pl, 'rgba(108,124,140,.17)', 0.45);
+      /* 窓の列（両側のふち）。左側は空が映ってやや明るい */
+      [-1, 1].forEach((s) => {
+        g.fillStyle = s < 0 ? 'rgba(52,68,84,.85)' : 'rgba(34,44,56,.9)';
+        g.beginPath();
+        for (let u = 6.9; u <= 29.3; u += 0.535) {
+          if (u > 14.15 && u < 15.85) continue;               // 非常口のところは窓なし
+          g.rect(X(u) - 1.2, s * fusHW(u) * PK * 0.82 - 0.8, 2.4, 1.6);
+        }
+        g.fill();
+      });
+      /* 控えめな青い帯（窓の下のライン） */
+      g.strokeStyle = 'rgba(47,127,196,.75)'; g.lineWidth = 0.8;
+      [-1, 1].forEach((s) => {
+        g.beginPath();
+        for (let u = 4.6; u <= 28.6; u += 0.5) {
+          const y = s * fusHW(u) * PK * 0.93;
+          if (u === 4.6) g.moveTo(X(u), y); else g.lineTo(X(u), y);
+        }
+        g.stroke();
+      });
+      /* ドアの輪郭（左=L1・L2、右=R1・R2、主翼の上の非常口、右側の貨物ドア） */
+      const door = (u, w, s, inner) => {
+        const hw = fusHW(u) * PK;
+        g.strokeRect(X(u + w / 2), s > 0 ? hw * inner : -hw, PY(w), hw * (1 - inner));
+      };
+      g.strokeStyle = 'rgba(60,74,90,.65)'; g.lineWidth = 0.5;
+      [-1, 1].forEach((s) => {
+        door(DOOR_U.L1, 0.85, s, 0.7); door(DOOR_U.R2, 0.85, s, 0.7);
+        door(14.55, 0.5, s, 0.74); door(15.45, 0.5, s, 0.74);
+      });
+      door(DOOR_U.fwdCargo, 1.7, 1, 0.84); door(DOOR_U.aftCargo, 1.7, 1, 0.84);
+      /* コックピットの窓（左右に4枚ずつの台形） */
+      const cwin = [
+        [[1.62, 0.07], [2.3, 0.09], [2.36, 0.93], [1.8, 0.66]],
+        [[2.44, 0.97], [2.98, 1.14], [3.0, 1.38], [2.48, 1.24]],
+        [[3.06, 1.17], [3.56, 1.28], [3.58, 1.5], [3.08, 1.42]],
+        [[3.64, 1.3], [3.98, 1.36], [4.0, 1.56], [3.66, 1.52]],
+      ];
+      [-1, 1].forEach((s) => cwin.forEach((qd) => {
+        const pts = qd.map(([u, v]) => P(u, s * v));
+        fillP(pts, s < 0 ? '#2e3f50' : '#1b2631');
+        strokeP(toPath(pts), 'rgba(18,26,34,.75)', 0.4);
+      }));
+      fillP([P(1.78, -0.14), P(2.22, -0.16), P(2.26, -0.55), P(1.92, -0.44)], 'rgba(176,206,230,.4)');  // 空の映りこみ
+      /* アンテナ・衝突防止灯の台座 */
+      g.fillStyle = '#56616d';
+      [[6.2, 0, 0.5], [13.9, 0.35, 0.4], [21.4, 0, 0.5], [23.6, -0.3, 0.35]].forEach(([u, v, l]) => g.fillRect(X(u + l / 2), Y(v) - 0.45, PY(l), 0.9));
+      g.fillStyle = '#7d3b3b'; g.beginPath(); g.arc(X(16.8), 0, 1.3, 0, TAU); g.fill();
+      /* 機体の名前（上から見える屋根に小さく） */
+      g.fillStyle = 'rgba(34,92,152,.92)';
+      g.font = 'bold 8.5px ' + CF; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('あおぞら', X(9.6), Y(-0.02));
+      /* ふちの陰（円筒のまるみ） */
+      g.strokeStyle = 'rgba(52,68,86,.18)'; g.lineWidth = 3.4; g.stroke(fp);
+      g.restore();
+      strokeP(fp, 'rgba(66,82,100,.62)', 0.7);
+
+      /* 8) 垂直尾翼の影（胴体と右の水平尾翼に落ちる）と垂直尾翼 */
+      const clipU = new Path2D();
+      toPath(G.fus, clipU); toPath(G.hstab(1), clipU);
+      g.save(); g.clip(clipU);
+      fillP([[X(26.6), 0], [X(35.2), PY(0.3)], [X(37.3) + 14.4, 19.8], [X(34.6) + 14.4, 19.8]], 'rgba(28,42,60,.2)');
+      g.restore();
+      const fg = g.createLinearGradient(0, -PY(0.33), 0, PY(0.33));
+      fg.addColorStop(0, '#6cafe7'); fg.addColorStop(0.45, '#3a87cb'); fg.addColorStop(1, '#1a548e');
+      g.fillStyle = fg; g.fill(G.finP);
+      seg([[P(34.6, -0.24), P(34.6, 0.24)]], 'rgba(14,42,76,.6)', 0.4);   // 方向舵のつなぎ目
+      strokeP(G.finP, 'rgba(14,42,76,.75)', 0.5);
+
+      /* 9) 航行灯（左翼端=赤・右翼端=緑・尾=白） */
+      const nav = (x, y, rgb, r) => {
+        const gr = g.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, `rgba(${rgb},.85)`); gr.addColorStop(0.35, `rgba(${rgb},.35)`); gr.addColorStop(1, `rgba(${rgb},0)`);
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+        g.fillStyle = `rgb(${rgb})`; g.beginPath(); g.arc(x, y, 0.9, 0, TAU); g.fill();
+      };
+      nav(X(20.9), -PY(17.15), '255,64,64', 4.4);
+      nav(X(20.9), PY(17.15), '52,222,120', 4.4);
+      nav(X(37.75), 0, '255,255,255', 3.4);
+
+      /* 雨の日: ひんやりした色にくもらせる */
+      if (wet) {
+        g.save();
+        g.globalCompositeOperation = 'source-atop';
+        g.fillStyle = 'rgba(62,86,116,.14)';
+        g.fillRect(SPR.x0, SPR.y0, SPR.w, SPR.h);
+        g.restore();
+      }
     },
 
     drawPlane(state) {
       const c = this.ctx;
       const tr = this.planeTransform(state);
       if (tr.alpha <= 0) return;
+      const spr = this.planeSprites(state);
+      const wet = !!(state.stage && state.stage.rainAll);
+      const px = PIVOT_X + tr.x, py = PLANE_CY + tr.y;
+      const cos = Math.cos(tr.rot), sin = Math.sin(tr.rot);
+      const W = (x, y, ox, oy) => [px + x * cos - y * sin + ox, py + x * sin + y * cos + oy];
+      const blink = 0.35 + 0.65 * Math.abs(Math.sin(this.time * 3.4));
+      const B = SPR_SH;
+      c.save();
+      /* 落ち影: 光源=左上 → 世界の右下へずらす（機体が向きを変えても影の向きは同じ） */
+      c.globalAlpha = tr.alpha * (wet ? 0.16 : 0.27);
+      c.save(); c.translate(px + 8, py + 11); c.rotate(tr.rot);
+      c.drawImage(spr.shadow, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
+      c.restore();
+      /* 垂直尾翼の影: 背が高い（約12m）ので、先のほうほど遠くへ落ちる */
+      c.globalAlpha = tr.alpha * (wet ? 0.55 : 1);
+      c.fillStyle = 'rgba(16,26,40,.075)';
+      [[0, 0], [1.3, 1.3], [-1.3, -1.3]].forEach(([dx, dy]) => {
+        c.fill(toPath([
+          W(PX(26.6), 0, 8.8 + dx, 12.1 + dy), W(PX(35.2), 0, 8.8 + dx, 12.1 + dy),
+          W(PX(37.3), 0, 23.6 + dx, 32.5 + dy), W(PX(34.6), 0, 23.6 + dx, 32.5 + dy),
+        ]));
+      });
+      /* 接地の陰（胴体とエンジンの真下） */
+      c.globalAlpha = tr.alpha * (wet ? 0.3 : 0.38);
+      c.save(); c.translate(px + 1.5, py + 2.5); c.rotate(tr.rot);
+      c.drawImage(spr.ao, SPR.x0 - B, SPR.y0 - B, SPR.w + 2 * B, SPR.h + 2 * B);
+      c.restore();
+      /* 下面の衝突防止灯が地面を赤く照らす */
+      c.globalAlpha = tr.alpha;
+      const [gx, gy] = W(PX(15.5), 0, 0, 0);
+      const rg = c.createRadialGradient(gx, gy, 0, gx, gy, 44);
+      rg.addColorStop(0, `rgba(255,70,60,${(0.22 * blink).toFixed(3)})`);
+      rg.addColorStop(1, 'rgba(255,70,60,0)');
+      c.fillStyle = rg; c.beginPath(); c.arc(gx, gy, 44, 0, TAU); c.fill();
+      /* 機体（キャッシュした絵を回して貼る） */
+      c.translate(px, py); c.rotate(tr.rot);
+      c.drawImage(spr.body, SPR.x0, SPR.y0, SPR.w, SPR.h);
+      this.drawPlaneDoors(state, blink);
+      c.restore();
+    },
+
+    /* ドアの開閉と上面の衝突防止灯（機体ローカル座標で描く） */
+    drawPlaneDoors(state, blink) {
+      const c = this.ctx, t = state.tasks;
+      const open = (u, w, s, inner) => {
+        const hw = fusHW(u) * PK, x0 = PX(u + w / 2), ww = w * PK;
+        c.fillStyle = '#1f272e';
+        c.fillRect(x0, s > 0 ? hw * inner : -hw, ww, hw * (1 - inner));
+        /* 開いたドアから機内のあかりがこぼれる */
+        const gx = x0 + ww / 2, gy = s * hw, r = 6 + ww * 0.4;
+        const gl = c.createRadialGradient(gx, gy, 0, gx, gy, r);
+        gl.addColorStop(0, 'rgba(255,212,140,.6)'); gl.addColorStop(1, 'rgba(255,212,140,0)');
+        c.fillStyle = gl; c.beginPath(); c.arc(gx, gy, r, 0, TAU); c.fill();
+      };
+      if (this.bridge > 0.9) open(DOOR_U.L1, 0.85, -1, 0.66);           // L1: 搭乗橋がついたら開く
+      if (t.catering.status === 'active') {                            // R2: ケータリング中
+        open(DOOR_U.R2, 0.85, 1, 0.66);
+        /* 客室ドアは外へ出て前へスライドする（上から見ると胴体の横の細い板） */
+        const hw = fusHW(DOOR_U.R2) * PK;
+        c.fillStyle = '#eef2f5'; c.fillRect(PX(29.85), hw + 0.4, 0.85 * PK, 2.4);
+        c.strokeStyle = 'rgba(60,74,90,.7)'; c.lineWidth = 0.5; c.strokeRect(PX(29.85), hw + 0.4, 0.85 * PK, 2.4);
+      }
+      if (t.unload.status === 'active') open(DOOR_U.fwdCargo, 1.7, 1, 0.8);  // 前方貨物ドア
+      if (t.load.status === 'active') open(DOOR_U.aftCargo, 1.7, 1, 0.8);    // 後方貨物ドア
+      /* 上面の衝突防止灯（赤の点滅） */
+      const bx = PX(16.8);
+      const bg = c.createRadialGradient(bx, 0, 0, bx, 0, 7);
+      bg.addColorStop(0, `rgba(255,86,72,${(blink * 0.55).toFixed(3)})`);
+      bg.addColorStop(1, 'rgba(255,86,72,0)');
+      c.fillStyle = bg; c.beginPath(); c.arc(bx, 0, 7, 0, TAU); c.fill();
+      c.fillStyle = `rgba(255,66,58,${blink.toFixed(3)})`;
+      c.beginPath(); c.arc(bx, 0, 1.5, 0, TAU); c.fill();
+    },
+
+    /* 開いた貨物ドアの扉（上へはね上がる）。ベルトローダーの先より上にあるので、車両のあとに描く */
+    drawPlaneOverlay(state) {
+      const t = state.tasks;
+      const fwd = t.unload.status === 'active', aft = t.load.status === 'active';
+      if (!fwd && !aft) return;
+      const c = this.ctx, tr = this.planeTransform(state);
       c.save();
       c.globalAlpha = tr.alpha;
-      c.translate(615 + tr.x, 320 + tr.y);
-      c.rotate(tr.rot);
-      c.translate(-615, -320);
-
-      /* 落ち影（光源=左上 → 右下へオフセット。フチはやわらかく） */
-      const psh = c.createRadialGradient(636, 352, 60, 636, 352, 390);
-      psh.addColorStop(0, 'rgba(28,38,52,.20)');
-      psh.addColorStop(0.75, 'rgba(28,38,52,.13)');
-      psh.addColorStop(1, 'rgba(28,38,52,0)');
-      c.fillStyle = psh;
-      c.beginPath(); c.ellipse(636, 352, 385, 62, 0, 0, TAU); c.fill();
-
-      const ACC = '#1793b8', ACC_D = '#0e6f8c';
-      /* 主翼（上側）: つけ根→翼端へのシェーディング */
-      const wingU = c.createLinearGradient(520, 300, 788, 182);
-      wingU.addColorStop(0, '#dde3e9');
-      wingU.addColorStop(0.5, '#eef1f4');
-      wingU.addColorStop(1, '#f7f9fb');
-      c.fillStyle = wingU; c.strokeStyle = '#95a1ac'; c.lineWidth = 2;
-      c.beginPath();
-      c.moveTo(520, 300); c.lineTo(742, 182); c.lineTo(788, 182); c.lineTo(668, 300);
-      c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = 'rgba(120,140,158,.22)';
-      c.beginPath(); c.moveTo(520, 300); c.lineTo(600, 258); c.lineTo(648, 258); c.lineTo(576, 300); c.closePath(); c.fill();
-      c.fillStyle = ACC; c.fillRect(742, 178, 46, 7);
-      c.fillStyle = '#ffd24a'; c.fillRect(742, 185, 46, 2.5);
-      /* 主翼（下側） */
-      const wingL = c.createLinearGradient(520, 340, 788, 458);
-      wingL.addColorStop(0, '#d3dae1');
-      wingL.addColorStop(0.5, '#e2e7ec');
-      wingL.addColorStop(1, '#eef2f5');
-      c.beginPath();
-      c.fillStyle = wingL;
-      c.moveTo(520, 340); c.lineTo(742, 458); c.lineTo(788, 458); c.lineTo(668, 340);
-      c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = ACC; c.fillRect(742, 455, 46, 7);
-      c.fillStyle = '#ffd24a'; c.fillRect(742, 452.5, 46, 2.5);
-      /* 水平尾翼 */
-      c.fillStyle = '#e8edf1';
-      c.beginPath(); c.moveTo(898, 305); c.lineTo(962, 258); c.lineTo(988, 258); c.lineTo(944, 305); c.closePath(); c.fill(); c.stroke();
-      c.fillStyle = '#dfe5ea';
-      c.beginPath(); c.moveTo(898, 335); c.lineTo(962, 382); c.lineTo(988, 382); c.lineTo(944, 335); c.closePath(); c.fill(); c.stroke();
-      /* エンジン（青いリング+ファン） */
-      const eng = (y) => {
-        const eb = c.createLinearGradient(0, y, 0, y + 26);
-        eb.addColorStop(0, '#e6ebf0');
-        eb.addColorStop(0.35, '#cfd6dd');
-        eb.addColorStop(1, '#aab4bd');
-        c.fillStyle = eb;
-        this.rr(536, y, 58, 26, 12); c.fill();
-        c.strokeStyle = '#8d99a5'; c.lineWidth = 2; this.rr(536, y, 58, 26, 12); c.stroke();
-        c.fillStyle = ACC;
-        c.beginPath(); c.ellipse(543, y + 13, 7, 13, 0, Math.PI / 2, Math.PI * 1.5); c.fill();
-        c.fillStyle = '#3d4854';
-        c.beginPath(); c.ellipse(538, y + 13, 5, 11, 0, 0, TAU); c.fill();
-        c.fillStyle = '#e8edf1';
-        c.beginPath(); c.ellipse(538, y + 13, 2.2, 5, 0, 0, TAU); c.fill();
+      c.translate(PIVOT_X + tr.x, PLANE_CY + tr.y); c.rotate(tr.rot);
+      const panel = (u) => {
+        const R = fusHW(u) * PK, w = 1.7 * PK, d = 1.3 * PK, x0 = PX(u) - w / 2;
+        c.fillStyle = 'rgba(22,32,46,.28)'; c.fillRect(x0 + 1.6, R + 2.2, w, d);   // ベルトに落ちる影
+        const gr = c.createLinearGradient(0, R, 0, R + d);
+        gr.addColorStop(0, '#c0c8d0'); gr.addColorStop(0.3, '#f1f4f6'); gr.addColorStop(1, '#dce2e7');
+        c.fillStyle = gr; c.fillRect(x0, R - 0.4, w, d + 0.4);
+        c.strokeStyle = 'rgba(60,74,90,.75)'; c.lineWidth = 0.6; c.strokeRect(x0, R - 0.4, w, d + 0.4);
+        c.strokeStyle = 'rgba(108,124,140,.5)'; c.lineWidth = 0.45; c.strokeRect(x0 + 1.5, R + 1.3, w - 3, d - 2.8);
+        c.fillStyle = 'rgba(38,50,64,.6)'; c.fillRect(x0, R - 0.6, w, 1.1);       // ちょうつがい
       };
-      eng(244); eng(370);
-      /* 胴体（白+おなかの2トーン+青のライン） */
-      const fus = new Path2D();
-      fus.moveTo(340, 292);
-      fus.lineTo(856, 292);
-      fus.quadraticCurveTo(946, 297, 990, 317);
-      fus.lineTo(990, 323);
-      fus.quadraticCurveTo(946, 343, 856, 348);
-      fus.lineTo(340, 348);
-      fus.quadraticCurveTo(283, 344, 271, 320);
-      fus.quadraticCurveTo(283, 296, 340, 292);
-      fus.closePath();
-      c.fillStyle = '#fbfcfe'; c.strokeStyle = '#8d99a5'; c.lineWidth = 2;
-      c.fill(fus);
-      c.save();
-      c.clip(fus);
-      /* 胴体のシェーディング（上面ハイライト→腹の陰。光源=左上） */
-      const hull = c.createLinearGradient(0, 292, 0, 348);
-      hull.addColorStop(0, 'rgba(125,150,172,.20)');   // 上フチは空の映りこみ
-      hull.addColorStop(0.18, 'rgba(255,255,255,.85)'); // ハイライト帯
-      hull.addColorStop(0.42, 'rgba(255,255,255,.05)');
-      hull.addColorStop(0.78, 'rgba(96,118,138,.14)');
-      hull.addColorStop(1, 'rgba(70,92,112,.30)');      // 腹の陰
-      c.fillStyle = hull;
-      c.fillRect(258, 290, 745, 60);
-      /* 青のチートライン（窓の下の飾り線） */
-      c.fillStyle = ACC;
-      c.fillRect(260, 329, 745, 3.5);
-      c.fillStyle = '#ffd24a';
-      c.fillRect(260, 332.5, 745, 1.8);
-      /* 機首のワンポイント */
-      c.fillStyle = ACC;
-      c.beginPath(); c.moveTo(271, 306); c.quadraticCurveTo(282, 298, 300, 295); c.lineTo(300, 345); c.quadraticCurveTo(282, 342, 271, 334); c.closePath();
-      c.globalAlpha = 0.12; c.fill(); c.globalAlpha = 1;
-      /* パネルのつなぎ目（ごく薄く） */
-      c.strokeStyle = 'rgba(120,135,150,.14)'; c.lineWidth = 1;
-      [420, 560, 700, 840].forEach((px) => {
-        c.beginPath(); c.moveTo(px, 292); c.lineTo(px, 348); c.stroke();
-      });
-      c.restore();
-      c.stroke(fus);
-      /* まどの列 */
-      c.fillStyle = '#33414f';
-      for (let wx = 428; wx <= 858; wx += 26) {
-        this.rr(wx, 303, 9, 6, 2.5); c.fill();
-      }
-      /* コックピット窓 */
-      c.fillStyle = '#33414f';
-      c.beginPath();
-      c.moveTo(292, 308); c.quadraticCurveTo(310, 300, 330, 300);
-      c.lineTo(330, 306); c.quadraticCurveTo(310, 306, 296, 312);
-      c.closePath(); c.fill();
-      c.beginPath();
-      c.moveTo(292, 332); c.quadraticCurveTo(310, 340, 330, 340);
-      c.lineTo(330, 334); c.quadraticCurveTo(310, 334, 296, 328);
-      c.closePath(); c.fill();
-      /* 垂直尾翼（上から見た形・雲マークつき） */
-      const tail = c.createLinearGradient(890, 0, 996, 0);
-      tail.addColorStop(0, '#1ba0c6');
-      tail.addColorStop(1, ACC_D);
-      c.fillStyle = tail;
-      c.beginPath();
-      c.moveTo(890, 317); c.lineTo(980, 312); c.lineTo(996, 320); c.lineTo(980, 328); c.lineTo(890, 323);
-      c.closePath(); c.fill();
-      c.strokeStyle = ACC_D; c.lineWidth = 1.5; c.stroke();
-      c.strokeStyle = '#fff'; c.lineWidth = 2.5;
-      c.beginPath(); c.moveTo(946, 320); c.quadraticCurveTo(958, 313, 972, 318); c.stroke();
-      c.fillStyle = '#ffd24a';
-      c.beginPath(); c.arc(936, 319, 2.6, 0, TAU); c.fill();
-      /* 衝突防止ライト（赤の点滅・胴体の中央） */
-      const blink = 0.35 + 0.65 * Math.abs(Math.sin(this.time * 3.4));
-      c.fillStyle = `rgba(255,90,90,${blink * 0.35})`;
-      c.beginPath(); c.arc(640, 320, 7, 0, TAU); c.fill();
-      c.fillStyle = `rgba(255,70,70,${blink})`;
-      c.beginPath(); c.arc(640, 320, 3.2, 0, TAU); c.fill();
-
-      /* ドア・ハッチ */
-      const t = state.tasks;
-      const doorOpen = this.bridge > 0.9;
-      c.fillStyle = doorOpen ? '#33414f' : '#c3ccd4';
-      this.rr(394, 290, 20, 7, 2); c.fill();
-      const fwdOpen = t.unload.status === 'active';
-      const aftOpen = t.load.status === 'active';
-      c.fillStyle = fwdOpen ? '#33414f' : '#c3ccd4';
-      this.rr(486, 342, 30, 7, 2); c.fill();
-      c.fillStyle = aftOpen ? '#33414f' : '#c3ccd4';
-      this.rr(738, 342, 30, 7, 2); c.fill();
-      const catOpen = t.catering.status === 'active';
-      c.fillStyle = catOpen ? '#33414f' : '#c3ccd4';
-      this.rr(846, 342, 18, 7, 2); c.fill();
-
-      /* 機体名 */
-      c.fillStyle = ACC_D;
-      c.font = 'bold 13px ' + CF + '';
-      c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText('AOZORA', 356, 302);
-
+      if (fwd) panel(DOOR_U.fwdCargo);
+      if (aft) panel(DOOR_U.aftCargo);
       c.restore();
     },
 
@@ -1032,41 +1512,87 @@
       }
     },
 
-    drawBridge(state) {
+    /* 搭乗橋の形（k=1 でL1ドアに接続、0 で機首側の待機位置へ縮める） */
+    bridgeGeom(k) {
+      const [rx, ry] = BRG.rot;
+      const a1 = Math.atan2(BRG.dock[1] - ry, BRG.dock[0] - rx), L1 = Math.hypot(BRG.dock[0] - rx, BRG.dock[1] - ry);
+      const a0 = rad(BRG.parkAng);
+      const L = BRG.parkLen + (L1 - BRG.parkLen) * k, a = a0 + (a1 - a0) * k;
+      return { rx, ry, L, a, ex: rx + Math.cos(a) * L, ey: ry + Math.sin(a) * L, phi: a + (Math.PI / 2 - a) * k };
+    },
+
+    /* 搭乗橋の動く部分（のびちぢみする通路・駆動輪・キャブ・ロタンダ）。固定通路は背景にある */
+    drawBridge() {
       const c = this.ctx;
-      const k = this.bridge;
-      const rot = [347, 205];
-      const end = [352 + (402 - 352) * k, 216 + (284 - 216) * k];
-      c.strokeStyle = '#8fa3b5'; c.lineWidth = 26; c.lineCap = 'round';
-      c.beginPath(); c.moveTo(347, 146); c.lineTo(rot[0], rot[1]); c.stroke();
-      c.strokeStyle = '#b9c9d8'; c.lineWidth = 18;
-      c.beginPath(); c.moveTo(347, 146); c.lineTo(rot[0], rot[1]); c.stroke();
-      c.strokeStyle = '#8fa3b5'; c.lineWidth = 24;
-      c.beginPath(); c.moveTo(rot[0], rot[1]); c.lineTo(end[0], end[1]); c.stroke();
-      c.strokeStyle = '#cddae5'; c.lineWidth = 16;
-      c.beginPath(); c.moveTo(rot[0], rot[1]); c.lineTo(end[0], end[1]); c.stroke();
-      c.fillStyle = '#7d92a6';
-      c.beginPath(); c.arc(rot[0], rot[1], 13, 0, TAU); c.fill();
-      c.fillStyle = '#a5b8c9';
-      c.beginPath(); c.arc(rot[0], rot[1], 8, 0, TAU); c.fill();
-      c.strokeStyle = '#6d8093'; c.lineWidth = 4; c.lineCap = 'butt';
-      c.beginPath(); c.moveTo(end[0] - 6, end[1] + 10); c.lineTo(end[0] - 6, end[1] + 24); c.stroke();
-      c.fillStyle = '#4b5866';
-      c.beginPath(); c.arc(end[0] - 6, end[1] + 26, 4, 0, TAU); c.fill();
+      const B = this.bridgeGeom(this.bridge);
+      const s0 = BRG.rotR - 2, len = B.L - s0;
+      const corners = (ox, oy, ang, x0, x1, y0, y1) => {
+        const co = Math.cos(ang), si = Math.sin(ang);
+        return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => [ox + x * co - y * si, oy + x * si + y * co]);
+      };
+      /* 影（高さ約5m → 右下へずらす） */
+      const sh = new Path2D();
+      toPath(corners(B.rx + 10, B.ry + 14, B.a, s0, B.L, -10, 10), sh);
+      toPath(corners(B.ex + 10, B.ey + 14, B.phi, -1, 24, -15, 15), sh);
+      sh.moveTo(B.rx + 10 + BRG.rotR, B.ry + 14); sh.arc(B.rx + 10, B.ry + 14, BRG.rotR, 0, TAU);
+      c.fillStyle = 'rgba(16,26,40,.17)'; c.fill(sh);
+      /* 通路（3段の筒。キャブ側ほど太い） */
+      const sect = (f0, f1, w) => {
+        const a0 = s0 + len * f0, a1 = s0 + len * f1;
+        c.save(); c.translate(B.rx, B.ry); c.rotate(B.a);
+        const gr = c.createLinearGradient(0, -w / 2, 0, w / 2);
+        gr.addColorStop(0, '#a1adb8'); gr.addColorStop(0.55, '#c8d1d9'); gr.addColorStop(1, '#e0e7ed');
+        c.fillStyle = gr; c.fillRect(a0, -w / 2, a1 - a0, w);
+        c.strokeStyle = 'rgba(86,102,118,.28)'; c.lineWidth = 0.6; c.beginPath();
+        for (let x = a0 + 3; x < a1 - 1; x += 4.5) { c.moveTo(x, -w / 2 + 1); c.lineTo(x, w / 2 - 1); }
+        c.stroke();
+        c.strokeStyle = 'rgba(58,72,88,.68)'; c.lineWidth = 0.8; c.strokeRect(a0, -w / 2, a1 - a0, w);
+        c.fillStyle = 'rgba(28,40,56,.26)'; c.fillRect(a0 - 1.6, -w / 2 + 1, 1.6, w - 2);   // 段差の陰
+        c.restore();
+      };
+      sect(0, 0.42, 16); sect(0.32, 0.74, 18); sect(0.64, 1, 20);
+      /* 駆動輪（通路の下から左右にのぞく） */
+      c.save(); c.translate(B.rx, B.ry); c.rotate(B.a);
+      c.fillStyle = '#2b3239';
+      const wx = s0 + len * 0.8;
+      this.rr(wx - 3.6, -14.2, 7.2, 3.6, 1.2); c.fill();
+      this.rr(wx - 3.6, 10.6, 7.2, 3.6, 1.2); c.fill();
+      c.restore();
+      /* キャブ（ドアにつく先頭の箱）とじゃばら */
+      c.save(); c.translate(B.ex, B.ey); c.rotate(B.phi);
+      const cg = c.createLinearGradient(0, -15, 0, 15);
+      cg.addColorStop(0, '#9eabb6'); cg.addColorStop(0.5, '#c3ccd5'); cg.addColorStop(1, '#dbe2e8');
+      c.fillStyle = cg; c.fillRect(-1, -15, 21, 30);
+      c.fillStyle = 'rgba(110,124,138,.45)'; c.fillRect(4, -9, 7, 6);
+      c.strokeStyle = 'rgba(58,72,88,.72)'; c.lineWidth = 0.8; c.strokeRect(-1, -15, 21, 30);
+      c.fillStyle = '#39414a'; c.fillRect(20, -13, 4, 26);
+      c.strokeStyle = 'rgba(160,172,184,.5)'; c.lineWidth = 0.5; c.beginPath();
+      for (let y = -11; y <= 11; y += 3) { c.moveTo(20, y); c.lineTo(24, y); }
+      c.stroke();
+      c.restore();
+      /* ロタンダ（通路がまわる丸い部屋） */
+      const rgd = c.createRadialGradient(B.rx - 4, B.ry - 4, 2, B.rx, B.ry, BRG.rotR);
+      rgd.addColorStop(0, '#e3e9ee'); rgd.addColorStop(1, '#a7b3be');
+      c.fillStyle = rgd; c.beginPath(); c.arc(B.rx, B.ry, BRG.rotR, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(58,72,88,.65)'; c.lineWidth = 0.8; c.stroke();
+      c.fillStyle = '#98a4af'; c.beginPath(); c.arc(B.rx, B.ry, 5.5, 0, TAU); c.fill();
     },
 
     drawEffectsUnder(state, gt) {
       const c = this.ctx;
       const t = state.tasks;
       if (t.refuel.status === 'active') {
-        c.strokeStyle = '#414b58'; c.lineWidth = 3.5;
-        c.beginPath();
-        c.moveTo(628, 466);
-        c.quadraticCurveTo(648, 436, 664, 424);
-        c.stroke();
-        c.fillStyle = '#e2711d';
-        [[600, 452], [692, 452]].forEach(([x, y]) => {
+        /* 給油ホース: 給油車から右主翼の下の給油口へ（翼の前縁の下へもぐる） */
+        c.strokeStyle = 'rgba(20,28,38,.22)'; c.lineWidth = 3;
+        c.beginPath(); c.moveTo(710, 449); c.quadraticCurveTo(720, 430, 703, 414); c.stroke();
+        c.strokeStyle = '#3c4652'; c.lineWidth = 2.6;
+        c.beginPath(); c.moveTo(708, 446); c.quadraticCurveTo(718, 427, 701, 411); c.stroke();
+        c.fillStyle = '#2a3139'; c.beginPath(); c.arc(701, 411, 1.8, 0, TAU); c.fill();
+        /* 安全コーン */
+        [[682, 472], [788, 472]].forEach(([x, y]) => {
+          c.fillStyle = '#e2711d';
           c.beginPath(); c.moveTo(x, y); c.lineTo(x - 5, y + 9); c.lineTo(x + 5, y + 9); c.closePath(); c.fill();
+          c.fillStyle = '#fff'; c.fillRect(x - 2.6, y + 4, 5.2, 1.4);
         });
       }
       if (t.clean.status === 'active') {
@@ -1076,7 +1602,7 @@
           const a = 0.35 + 0.6 * Math.abs(Math.sin(gt * 3 + i * 1.3));
           c.globalAlpha = a;
           c.fillStyle = '#7fd1e8';
-          c.fillText('✦', 470 + i * 150 + (i % 2) * 40, 308 + (i % 2) * 18);
+          c.fillText('✦', 610 + i * 72, 312 + (i % 2) * 12);
         }
         c.restore();
       }
@@ -1194,24 +1720,24 @@
       const c = this.ctx;
       switch (type) {
         case 'beltloader': {
-          c.fillStyle = '#67727f'; this.rr(-48, -13, 62, 26, 4); c.fill();
-          c.strokeStyle = '#49525c'; c.lineWidth = 1.5; this.rr(-48, -13, 62, 26, 4); c.stroke();
-          c.fillStyle = '#4d5866'; this.rr(-48, -13, 18, 26, 4); c.fill();
-          c.fillStyle = '#9fb4c4'; this.rr(-45, -9, 10, 18, 2); c.fill();
+          /* 全長は実物（約8〜9m）に合わせる。ベルトの先が貨物ドアの敷居（+64）にとどく */
+          c.fillStyle = '#67727f'; this.rr(-34, -12, 44, 24, 4); c.fill();
+          c.strokeStyle = '#49525c'; c.lineWidth = 1.5; this.rr(-34, -12, 44, 24, 4); c.stroke();
+          c.fillStyle = '#4d5866'; this.rr(-34, -12, 15, 24, 4); c.fill();
+          c.fillStyle = '#9fb4c4'; this.rr(-31, -8, 8, 16, 2); c.fill();
           c.save();
-          c.translate(6, 0);
-          if (active) c.rotate(rad(-14));
-          c.fillStyle = '#cfd6dd'; this.rr(0, -6, 88, 12, 3); c.fill();
-          c.strokeStyle = '#8d99a5'; this.rr(0, -6, 88, 12, 3); c.stroke();
+          c.translate(2, 0);
+          c.fillStyle = '#cfd6dd'; this.rr(0, -6, 62, 12, 3); c.fill();
+          c.strokeStyle = '#8d99a5'; this.rr(0, -6, 62, 12, 3); c.stroke();
           c.strokeStyle = '#aab6c0';
-          c.beginPath(); c.moveTo(4, 0); c.lineTo(84, 0); c.stroke();
+          c.beginPath(); c.moveTo(4, 0); c.lineTo(58, 0); c.stroke();
           if (active) {
             const cols = ['#c96f5c', '#5c88c9', '#c9b25c'];
             for (let i = 0; i < 3; i++) {
               let p = (gt * 0.7 + i / 3) % 1;
               if (reverse) p = 1 - p;
               c.fillStyle = cols[i];
-              this.rr(6 + p * 72, -4, 9, 8, 2); c.fill();
+              this.rr(5 + p * 46, -4, 9, 8, 2); c.fill();
             }
           }
           c.restore();
@@ -1353,8 +1879,9 @@
         const rec = this.resolveEntity(state, e);
         let x = rec.pos.x, y = rec.pos.y, ang = rec.angle;
         if (e.type === 'pushback' && e.status === 'working' && (push.status === 'active' || push.status === 'done')) {
-          const nose = this.transformPoint(233, 321, tr);
-          x = nose.x; y = nose.y; ang = tr.rot;
+          /* 機首といっしょに動く。戻るときはその場所から帰れるよう、位置も覚えておく */
+          const nose = this.transformPoint(TUG_SLOT[0], TUG_SLOT[1], tr);
+          x = rec.pos.x = nose.x; y = rec.pos.y = nose.y; ang = rec.angle = tr.rot + Math.PI;
         }
         const active = e.status === 'working' && e.taskId && state.tasks[e.taskId] && state.tasks[e.taskId].status === 'active';
         const reverse = e.taskId === 'unload';
@@ -1367,15 +1894,16 @@
           c.beginPath(); c.arc(0, 0, 60 + Math.sin(this.time * 6) * 3, 0, TAU); c.stroke();
         }
         c.save();
+        c.translate(4, 7);   // 影は車の向きにかかわらず右下へ（光源=左上）
         c.rotate(ang);
         c.fillStyle = 'rgba(30,40,54,.18)';
-        c.beginPath(); c.ellipse(4, 7, 50, 16, 0, 0, TAU); c.fill();
+        c.beginPath(); c.ellipse(0, 0, 50, 16, 0, 0, TAU); c.fill();
         c.restore();
         c.rotate(ang);
         this.vehicleBody(e.type, active, gt, reverse);
         /* 作業中はキャブの上で黄色の回転灯が点滅（実際のGSEと同じ） */
         if (active) {
-          const CAB = { beltloader: -34, cart: -26, fuel: -38, catering: -33, pushback: 0 };
+          const CAB = { beltloader: -27, cart: -26, fuel: -38, catering: -33, pushback: 0 };
           const bx = CAB[e.type] != null ? CAB[e.type] : 0;
           const bl = 0.3 + 0.7 * Math.abs(Math.sin(this.time * 5 + x));
           c.fillStyle = `rgba(255,170,40,${(bl * 0.3).toFixed(3)})`;
@@ -1400,10 +1928,17 @@
           x = INSPECT_LOOP[i0][0] + (INSPECT_LOOP[i1][0] - INSPECT_LOOP[i0][0]) * k;
           y = INSPECT_LOOP[i0][1] + (INSPECT_LOOP[i1][1] - INSPECT_LOOP[i0][1]) * k;
         }
+        /* プッシュバックの係は機首のそばを歩いてついていく */
+        const pushWalk = e.status === 'working' && e.taskId === 'pushback' && push.status === 'active';
+        if (e.status === 'working' && e.taskId === 'pushback' && (push.status === 'active' || push.status === 'done')) {
+          const s = SLOTS.pushback.staff[0];
+          const p = this.transformPoint(s[0], s[1], tr);
+          x = rec.pos.x = p.x; y = rec.pos.y = p.y;
+        }
         const meta = window.RES_META.staff[e.type];
-        const moving = e.status === 'moving' || e.status === 'returning' ||
+        const moving = e.status === 'moving' || e.status === 'returning' || pushWalk ||
           (e.status === 'working' && e.taskId === 'inspect');
-        const working = e.status === 'working' && e.taskId !== 'inspect';
+        const working = e.status === 'working' && e.taskId !== 'inspect' && !pushWalk;
         if (e.id === selected) {
           c.strokeStyle = '#fff'; c.lineWidth = 3;
           c.beginPath(); c.arc(x, y - 9, 16, 0, TAU); c.stroke();
@@ -1445,11 +1980,11 @@
       }
     },
 
+    /* 駐機中のシーン座標の点が、いまの機体の姿勢でどこにあるか（中心=主脚） */
     transformPoint(px, py, tr) {
-      const cx = 615, cy = 320;
-      const dx = px - cx, dy = py - cy;
+      const dx = px - PIVOT_X, dy = py - PLANE_CY;
       const cos = Math.cos(tr.rot), sin = Math.sin(tr.rot);
-      return { x: cx + tr.x + dx * cos - dy * sin, y: cy + tr.y + dx * sin + dy * cos };
+      return { x: PIVOT_X + tr.x + dx * cos - dy * sin, y: PLANE_CY + tr.y + dx * sin + dy * cos };
     },
 
     drawPax(state, gt) {
@@ -1469,12 +2004,21 @@
       this.paxDots.forEach((d) => { d.p += (gt - (d.lastGt != null ? d.lastGt : gt)) * d.speed; d.lastGt = gt; });
       this.paxDots = this.paxDots.filter((d) => d.p < 1);
       this.paxDots.forEach((d, i) => {
+        /* L1ドア → キャブ → 通路 → ロタンダ → 固定通路 → ターミナル（降機）。搭乗はその逆 */
         const t01 = d.dir === 'out' ? d.p : 1 - d.p;
         const pts = BRIDGE_PATH;
-        const seg = t01 < 0.5 ? 0 : 1;
-        const k = (t01 - seg * 0.5) / 0.5;
-        const x = pts[seg][0] + (pts[seg + 1][0] - pts[seg][0]) * k;
-        const y = pts[seg][1] + (pts[seg + 1][1] - pts[seg][1]) * k;
+        let total = 0;
+        for (let j = 1; j < pts.length; j++) total += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
+        let rest = t01 * total, j = 1;
+        for (; j < pts.length - 1; j++) {
+          const sl = Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
+          if (rest <= sl) break;
+          rest -= sl;
+        }
+        const sl = Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]) || 1;
+        const k = clamp(rest / sl, 0, 1);
+        const x = pts[j - 1][0] + (pts[j][0] - pts[j - 1][0]) * k;
+        const y = pts[j - 1][1] + (pts[j][1] - pts[j - 1][1]) * k;
         /* ミニ人物（体+頭+髪。歩きの上下はひかえめ） */
         const hop = Math.abs(Math.sin((d.p * 26) + i)) * 0.5;
         c.fillStyle = d.color;
@@ -1503,10 +2047,11 @@
       c.font = 'bold 12px ' + CF + '';
       const w = c.measureText(text).width + 16;
       c.fillStyle = 'rgba(255,255,255,0.92)';
-      this.rr(402 - w / 2, 158, w, 22, 11); c.fill();
-      c.strokeStyle = '#b9c9d8'; c.lineWidth = 1.5; this.rr(402 - w / 2, 158, w, 22, 11); c.stroke();
+      const [sx, sy] = PAX_SIGN;
+      this.rr(sx - w / 2, sy - 11, w, 22, 11); c.fill();
+      c.strokeStyle = '#b9c9d8'; c.lineWidth = 1.5; this.rr(sx - w / 2, sy - 11, w, 22, 11); c.stroke();
       c.fillStyle = '#27496d'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillText(text, 402, 169.5);
+      c.fillText(text, sx, sy + 0.5);
     },
 
     drawRings(state) {
@@ -1518,7 +2063,7 @@
         if (!anchor) return;
         let [x, y] = anchor;
         if (t.id === 'pushback') {
-          const p = this.transformPoint(233, 300, this.planeTransform(state));
+          const p = this.transformPoint(TUG_SLOT[0], TUG_SLOT[1] - 16, this.planeTransform(state));
           x = p.x; y = p.y;
         }
         y -= 26;
