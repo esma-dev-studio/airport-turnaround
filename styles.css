@@ -41,8 +41,9 @@
   --line-strong: #8796a8;
 
   /* 状態色（DOM と Canvas で同じ値を使う。色だけに頼らず、必ず記号もつける）
-   * はじめられる=白地+青緑わく+▶ / あつまり中=こはく+… / おしごと中=青緑ぬり+歯車
-   * かんりょう=緑+✓ / まだ=灰の点線+鍵 / トラブル=赤ぬり+⚠ / かみなりでおやすみ=灰青ぬり */
+   * はじめられる=白地+青緑わく+▶(play) / あつまり中=こはく+…(dots) / おしごと中=青緑ぬり+すすみぐあいの輪(working)
+   * かんりょう=緑+✓(check) / まだ=灰の点線+鍵(lock) / トラブル=赤ぬり+⚠(alert) / かみなりでおやすみ=灰青ぬり(storm)
+   * （歯車 gear は「せってい」だけに使う。おしごと中には使わない） */
   --st-ready: #0b6f8a;
   --st-ready-bg: #ffffff;
   --st-active: #0b6f8a;
@@ -97,7 +98,7 @@
  * 複数行になる文章は line-height を 1.9 前後にして、ルビが上の行と重ならないようにする */
 rt {
   font-size: max(0.5em, 7px);   /* うすくしない（opacity は使わない）。小さくても 7px は保つ */
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0;
 }
 ruby { ruby-align: center; white-space: nowrap; }  /* ルビの語の途中で改行しない */
@@ -115,7 +116,7 @@ body {
 p, h1, h2, h3, li { text-wrap: pretty; }
 button { font-family: inherit; line-height: 1.85; touch-action: manipulation; }
 [role="button"] { touch-action: manipulation; }
-ruby rt, .tc-ruby { font-weight: normal; }
+ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・900 だけ（400 は 500 で表示される） */
 
 #app { height: 100%; }
 
@@ -247,7 +248,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .sc-sub { color: var(--ink-2); font-size: 0.85rem; margin: 6px 0; line-height: 1.85; }
 .sc-row2 { display: flex; justify-content: space-between; font-size: var(--fs-min); color: var(--ink-2); flex-wrap: wrap; gap: 4px; }
 .sc-best { color: #b07d10; font-weight: 700; }
-.sc-best-none { color: var(--ink-2); font-weight: 400; }
+.sc-best-none { color: var(--ink-2); font-weight: 500; }
 .sc-soon { color: var(--ink-2); }
 /* ステージの★（とった数だけ金色） */
 .sc-stars i { font-style: normal; color: #d3dce4; }
@@ -282,7 +283,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 .hud-left { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 #hud-weather {
-  font-weight: 400; font-size: 0.82rem;
+  font-weight: 500; font-size: 0.82rem;
   background: rgba(255, 255, 255, 0.14);
   border-radius: 999px; padding: 3px 12px;
 }
@@ -399,8 +400,11 @@ ruby rt, .tc-ruby { font-weight: normal; }
   50% { box-shadow: 0 0 0 7px rgba(47, 158, 99, 0.45); }
 }
 .fr-arrow { color: var(--ink-2); font-size: 0.9rem; flex: 0 0 auto; }
-/* せまい幅では矢印と見出しを隠して、チップの場所をあける（1024 より狭い幅は横スクロールしてよい） */
-@media (max-width: 1100px) { .fr-arrow, .fr-lead { display: none; } }
+/* せまい幅では見出し・矢印を隠して、チップの場所をあける（1024 より狭い幅は横スクロールしてよい）
+ * 中身の幅（実測）: 見出し+矢印 1058px / 矢印だけ 1015px / どちらもなし 958px。リボンの内側は 画面の幅−32px。
+ * 入る幅になったら出す（見出しは 1100px から・矢印は 1060px から。フォントの差の分 10px ほど余らせる） */
+@media (max-width: 1099px) { .fr-lead { display: none; } }
+@media (max-width: 1059px) { .fr-arrow { display: none; } }
 
 /* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ */
 #game-main {
@@ -534,7 +538,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .tc-name { grid-area: name; font-weight: 700; font-size: 0.93rem; color: var(--navy); line-height: 1.9; }
 /* 見出しのルビは幅をとらないように少しつめる（1文字だけの折り返し防止） */
 .tc-name rt { letter-spacing: -0.03em; }
-.tc-ruby { color: var(--ink-2); font-size: var(--fs-min); font-weight: 400; }
+.tc-ruby { color: var(--ink-2); font-size: var(--fs-min); font-weight: 500; }
 .tc-state {
   grid-area: state;
   font-size: var(--fs-min); color: var(--ink-2); white-space: nowrap;
@@ -769,12 +773,16 @@ ruby rt, .tc-ruby { font-weight: normal; }
   pointer-events: none;
 }
 /* 701px 以上: 右下のズーム（横ならび 44px×3 + すき間 + 右 12px = 172px）にかからないよう、その左に収める。
- * ドロワーが最初からひらく 1100px 以上は左右を同じにして、まん中の位置を今までどおりにする（ひらいたドロワーにかからない） */
+ * 1100px 以上でドロワーをとじているときは、左右を同じ 172px にして、まん中の位置を今までどおりにする。
+ * ドロワーをひらいているときは（どの幅でも）、ドロワーの右から出す（ドロワーの左 10px + 幅 + すき間 12px）。ひらいたドロワーにかからない。
+ * 1100px 以上でドロワーをひらいているときは、右もスコア板の左まで（右 10px + 幅 + すき間 12px）にして、2つのパネルのあいだに収める */
 @media (min-width: 701px) {
   #toast-area { left: 12px; right: 172px; width: auto; transform: none; }
+  #game-main:has(#panel-tasks:not(.closed)) #toast-area { left: calc(var(--drawer-w) + 22px); }
 }
 @media (min-width: 1100px) {
   #toast-area { left: 172px; }
+  #game-main:has(#panel-tasks:not(.closed)) #toast-area { right: calc(var(--status-w) + 22px); }
 }
 .toast {
   background: rgba(30, 58, 95, 0.94);
@@ -875,7 +883,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 #panel-status.log-open .metric,
 #panel-status.log-open .metric-head { margin-bottom: 0; }
 .panel-title { font-size: 0.9rem; color: var(--navy); }
-.panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: var(--fs-min); }
+.panel-title-sub { font-weight: 500; color: var(--ink-2); font-size: var(--fs-min); }
 .metric { margin-bottom: 2px; position: relative; }
 .metric-head {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -902,7 +910,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   0%, 100% { filter: none; }
   40% { filter: brightness(1.6) saturate(1.6); }
 }
-.metric-head small { font-weight: 400; color: var(--ink-2); font-size: inherit; }
+.metric-head small { font-weight: 500; color: var(--ink-2); font-size: inherit; }
 .bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
 .fill-safety { background: #2e9e5b; }
@@ -1227,7 +1235,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .zk-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
 .zk-item p { font-size: 0.875rem; margin: 3px 0; line-height: 1.9; }
 .zk-head { font-weight: 700; color: var(--navy); font-size: 0.86rem; line-height: 1.9; }
-.zk-head small { color: var(--ink-2); font-weight: 400; font-size: var(--fs-min); }
+.zk-head small { color: var(--ink-2); font-weight: 500; font-size: var(--fs-min); }
 .zk-why { color: #7a5b12; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: var(--fs-min); line-height: 1.9; }
 .zk-note { color: var(--ink-2); font-size: var(--fs-min); }
 
@@ -1247,9 +1255,10 @@ ruby rt, .tc-ruby { font-weight: normal; }
 /* ---------------- 結果画面の作業タイムライン ---------------- */
 .result-gantt-box { margin-bottom: 16px; text-align: left; }
 .result-gantt-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 8px; }
-.rg-sub { font-weight: 400; color: var(--ink-2); font-size: var(--fs-min); line-height: 1.9; }
+.rg-sub { font-weight: 500; color: var(--ink-2); font-size: var(--fs-min); line-height: 1.9; }
 .result-gantt { display: flex; flex-direction: column; gap: 3px; }
-/* 名前の列 8em = 128px: 13px の作業名（いちばん長いもの＝絵文字＋11文字）が省略されない幅 */
+/* 名前の列 8em（ここでは 128px）: ui.js が作業名を「7文字＋…」に切って出すので、13px の「絵文字＋7文字＋…」が CSS で切れずに入る幅。
+ * 11文字の名前（到着手荷物の取り降ろし など）を全部出す幅ではない（全部の名前は title にある。短い名前の表で出すのは META の L） */
 .gr { display: grid; grid-template-columns: 8em 1fr; align-items: center; gap: 8px; }
 .gr-label {
   font-size: var(--fs-min); color: var(--ink); line-height: 1.9;
@@ -1297,6 +1306,9 @@ ruby rt, .tc-ruby { font-weight: normal; }
   .hint-banner { max-width: 88%; }
   .btn, .speed-btn { min-height: 44px; }
   .fr-lead { display: none; }
+  /* 持ち場ポップ: 駐機場は高さ 240px ほどしかないので、横いっぱいに広げて低くし、それでも入らないときはポップの中をスクロールする
+   * （下の「くわしく」が駐機場のわくで切れないように。left は ui.js が書く style より優先する。GAME の J で下からのシートにするまでの手当て） */
+  .spot-pop { left: 8px !important; right: 8px; width: auto; max-height: calc(100% - 16px); overflow-y: auto; }
 }
 
 /* =========================================================

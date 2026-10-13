@@ -24,7 +24,7 @@
  *   book      = ずかん
  *   help      = あそびかた
  *   star      = ステージのスター（star-outline = まだ取っていないスター）
- *   vet       = ベテラン（金色の袖章 2 本）／ rookie = ルーキー（若葉マーク）
+ *   vet       = ベテラン（階級章: 山形の帯 2 本 + 下の弧）／ rookie = ルーキー（若葉マーク）
  *   alert     = 注意・トラブル
  *   lock      = まだ ／ unlock = ひらいた
  *   pin       = いまここ
@@ -233,13 +233,10 @@
       F(rrect(12.8, 13.2, 9.2, 8, 1.4) + circle(17.4, 16.6, 1.2) + rrect(16.8, 16.8, 1.2, 2.6, 0.5), true),  // 錠
       W('M14.8 13.2v-2.4a2.6 2.6 0 0 1 5.2 0v2.4', 1.8),
     ],
-    'task-pushback': [   // 横から見た機体（機首が左・尾翼つき）を、機首の前の低いトーイングカーがうしろ（右）へ押す
-      F(rrect(4.2, 7.2, 18.8, 4.8, 2.4) + poly([[17.6, 7.6], [20.4, 2.2], [23, 2.2], [23, 7.6]]) +
-        poly([[5.5, 9.2], [6.9, 8.2], [8.8, 8.2], [8.8, 9.2]]), true),                // 胴体・尾翼・操縦席のまど
-      W('M8 12v2.4', 1.4), F(circle(8, 15.4, 1.3)),                                  // 前脚
-      F(rrect(0.8, 14.6, 5.2, 3.4, 0.9) + circle(2.2, 18.8, 1.1) + circle(4.6, 18.8, 1.1)),  // トーイングカー
-      W('M6 16.2h1', 1.4),                                                           // トーバー
-      W('M11 18.4h8.4', 2), F('M18.4 15.6 22.6 18.4l-4.2 2.8Z'),                     // うしろへ進む矢印
+    'task-pushback': [   // 上から見た機体（機首が上＝ゲートの方）を、機首の前のトーイングカーがうしろ（下）へ押す。右の太い矢印＝うしろへ
+      F(poly(xf(PLANE, 0, 0.86, -3, 2.2))),                                         // 機体（16px でも機体の形が読める大きさ）
+      F(rrect(6.4, 1.2, 5.2, 3.2, 1.1)),                                            // トーイングカー
+      W('M20.4 3.4v9', 2.8), F(poly([[17.2, 11.4], [20.4, 17.4], [23.6, 11.4]])),    // うしろへ進む矢印（主翼の先から 2 マスはなす）
     ],
     'task-depart': [W('M2.5 21.3h19', 1.8), F(poly(xf(PLANE, 62, 0.82, 0.6, -1.6)))],
 
@@ -305,9 +302,10 @@
     'plane': [F(poly(xf(PLANE, 45, 0.98)))],
     'people': [F(circle(9, 6, 2.4) + 'M4.8 20v-5a4.2 4.2 0 0 1 8.4 0v5Z' + circle(17.3, 7.2, 2.1) + 'M13.8 20v-4.4a3.6 3.6 0 0 1 7.2 0V20Z')],
     'walk': walker(13.4, 3.6),
-    'vet': [   // ベテランの袖章 2 本（上向きの山形を 2 つ重ねる）
-      W(line([[4, 12.2], [12, 5.6], [20, 12.2]]), 3.6),
-      W(line([[4, 19.2], [12, 12.6], [20, 19.2]]), 3.6),
+    'vet': [   // ベテランの階級章（山形の帯 2 本 + 下の弧）。端をまっすぐ切った帯と弧で、「上へ」の操作の記号と見分ける
+      F(poly([[4, 8.6], [12, 2.6], [20, 8.6], [20, 12.2], [12, 6.2], [4, 12.2]]) +
+        poly([[4, 14], [12, 8], [20, 14], [20, 17.6], [12, 11.6], [4, 17.6]])),
+      W('M6.2 20q5.8 4 11.6 0', 2.6),
     ],
     'rookie': [C(poly([[5, 2.5], [12, 6.5], [12, 21.5], [5, 15.5]]), '#f2c200'), C(poly([[12, 6.5], [19, 2.5], [19, 15.5], [12, 21.5]]), '#1e9a4b')],
   };
@@ -382,11 +380,11 @@
     pathCache[name] = DEF[name].map((p) => ({ p, path: new Path2D(p.d) }));
     return pathCache[name];
   }
-  function draw(ctx, name, cx, cy, size, color) {
-    const list = paths(name);
-    if (!list || !ctx) return false;
+  /* 部品を順に描く（ctx の globalAlpha をうすさの元にする） */
+  function drawParts(ctx, list, cx, cy, size, color) {
     const s = size / 24;
     ctx.save();
+    const a0 = ctx.globalAlpha;   // 呼び出し側のうすさ（ロック中・フェードなど）を守る
     ctx.translate(cx - size / 2, cy - size / 2);
     ctx.scale(s, s);
     ctx.lineCap = 'round';
@@ -398,12 +396,35 @@
       } else {
         ctx.strokeStyle = color || '#000';
         ctx.lineWidth = p.m === 'w' ? p.w : 1.75;   // 24 グリッドの太さ（scale でいっしょに大きくなる）
-        ctx.globalAlpha = p.o != null ? p.o : 1;
+        ctx.globalAlpha = a0 * (p.o != null ? p.o : 1);
         ctx.stroke(path);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = a0;
       }
     }
     ctx.restore();
+  }
+  let scratch = null;   // うすく描くときの下書き用 canvas（使いまわす）
+  function draw(ctx, name, cx, cy, size, color) {
+    const list = paths(name);
+    if (!list || !ctx) return false;
+    /* うすく描くとき（globalAlpha<1）は、部品の重なり（人の手足のつけね・取っ手など）だけ濃くならないよう、
+     * いったん下書きの canvas に不透明で描いてから、1枚の絵としてうすく貼る */
+    if (ctx.globalAlpha < 1 && list.length > 1 && typeof document !== 'undefined' && ctx.getTransform) {
+      const m = ctx.getTransform();
+      const k = Math.hypot(m.a, m.b) || 1;          // いまの拡大率（DPR・カメラのズーム）
+      const px = Math.max(1, Math.ceil(size * k));
+      if (!scratch) scratch = document.createElement('canvas');
+      if (scratch.width < px) scratch.width = px;
+      if (scratch.height < px) scratch.height = px;
+      const c2 = scratch.getContext('2d');
+      c2.setTransform(1, 0, 0, 1, 0, 0);
+      c2.globalAlpha = 1;
+      c2.clearRect(0, 0, px, px);
+      drawParts(c2, list, px / 2, px / 2, px, color);
+      ctx.drawImage(scratch, 0, 0, px, px, cx - size / 2, cy - size / 2, size, size);
+      return true;
+    }
+    drawParts(ctx, list, cx, cy, size, color);
     return true;
   }
 
