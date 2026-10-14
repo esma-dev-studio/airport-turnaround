@@ -677,6 +677,9 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
   transition: right 0.25s ease;
 }
 .drawer-tab > .ico { width: 20px; height: 20px; }
+/* 出発中（広い画面）: ドロワーは開かないので、つまみを うすくする（押すと わけを知らせる） */
+.drawer-tab.dt-off { background: #8193a6; box-shadow: none; cursor: default; }
+.drawer-tab.dt-off .drawer-badge { display: none; }
 .drawer-tab-txt { font-size: var(--fs-min); writing-mode: vertical-rl; letter-spacing: 2px; line-height: 1.35; }
 /* はじめられる数（「▶4」。赤はトラブルだけに使うので、はじめられる色にする） */
 .drawer-badge {
@@ -2420,7 +2423,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   /* トーストは駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）に出す（1枚まで）。
    * 画面に固定し、位置（top・bottom・left・right）は UI.placeToast が スクロールのたびに決める（追従する HUD の下に かくれない）。
    * 画面の下に固定しない: 駐機場の下の 作業カード・きろく・スタッフ帯の行を かくさない。
-   * 駐機場の下はしには ふだん置かない: 区画の看板・待機中のスタッフや車を かくさない（駐機場が低い画面で コーチを出している間だけ） */
+   * 駐機場の下はしには ふだん置かない: 区画の看板・待機中のスタッフや車を かくさない（駐機場が低い画面で コーチを出している間だけ）。
+   * そこに置くと コーチ・ズームのボタン・きろくの行などに かかる・画面の外に出るときは、UI.toastSpot が ほかの場所を さがす */
   #toast-area {
     position: fixed;
     left: 16px; right: 16px; width: auto; transform: none;
@@ -2429,8 +2433,11 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   }
   /* イベントの知らせ（画面の下に固定）の ぶんだけ、ページの下に余白（さいごのカードのボタンが かくれない） */
   #screen-game.has-event { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
-  /* 「はじめられるよ！」は1行（44px）にする（カードの見出しやスタッフ帯を かくす高さを へらす） */
-  .toast-open { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 「はじめられるよ！」は1行（44px）にする（カードの見出しやスタッフ帯を かくす高さを へらす）。
+   * 入らないときは 作業の名前のほうを「…」で切り、「はじめられるよ！」と「ほか Nこ」（あと いくつ あるか）は いつも出す */
+  .toast-open { display: flex; align-items: center; column-gap: 0.4em; white-space: nowrap; overflow: hidden; height: calc(1.95em + 16px); }
+  .toast-open > .to-lead, .toast-open > .to-more { flex: none; }
+  .toast-open > .to-names { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* 持ち場ポップは下からのシート */
   .spot-pop {
     position: fixed;
@@ -2459,11 +2466,11 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   .top-rail > .pause-chip { padding: 6px 10px; }
   .pause-chip .ico { display: none; }
 }
-/* ---------------- 幅 340px 以下（320x568 など）: 切れる・はみ出す文字を出さない ----------------
+/* ---------------- 幅 374px 以下（320x568・344x882・360x640 など）: 切れる・はみ出す文字を出さない ----------------
  * ステージ名は「ステージ」を小さい見出しにして 番号の上に（時計と同じ「見出し+数字」の形。「ス…」と切らない）。
  * HUD の右の ボタンのすき間を つめて、見出しの はばを あける。
  * スコア板は 2×2（4つ横ならびだと「時間どおり」が となりの「まんぞく」の アイコンに かぶる）。一時停止の札は 短い文「とめているよ」 */
-@media (max-width: 340px) {
+@media (max-width: 374px) {
   #hud { padding-left: 8px; padding-right: 8px; column-gap: 4px; }
   .hud-right { gap: 2px; }
   .btn-flow { padding: 2px 3px; }
@@ -2472,6 +2479,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   #hud-stage-name .sn-n { font-size: 1.25rem; line-height: 1.1; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
   .pause-chip .pc-lead { display: none; }
+  /* 「はじめられるよ！ 機内食 ほか 1こ」が 1行に入るように、よこの余白を つめる */
+  .toast-open { padding-left: 10px; padding-right: 10px; column-gap: 0.3em; }
 }
 /* ---------------- 背の低い横長の画面（スマホの横向き 701px 以上・高さ 500px 以下） ---------------- */
 @media (max-height: 500px) and (min-width: 701px) {
