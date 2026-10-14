@@ -4295,7 +4295,7 @@
         const open = this.els['panel-status'].classList.toggle('log-open');
         this.setLogToggle(open);
         /* スマホ: きろくを開いたら、出ているトーストを片づける（同じことは きろくに のっている）。
-         * 開いている間は、駐機場が ほぼ画面の外にあるときだけ ためて（holdToasts の 'log'）、とじたら出す */
+         * 開いている間は、画面の どこに出しても きろくの行に かかるときだけ ためて（holdToasts の 'log'）、とじたら出す */
         if (open && this.isNarrow()) this.els['toast-area'].innerHTML = '';
         if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
       });
