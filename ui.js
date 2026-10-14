@@ -4295,9 +4295,12 @@
         const open = this.els['panel-status'].classList.toggle('log-open');
         this.setLogToggle(open);
         /* スマホ: きろくを開いたら、出ているトーストを片づける（同じことは きろくに のっている）。
-         * 開いている間は、画面の どこに出しても きろくの行に かかるときだけ ためて（holdToasts の 'log'）、とじたら出す */
+         * 開いている間は、画面の どこに出しても 見えている きろくの行に かかるときだけ ためて（holdToasts の 'log'）、とじたら出す
+         * （ゲームの知らせは きろくに のっているので すて、作業カードを押した こたえ だけ出す。flushToastQ） */
         if (open && this.isNarrow()) this.els['toast-area'].innerHTML = '';
         if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
+        /* ページの長さが かわる（スクロールの位置も かわる）ので、出ているトーストの置き場を えらびなおす */
+        this.placeToast();
       });
 
       /* ズーム（持ち場のポップを開いていたら、持ち場のそばへ置きなおす） */
@@ -4364,12 +4367,7 @@
         ['event-banner', 'coach-bubble', 'hint-banner', 'pause-chip'].forEach((id) => railRO.observe(this.els[id] || document.getElementById(id)));
       }
       this._lastW = window.innerWidth;
-      /* スマホ: ページをスクロールしたら、トーストを置きなおす（toastSpot）。
-       * きろくを読んでいる間 ためていた「はじめられるよ！」は、きろくに かからない場所が できたら出す */
-      window.addEventListener('scroll', () => {
-        this.placeToast();
-        if (this._toastQ && this._toastQ.length && this.isNarrow()) this.flushToastQ();
-      }, { passive: true });
+      window.addEventListener('scroll', () => this.onPageScroll(), { passive: true });
       window.addEventListener('resize', () => {
         this.placeToast();
         this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH(); this.placeStartCard();
@@ -5799,16 +5797,17 @@
       while (ul.children.length > 40) ul.removeChild(ul.lastChild);
     },
 
-    /* トースト: 情報（紺）・注意（こはく）・トラブル（赤）。コーチの文はふきだしに出す */
-    toast(msg, type) {
+    /* トースト: 情報（紺）・注意（こはく）・トラブル（赤）。コーチの文はふきだしに出す。
+     * logged: 同じ文が きろくにも のる知らせ（ゲームが出す知らせ）。作業カードを押した こたえ などは のらない */
+    toast(msg, type, logged) {
       type = type || 'info';
       if (type === 'coach') { this.showCoach(msg); return; }
-      this.pushToast(this.gx(msg), type);
+      this.pushToast(this.gx(msg), type, null, logged);
     },
     /* トーストを ためておく間: モーダルを開いている間・スマホで持ち場のシートを開いている間
      * （シートの うしろに かくれて 見えないまま 消えないように）・スマホで「きろく」を開いて、画面の どこに出しても
-     * 読んでいる きろくの行に かかるとき（toastSpot。きろくが 画面いっぱいに出ている。スクロールして 置ける場所が できるか、
-     * きろくを とじたら出す）。ためる わけ（'modal' / 'sheet' / 'log'）を返す。ためないときは false */
+     * 見えている きろくの行に かかるとき（toastSpot。きろくの箱の中で 見えている行だけを数える。スクロールして 置ける場所が
+     * できるか、きろくを とじたら出す）。ためる わけ（'modal' / 'sheet' / 'log'）を返す。ためないときは false */
     holdToasts() {
       if (!this.els['screen-game'].classList.contains('active')) return false;
       if (this.modalKind) return 'modal';
@@ -5828,16 +5827,26 @@
       if (!this.isNarrow()) return false;
       const cb = this.els['coach-bubble'];
       if (!cb || cb.classList.contains('hidden')) return false;
-      return this.els['apron'].getBoundingClientRect().height < 320 ? 'coach' : false;
+      if (this.els['apron'].getBoundingClientRect().height >= 320) return false;
+      /* コーチが 追従する HUD の下に かくれている・画面の外にあるときは ためない（コーチも トーストも 見えなくなるので） */
+      const r = cb.getBoundingClientRect();
+      if (r.height < 1 || r.bottom <= this.hudBottom() + 20 || r.top >= window.innerHeight) return false;
+      return 'coach';
     },
-    /* ids: 「はじめられるよ！」('open') の作業の id。ためたあと出すときに、まだ はじめられるかを 確かめなおす */
-    pushToast(html, type, ids) {
+    /* 追従する HUD の下はし（画面の座標。HUD が 画面の上に出ていないときは 0） */
+    hudBottom() {
+      const hud = this.els['hud'] || (this.els['hud'] = document.getElementById('hud'));
+      return Math.max(0, hud ? hud.getBoundingClientRect().bottom : 0);
+    },
+    /* ids: 「はじめられるよ！」('open') の作業の id。ためたあと出すときに、まだ はじめられるかを 確かめなおす。
+     * logged: 同じ文が きろくにも のる知らせ（toast） */
+    pushToast(html, type, ids, logged) {
       const gameOn = this.els['screen-game'].classList.contains('active');
       /* ためておく間は、閉じたあとで1枚だけ出す */
       const hold = gameOn && (this.holdToasts() || (type === 'open' && this.holdOpenToasts()));
       if (hold) {
         this._toastQ = this._toastQ || [];
-        this._toastQ.push({ html, type, ids: ids ? ids.slice() : null, why: hold });
+        this._toastQ.push({ html, type, ids: ids ? ids.slice() : null, why: hold, logged: !!logged });
         if (this._toastQ.length > 8) this._toastQ.shift();
         return null;
       }
@@ -5898,15 +5907,15 @@
     /* ためていたトーストを1枚だけ出す（まだ ためておく間なら 何もしない）。
      * 「はじめられるよ！」は、ためた間に はじめた・おわった作業を のぞいて1枚にまとめなおす（のこりが なければ 出さない）。
      * コーチを出している間は「はじめられるよ！」を ためたままにする（holdOpenToasts）。
-     * 「きろく」を読んでいたせいで ためた 知らせ（注意・トラブルなど）は 出さない（同じ文が きろくの いちばん上の行に のっていて、
-     * あとで出すと「のこりの作業 8件」のような数が 古いまま 出る。ためるのは きろくが 画面いっぱいの間だけなので、
-     * 作業カードを押した こたえ（きろくに のらない）を ためることは ない） */
+     * 「きろく」を読んでいたせいで ためた ゲームの知らせ（注意・トラブルなど。logged）は 出さない（同じ文が きろくの
+     * いちばん上の行に のっていて、あとで出すと「のこりの作業 8件」のような数が 古いまま 出る）。
+     * 作業カードを押した こたえ（きろくに のらない）は すてずに、置ける場所が できたら出す */
     flushToastQ() {
       if (this.holdToasts()) return;
       let q0 = this._toastQ || [];
       const keepOpen = !!this.holdOpenToasts();
       this._toastQ = keepOpen ? q0.filter((x) => x.type === 'open') : [];
-      q0 = q0.filter((x) => (x.type === 'open' ? !keepOpen : x.why !== 'log'));
+      q0 = q0.filter((x) => (x.type === 'open' ? !keepOpen : !(x.why === 'log' && x.logged)));
       if (!q0.length) return;
       const ready = (id) => { const t = this.state && this.state.tasks[id]; return !!t && t.status === 'ready'; };
       const openIds = [];
@@ -5921,7 +5930,7 @@
         this._openToast = el ? { el, ids: openIds.slice(), t: performance.now() } : null;
         return;
       }
-      this.pushToast(pick.html, pick.type);
+      this.pushToast(pick.html, pick.type, null, pick.logged);
     },
 
     /* ---------------- 時計まわり ---------------- */
@@ -6100,26 +6109,56 @@
       }
       Scene.setViewInsets(ins);
     },
-    /* スマホ: トーストは 画面に固定（styles.css の position:fixed）し、その位置を スクロール・画面の大きさ・上の知らせ・トーストの中身が かわるたびに決める
-     * （場所の決め方は toastSpot） */
-    placeToast() {
+    /* スマホ: ページをスクロールしたら、トーストを ページといっしょに動かす（placeToast の follow。置き場は えらびなおさない）。
+     * きろく・コーチを読んでいる間 ためていた トーストは、かからない場所が できたら出す */
+    onPageScroll() {
+      this.placeToast(true);
+      if (this._toastQ && this._toastQ.length && this.isNarrow()) this.flushToastQ();
+    },
+    /* スマホ: トーストは 画面に固定（styles.css の position:fixed）し、その位置を JS で決める。
+     * 置き場を えらぶ（toastSpot）のは、出したとき・中身・上の知らせ・シート・画面の大きさが かわったときだけ。
+     * スクロールでは（follow）えらびなおさず、えらんだ場所を ページといっしょに動かして、HUD の下〜画面の下に おさえる
+     * （スクロールのたびに 候補を えらびなおすと、トーストが ぴょんと とんで、にげていくように見える）。
+     * 動いた先で かくしてはいけない部品（ズームのボタン・コーチ・きろくの行 など）に 新しく かかるときは、とぶかわりに 早めに消す */
+    placeToast(follow) {
       const ta = this.els['toast-area'];
       if (!ta) return;
       const st = ta.style;
       if (!this.isNarrow() || !this.els['screen-game'].classList.contains('active')) {
+        this._toastAt = null;
         if (ta._fx) { ta._fx = ''; st.top = ''; st.bottom = ''; st.left = ''; st.right = ''; }
         return;
       }
       const c = this.els['apron'].getBoundingClientRect();
       if (c.height < 1) return;
       const tl = ta.lastElementChild;
-      const p = this.toastSpot(ta.offsetHeight || 44, tl ? tl.offsetWidth : c.width - 16);
-      if (!p) return;
+      const h = ta.offsetHeight || 44, tw = tl ? tl.offsetWidth : c.width - 16;
+      const at = this._toastAt;
+      let p;
+      if (follow && tl && at && at.el === tl) {
+        p = this.toastSpot(h, tw, c.top + at.dy);
+        if (!p) return;
+        if (p.hard > at.hard + 0.5) this.fadeToasts();
+      } else {
+        p = this.toastSpot(h, tw);
+        if (!p) return;
+        /* くらべる もとは、えらんだ場所で 本当に かかる量（どこにも入らないときの HUD の下も 数えなおす） */
+        this._toastAt = tl ? { el: tl, dy: p.top - c.top, hard: this.toastSpot(h, tw, p.top).hard } : null;
+      }
       const vw = document.documentElement.clientWidth;
       const fx = [Math.round(p.top) + 'px', 'auto', Math.round(c.left + 8) + 'px', Math.round(vw - c.right + 8) + 'px'].join(' ');
       if (ta._fx === fx) return;
       ta._fx = fx;
       [st.top, st.bottom, st.left, st.right] = fx.split(' ');
+    },
+    /* 出ているトーストを いま消しはじめる（0.45秒で うすくなって消える。.toast.out） */
+    fadeToasts() {
+      [...this.els['toast-area'].children].forEach((el) => {
+        if (el.classList.contains('out')) return;
+        clearTimeout(el._tOut); clearTimeout(el._tRm);
+        el.classList.add('out');
+        el._tRm = setTimeout(() => { el.remove(); }, 500);
+      });
     },
     /* スマホのトーストの置き場（画面の座標で 上はしの y）。h = トーストの高さ、tw = 幅。
      * 候補のうち、HUD の下はし +8px 〜 画面の下はし（画面の下に イベントの知らせが出ていれば その上）に 全部 入り、
@@ -6130,8 +6169,9 @@
      *      （コーチとトーストで 駐機場の上の6わりを かくして、機体と持ち場の輪が見えなくならないように）
      *   2) ふだん: 駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）。ページを下へスクロールしたら HUD の下
      *   3) ズームのボタン・一時停止の札の すぐ上・すぐ下  4) コーチの すぐ上  5) 画面の下はし  6) HUD の すぐ下
-     * hits は えらんだ場所で 本当に かかる部品と その高さ（きろくの行に かかるなら holdToasts が ためる）。駐機場が ないときは null */
-    toastSpot(h, tw) {
+     * hits は えらんだ場所で 本当に かかる部品と その高さ（きろくの行に かかるなら holdToasts が ためる）。駐機場が ないときは null。
+     * at を わたすと、候補を えらばず、その場所（HUD の下〜画面の下に おさえる）で かかる量だけを返す（スクロールで ついていくとき） */
+    toastSpot(h, tw, at) {
       const c = this.els['apron'].getBoundingClientRect();
       if (c.height < 1) return null;
       const rectOf = (el) => {
@@ -6139,18 +6179,23 @@
         const r = el.getBoundingClientRect();
         return r.width > 0 && r.height > 0 ? r : null;
       };
-      const hud = this.els['hud'] || (this.els['hud'] = document.getElementById('hud'));
-      const minTop = Math.max(0, hud ? hud.getBoundingClientRect().bottom : 0) + 8;
+      const minTop = this.hudBottom() + 8;
       const vh = window.innerHeight;
       const coach = rectOf(this.els['coach-bubble']), zc = rectOf(this.els['zoom-ctrl']), pc = rectOf(this.els['pause-chip']);
       const ev = rectOf(this.els['event-banner']);
       const vb = (ev && ev.top > vh / 2 ? ev.top : vh) - 8;
       const keep = [['coach', coach], ['hint', rectOf(this.els['hint-banner'])], ['zoom', zc], ['pause', pc],
         ['sheet', this.spotPopTask ? rectOf(this.els['spot-pop']) : null], ['event', ev]].filter((o) => o[1]);
+      /* きろくの行は、きろくの箱（高さに かぎりがあり、中で スクロールする）の中で 見えている部分だけ */
       if (this.els['panel-status'].classList.contains('log-open')) {
-        for (const li of this.els['game-log'].children) {
-          const r = li.getBoundingClientRect();
-          if (r.height > 0 && r.bottom > 0 && r.top < vh) keep.push(['log', r]);
+        const box = this.els['game-log'].getBoundingClientRect();
+        const bt = Math.max(box.top, 0), bb = Math.min(box.bottom, vh);
+        if (bb - bt > 1) {
+          for (const li of this.els['game-log'].children) {
+            const r = li.getBoundingClientRect();
+            const t = Math.max(r.top, bt), b = Math.min(r.bottom, bb);
+            if (b - t > 1) keep.push(['log', { top: t, bottom: b, left: r.left, right: r.right }]);
+          }
         }
       }
       const PRESS = { zoom: 1, pause: 1, sheet: 1, event: 1 };
@@ -6172,6 +6217,11 @@
         rings.forEach(([rx, ry]) => { if (rx > x0 && rx < x1 && ry > top && ry < top + h) soft += 12; });
         return { out, hard, soft };
       };
+      if (at != null) {
+        const top = Math.max(minTop, Math.min(at, vb - h));
+        const r = score(top);
+        return { top, hits: r.out, hard: r.hard, soft: r.soft };
+      }
       const cands = [];
       if (lowCoach) cands.push(Math.min((zc ? zc.top : c.bottom - 52) - 8, vb) - h);
       cands.push(Math.max(c.top + (this.railInset() || 8), minTop));
@@ -7381,7 +7431,7 @@
         case 'metrics': this.updateMetrics(); break;
         case 'clock': this.updateClock(); break;
         case 'log': this.addLog(payload); break;
-        case 'toast': this.toast(payload.msg, payload.type); break;
+        case 'toast': this.toast(payload.msg, payload.type, true); break;   // ゲームの知らせは きろくにも のる（Game.log）
         case 'sfx': Sfx.play(payload); break;
         case 'weather': this.updateWeatherHud(); this.updateRibbon(); this.updateResources(); break;
         case 'celebrate': if (this.state) Scene.celebrate(this.state, payload.taskId); break;
