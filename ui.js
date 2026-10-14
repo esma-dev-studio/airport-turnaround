@@ -4081,6 +4081,12 @@
         if (q.y - r < topY || q.y + r > botY) return true;
         return covers.some((b) => q.x + r > b.l && q.x - r < b.r && q.y + r > b.t && q.y - r < b.b);
       };
+      /* その位置の輪が ほんとうに かくれるか（DOM の下・キャンバスの外。安全な範囲の上はしの すきまは 数えない） */
+      const ringHidden = (x, cy) => {
+        const q = this.sceneToScreen(x, cy), r = 19.5 * kr * S;
+        if (q.y - r < 0 || q.y + r > this.ch) return true;
+        return covers.some((b) => q.x + r > b.l && q.x - r < b.r && q.y + r > b.t && q.y - r < b.b);
+      };
       /* その位置の輪（右下のバッジもふくむ）が、持ち場の輪（先に描いた _spotDiscs）・先に置いた 進み具合の輪とバッジに かからないか（シーンの座標） */
       const discFree = (x, cy) => {
         const bx = x + 9.5 * kr, by = cy + 9 * kr, br = 6.3 * kr;
@@ -4111,10 +4117,17 @@
         let ry = flip ? downY : upY;
         /* 上も下も だめなとき（小さいスマホで コーチの下にかかる・となりの輪や持ち場の輪に かかる など）: 足もとの下から すこしずつ下げて、
          * DOM にも キャンバスの下はしにも ほかの輪・バッジにも かからない高さが あれば そこに出す（かくれた輪を 出さない）。
-         * 頭の上と足もとの あいだ（人の体に かかる高さ）には 置かない */
+         * 頭の上と足もとの あいだ（人の体に かかる高さ）は、頭の上だと 輪が ほんとうに かくれる（DOM の下・キャンバスの外）ときだけ、
+         * さいごに ためす（人の体に すこし かかっても、輪が 見えないよりは よい） */
         if (!flip && (ringHit(x, upY, 0) || !upFree)) {
+          let found = false;
           for (let yy = downY + 3 * kr; yy <= downY + 24 * kr; yy += 3 * kr) {
-            if (!ringHit(x, yy, 0) && discFree(x, yy)) { ry = yy; break; }
+            if (!ringHit(x, yy, 0) && discFree(x, yy)) { ry = yy; found = true; break; }
+          }
+          if (!found && ringHidden(x, upY)) {
+            for (let yy = upY + 3 * kr; yy < downY; yy += 3 * kr) {
+              if (!ringHit(x, yy, 0) && discFree(x, yy)) { ry = yy; break; }
+            }
           }
         }
         /* 輪と 右下のバッジを おぼえる（札・人数の札・あとの輪が よける） */
@@ -6109,14 +6122,15 @@
       [st.top, st.bottom, st.left, st.right] = fx.split(' ');
     },
     /* スマホのトーストの置き場（画面の座標で 上はしの y）。h = トーストの高さ、tw = 幅。
-     * 候補を この順に ためして、HUD の下はし +8px 〜 画面の下はし（画面の下に イベントの知らせが出ていれば その上）に 全部 入り、
+     * 候補のうち、HUD の下はし +8px 〜 画面の下はし（画面の下に イベントの知らせが出ていれば その上）に 全部 入り、
      * かくしてはいけない部品（コーチ・ヒント・ズームのボタン・一時停止の札・持ち場のシート・イベントの知らせ・きろくの行）に
-     * 4px の すきまを とって かからない、さいしょの場所にする。どこも かかるときは、かかる高さが いちばん少ない場所。
+     * かかる高さが いちばん少ない場所にする（押す部品に かかるのは 10倍に数える）。同じなら、4px の すきまが とれる・
+     * 持ち場の輪を かくさない（駐機場が低い画面で コーチを出している間だけ 数える）ほう。それも同じなら 先の候補。
      *   1) 駐機場が低い（320px 未満）画面で コーチを出している間: 駐機場の下はし（ズームのボタンの上）
      *      （コーチとトーストで 駐機場の上の6わりを かくして、機体と持ち場の輪が見えなくならないように）
      *   2) ふだん: 駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）。ページを下へスクロールしたら HUD の下
      *   3) ズームのボタン・一時停止の札の すぐ上・すぐ下  4) コーチの すぐ上  5) 画面の下はし  6) HUD の すぐ下
-     * hits は えらんだ場所で かかる部品と その高さ（きろくの行に かかるなら holdToasts が ためる）。駐機場が ないときは null */
+     * hits は えらんだ場所で 本当に かかる部品と その高さ（きろくの行に かかるなら holdToasts が ためる）。駐機場が ないときは null */
     toastSpot(h, tw) {
       const c = this.els['apron'].getBoundingClientRect();
       if (c.height < 1) return null;
@@ -6139,32 +6153,39 @@
           if (r.height > 0 && r.bottom > 0 && r.top < vh) keep.push(['log', r]);
         }
       }
+      const PRESS = { zoom: 1, pause: 1, sheet: 1, event: 1 };
+      const lowCoach = c.height < 320 && !!coach;
+      /* 持ち場の輪（キャンバスに描いた輪の中心。画面の座標） */
+      const rings = lowCoach && Scene._spotDiscs && Scene.sceneToScreen
+        ? Scene._spotDiscs.map(([x, y]) => { const q = Scene.sceneToScreen(x, y); return [c.left + q.x, c.top + q.y]; }) : [];
       const x0 = (c.left + c.right) / 2 - tw / 2, x1 = x0 + tw;
-      const hitsAt = (top) => {
+      const score = (top) => {
         const out = {};
-        let sum = 0;
+        let hard = 0, soft = 0;
         keep.forEach(([k, r]) => {
           if (x1 <= r.left || x0 >= r.right) return;
-          const v = Math.min(top + h + 4, r.bottom) - Math.max(top - 4, r.top);
-          if (v > 0) { out[k] = (out[k] || 0) + v; sum += v; }
+          const v = Math.min(top + h, r.bottom) - Math.max(top, r.top);
+          if (v > 0) { out[k] = (out[k] || 0) + v; hard += v * (PRESS[k] ? 10 : 1); }
+          const m = Math.min(top + h + 4, r.bottom) - Math.max(top - 4, r.top) - Math.max(0, v);
+          if (m > 0) soft += m;
         });
-        return { out, sum };
+        rings.forEach(([rx, ry]) => { if (rx > x0 && rx < x1 && ry > top && ry < top + h) soft += 12; });
+        return { out, hard, soft };
       };
       const cands = [];
-      if (c.height < 320 && coach) cands.push(Math.min((zc ? zc.top : c.bottom - 52) - 8, vb) - h);
+      if (lowCoach) cands.push(Math.min((zc ? zc.top : c.bottom - 52) - 8, vb) - h);
       cands.push(Math.max(c.top + (this.railInset() || 8), minTop));
-      [zc, pc].forEach((o) => { if (o) cands.push(o.top - 8 - h, o.bottom + 8); });
+      [zc, pc].forEach((o) => { if (o) cands.push(o.top - 8 - h, o.bottom + 8, o.top - 4 - h); });
       if (coach) cands.push(coach.top - 8 - h);
       cands.push(vb - h, minTop);
       let best = null;
       for (const top of cands) {
         if (top < minTop - 0.5 || top + h > vb + 0.5) continue;
-        const r = hitsAt(top);
-        if (!best || r.sum < best.sum - 0.5) best = { top, hits: r.out, sum: r.sum };
-        if (r.sum <= 0) break;
+        const r = score(top);
+        if (!best || r.hard < best.hard - 0.5 || (r.hard < best.hard + 0.5 && r.soft < best.soft - 0.5)) best = { top, hits: r.out, hard: r.hard, soft: r.soft };
       }
       /* 画面に入らないほど 高いときは HUD の下（上から読める） */
-      return best || { top: minTop, hits: {}, sum: 0 };
+      return best || { top: minTop, hits: {}, hard: 0, soft: 0 };
     },
     /* 出発中の広い画面: ドロワーの つまみを うすくする（押すと「しゅっぱつ ちゅうは とじているよ」） */
     lockDrawerTab(on) {
