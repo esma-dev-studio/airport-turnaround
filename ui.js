@@ -4369,7 +4369,8 @@
       this._lastW = window.innerWidth;
       window.addEventListener('scroll', () => this.onPageScroll(), { passive: true });
       window.addEventListener('resize', () => {
-        this.placeToast();
+        /* 高さだけの変化（スマホのアドレスバーの出し入れ。スクロールのとちゅうで おきる）では、スクロールと同じく ついていくだけ */
+        this.placeToast(this._lastW === window.innerWidth);
         this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH(); this.placeStartCard();
         if (this.spotPopTask) {
           if (this.isNarrow()) {
