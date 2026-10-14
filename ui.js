@@ -723,7 +723,10 @@
       const base = this.baseScale();
       let sh = this.safeH();
       if (isNarrowView() && this._fitTMax > this.insets.t) sh = Math.max(40, sh - (this._fitTMax - this.insets.t));
-      const z = clamp(Math.min(this.safeW() / ((FOCUS.x1 - FOCUS.x0) * base), sh / ((FOCUS.y1 - FOCUS.y0) * base)), this.minZoom(), 2.6);
+      /* スマホでは、上の知らせ（コーチ）で 見える高さが へっても、倍率 S は 0.3 より小さくしない
+       * （引きすぎると 人・車・進み具合の輪が 小さくなりすぎて 読めない。はみ出た上下は 知らせ・ズームのボタンの下に少し入る） */
+      const zMin = isNarrowView() && base > 0 ? Math.max(this.minZoom(), 0.3 / base) : this.minZoom();
+      const z = clamp(Math.min(this.safeW() / ((FOCUS.x1 - FOCUS.x0) * base), sh / ((FOCUS.y1 - FOCUS.y0) * base)), zMin, 2.6);
       const R = this.camRange(z, false);
       return { zoom: z, cx: clamp((FOCUS.x0 + FOCUS.x1) / 2, R.x[0], R.x[1]), cy: clamp((FOCUS.y0 + FOCUS.y1) / 2, R.y[0], R.y[1]) };
     },
@@ -1013,6 +1016,29 @@
       this._userCam('all');
       Object.assign(this.cam, this.allTarget());
       this.clampCam();
+    },
+    /* GAME から: シーンの点 (x,y) を 安全な範囲の まん中へ（いまの倍率のまま。範囲のはしでは そこまで）。約0.35秒の補間で動かす。
+     * 持ち場ポップを開くとき、持ち場が 安全な範囲の外（画面の外・ドロワーの下）にあるときに使う。自分で動かしたのと同じあつかい */
+    focusOn(x, y) {
+      if (!this.cw || !this.ch) return;
+      const w = this._tween;
+      const ins = w ? { ...w.to.ins } : { ...this.insets };
+      const zoom = w && !w.camFixed && w.to.zoom != null ? w.to.zoom : this.cam.zoom;
+      const from = { zoom: this.cam.zoom, cx: this.cam.cx, cy: this.cam.cy, ins: { ...this.insets } };
+      this._tween = null;   // _userCam で 補間を一気に終わらせない（とばない）
+      this._userCam();
+      const cur = this.insets;
+      this.insets = ins;
+      const R = this.camRange(zoom, !!this._relax);
+      this.insets = cur;
+      const to = { zoom, cx: clamp(x, R.x[0], R.x[1]), cy: clamp(y, R.y[0], R.y[1]), ins };
+      if (reduceMotion()) { this.insets = ins; Object.assign(this.cam, { zoom, cx: to.cx, cy: to.cy }); return; }
+      this._tween = { t: 0, dur: 0.35, from, to };
+    },
+    /* 安全な範囲（補間のとちゅうなら 行き先の範囲） */
+    safeRectAt() {
+      const I = this._tween ? this._tween.to.ins : this.insets;
+      return { l: I.l, t: I.t, r: this.cw - I.r, b: this.ch - I.b };
     },
 
     /* ---- ホーム位置（待機所は左ドロワーに隠れない位置に置く） ---- */
@@ -3161,7 +3187,14 @@
         const k = this.spotK();
         this.doneTags.forEach((d) => {
           const a = clamp((d.life - d.age) / 0.4, 0, 1);
-          this.pushLabel({ prio: 2.5, sx: d.x, sy: d.y - 30 * k, ay: 'b', tx: d.x, ty: d.y, parts: [{ i: 'check' }, { t: 'かんりょう' }], base: 11, style: 'done', alpha: a });
+          /* ほかの作業の 進み具合の輪・バッジ・持ち場の輪に かかるときは、上 → 下 → 右 → 左 の順に よける。どこもだめなら出さない */
+          this.pushLabel({ prio: 2.5, sx: d.x, sy: d.y - 30 * k, ay: 'b', tx: d.x, ty: d.y, parts: [{ i: 'check' }, { t: 'かんりょう' }], base: 11, style: 'done', alpha: a,
+            avoid: true,
+            alt: [
+              { sy: d.y + 30 * k, ay: 't' },
+              { sx: d.x + 26 * k, sy: d.y, ax: 'l', ay: 'm' },
+              { sx: d.x - 26 * k, sy: d.y, ax: 'r', ay: 'm' },
+            ] });
         });
       }
       const list = (this._labels || []).slice().sort((p, q) => p.prio - q.prio);
@@ -3229,7 +3262,8 @@
         const R = { l: left, t: top, r: left + bw, b: top + bh };
         if (!L.zone && (R.r < SR.l || R.l > SR.r || R.b < SR.t || R.t > SR.b)) return null;
         const out = R.l < SR.l + 2 || R.t < SR.t + 2 || R.r > SR.r - 2 || R.b > SR.b - 2;
-        const free0 = (Q) => !covered(Q) && !onDisc(Q, 6) && !onFrame(Q, 3) && !onTip(Q, 3) && !placed.some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
+        /* 赤い枠とは 8px 以上あける（線の外がわの白いふちまで。くっついて見えないように） */
+        const free0 = (Q) => !covered(Q) && !onDisc(Q, 6) && !onFrame(Q, 8 + 2.2 * S) && !onTip(Q, 3) && !placed.some((q) => Q.l < q.r && Q.r > q.l && Q.t < q.b && Q.b > q.t);
         if (L.prio >= 8 && L.zone) {
           /* 区画の看板: 区画の上（決めた高さ）→ 区画の下 → 区画の箱の中 の順に、区画の画面上のはば（はしから 看板の はばの 3わりまでは
            * はみ出してよい）の中で左右にずらして、DOM の欄と知らせ・持ち場の輪と進み具合の輪（6px あける）・
@@ -4022,12 +4056,13 @@
 
     /* 作業の進み具合の輪（人の頭の上。小さい画面では k 倍）。かみなりでおやすみ中は --st-paused の色。
      * まんなかに作業のアイコン、右下に状態の印（おしごと中=青緑に working / おやすみ=灰青に pause）のバッジ。
-     * 小さい画面（S<0.6）では、輪を画面で直径25px ほどまで大きくして（最大2.2倍。大きくした分は上へのばし、輪の下はしは同じ高さ）、
-     * 作業のアイコンを 紺の円に白抜きで出す（何の作業か わかるように） */
+     * 小さい画面（S<0.6）では、輪を画面で直径25px ほどまで大きくして（ふだんは最大2.2倍。大きくした分は上へのばし、輪の下はしは同じ高さ）、
+     * 作業のアイコンを 紺の円に白抜きで出す（何の作業か わかるように）。
+     * たて向きのスマホで とても小さく うつしているとき（S<0.43。小さいスマホ）は 2.2倍より大きくして、画面で 直径 約24px・アイコン 約10.5px を保つ */
     drawRings(state, trIn) {
       const c = this.ctx;
       const G = window.Game, k = this.spotK(), S = this.scale(), small = S < 0.6;
-      const kr = small ? clamp(1 / S, k, 2.2) : k;
+      const kr = small ? clamp(1 / S, k, isNarrowView() ? Math.max(2.2, 0.95 / S) : 2.2) : k;
       const lift = 40 * k + 12.5 * (kr - k);
       const paused = G.outdoorPaused && G.outdoorPaused();
       /* 輪（右下のバッジもふくむ）が、キャンバスの上にのる DOM（知らせ・ヒント・トースト = _covers、コーチ・欄 = _overlays）の下や
@@ -4043,9 +4078,12 @@
         if (q.y - r < topY) return true;
         return covers.some((b) => q.x + r > b.l && q.x - r < b.r && q.y + r > b.t && q.y - r < b.b);
       };
-      /* 下に出した輪が、持ち場の輪（先に描いた _spotDiscs）・ほかの進み具合の輪に かからないか（シーンの座標） */
-      const discFree = (x, cy) => (this._spotDiscs || []).concat(this._ringDiscs || [])
-        .every(([dx, dy, dr]) => Math.hypot(dx - x, dy - cy) >= dr + 13.5 * kr);
+      /* その位置の輪（右下のバッジもふくむ）が、持ち場の輪（先に描いた _spotDiscs）・先に置いた 進み具合の輪とバッジに かからないか（シーンの座標） */
+      const discFree = (x, cy) => {
+        const bx = x + 9.5 * kr, by = cy + 9 * kr, br = 6.3 * kr;
+        return (this._spotDiscs || []).concat(this._ringDiscs || [])
+          .every(([dx, dy, dr]) => Math.hypot(dx - x, dy - cy) >= dr + 13.5 * kr && Math.hypot(dx - bx, dy - by) >= dr + br);
+      };
       const flips = this._ringFlip || (this._ringFlip = {});
       this._paxRing = null;
       state.taskList.forEach((t) => {
@@ -4061,12 +4099,22 @@
         const rest = paused && t.def.outdoor;
         const upY = y - lift, downY = y + 6 * k + 19.5 * kr;
         let flip = !!flips[t.id];
+        /* 頭の上が 先に置いた輪・バッジに かかるときも、下に出す（小さいスマホでは 輪が大きく、となりの輪に バッジが かかる） */
+        const upFree = discFree(x, upY);
         const downOk = !ringHit(x, downY, 0) && discFree(x, downY);
-        if (!flip && ringHit(x, upY, 0) && downOk) flip = true;
-        else if (flip && (!ringHit(x, upY, 6) || !downOk)) flip = false;
+        if (!flip && (ringHit(x, upY, 0) || !upFree) && downOk) flip = true;
+        else if (flip && ((!ringHit(x, upY, 6) && upFree) || !downOk)) flip = false;
         flips[t.id] = flip;
-        const ry = flip ? downY : upY;
-        (this._ringDiscs || (this._ringDiscs = [])).push([x, ry, 13.5 * kr]);
+        let ry = flip ? downY : upY;
+        /* 上も下も だめなとき（小さいスマホで コーチの下にかかる・となりの輪や持ち場の輪に かかる など）: 頭の上から 足もとの すこし下まで 少しずつ下げて、
+         * DOM にも ほかの輪・バッジにも かからない高さが あれば そこに出す（かくれた輪を 出さない） */
+        if (!flip && (ringHit(x, upY, 0) || !upFree)) {
+          for (let yy = upY + 3 * kr; yy <= downY + 24 * kr; yy += 3 * kr) {
+            if (!ringHit(x, yy, 0) && discFree(x, yy)) { ry = yy; break; }
+          }
+        }
+        /* 輪と 右下のバッジを おぼえる（札・人数の札・あとの輪が よける） */
+        (this._ringDiscs || (this._ringDiscs = [])).push([x, ry, 13.5 * kr], [x + 9.5 * kr, ry + 9 * kr, 6.3 * kr]);
         /* 降機・搭乗の人数の札は、この輪（右下のバッジもふくむ）を よけて置く（drawPaxCounter） */
         if (t.id === 'deboard' || t.id === 'board') this._paxRing = [x, ry, kr];
         c.save();
@@ -4224,10 +4272,9 @@
       this.els['btn-log-toggle'].addEventListener('click', () => {
         const open = this.els['panel-status'].classList.toggle('log-open');
         this.setLogToggle(open);
-        /* スマホ: きろくを開いたら、出ているトーストを片づける（モーダルと同じ。同じことは きろくに のっている）。
-         * 開いている間に ためていたトーストは、閉じたら「はじめられるよ！」だけを 1枚 出す（注意などは きろくで読めるので 出さない） */
+        /* スマホ: きろくを開いたら、出ているトーストを片づける（同じことは きろくに のっている）。
+         * 開いている間は ためない（トーストは 駐機場の上に出るので、きろくの行を かくさない。注意・トラブルは そのまま出す） */
         if (open && this.isNarrow()) this.els['toast-area'].innerHTML = '';
-        if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
       });
 
       /* ズーム（持ち場のポップを開いていたら、持ち場のそばへ置きなおす） */
@@ -4294,7 +4341,10 @@
         ['event-banner', 'coach-bubble', 'hint-banner', 'pause-chip'].forEach((id) => railRO.observe(this.els[id] || document.getElementById(id)));
       }
       this._lastW = window.innerWidth;
+      /* スマホ: ページをスクロールしたら、トーストを HUD の下・駐機場の上はしに置きなおす */
+      window.addEventListener('scroll', () => this.placeToast(), { passive: true });
       window.addEventListener('resize', () => {
+        this.placeToast();
         this.syncDrawer(); this.updateTouchAction(); this.updateRibbonMore(); this.updateResMore(); this.measureResH(); this.placeStartCard();
         if (this.spotPopTask) {
           if (this.isNarrow()) {
@@ -4887,6 +4937,13 @@
         if (!opt.refresh) this.revealSpotAboveSheet(t.id);
         return;
       }
+      /* 持ち場が 安全な範囲の外（画面の外・ドロワーやスコア板の下）なら、カメラを持ち場へ動かしてから置く
+       * （プッシュバック中に 自分でズームしたあとなど。押す車から はなれた所や ドロワーのカードの上に 出さない） */
+      if (!opt.refresh) {
+        const sp = this.spotScreenPos(t.id), f = Scene.safeRectAt ? Scene.safeRectAt() : null;
+        const a = Scene.anchorOf(t.id);
+        if (f && a && Scene.focusOn && (sp.x < f.l || sp.x > f.r || sp.y < f.t || sp.y > f.b)) Scene.focusOn(a[0], a[1]);
+      }
       this.placeSpotPop(t.id);
       this.updateScrollMore(body);
     },
@@ -4899,7 +4956,7 @@
       return Scene.sceneToScreenAt ? Scene.sceneToScreenAt(a[0], a[1]) : Scene.sceneToScreen(a[0], a[1]);
     },
     /* 広い画面: カメラが動いたら（ドロワーの開け閉め・ズーム・機体を追う など）、ポップを持ち場のそばへ置きなおす。
-     * 4px 以上動いたときだけ。ゆびで ポップを押している間は動かさない。持ち場が画面の外へ出たら とじる */
+     * 4px 以上動いたときだけ。ゆびで ポップを押している間は動かさない。持ち場が画面の外・ドロワーの下へ出たら とじる */
     followSpotPop(force) {
       const id = this.spotPopTask;
       if (!id || this.isNarrow() || this._popPressed) return;
@@ -4909,6 +4966,9 @@
       const last = this._popAt;
       if (!force && last && Math.abs(sp.x - last.x) < 4 && Math.abs(sp.y - last.y) < 4) return;
       if (sp.x < -4 || sp.y < -4 || sp.x > wrap.clientWidth + 4 || sp.y > wrap.clientHeight + 4) { this.closeSpotPop(); return; }
+      /* 持ち場が 開いたドロワーの下（安全な範囲の左はしより左）に入ったら とじる（ポップを ドロワーのカードの上に 出さない） */
+      const f = Scene.safeRectAt ? Scene.safeRectAt() : null;
+      if (f && f.l > 0 && sp.x < f.l - 8) { this.closeSpotPop(); return; }
       this.placeSpotPop(id);
     },
     /* スマホ: 下からのシートの うしろに 押した持ち場が かくれるときは、ページを その分だけ 下へスクロールする
@@ -5129,7 +5189,10 @@
       this._railT = 0;
       clearTimeout(this._railTimer); this._railTimer = 0;
 
-      this.els['hud-stage-name'].textContent = state.stage.shortName;
+      /* 「ステージ」と番号を わけておく（幅 340px 以下では「ステージ」を小さい見出しにして 番号の上に出す。「ス…」と切らない） */
+      const sn = String(state.stage.shortName || '');
+      const snm = sn.match(/^(\D+?)(\d+)$/);
+      this.els['hud-stage-name'].innerHTML = snm ? `<span class="sn-k">${snm[1]}</span><span class="sn-n">${snm[2]}</span>` : window.rubi(sn);
       this.updateWeatherHud();
       this.els['hud-std'].textContent = window.fmtClock(state.stage.std);
       /* きろくが まだ 1行もないときは、空欄だけに しない */
@@ -5712,15 +5775,15 @@
       if (type === 'coach') { this.showCoach(msg); return; }
       this.pushToast(this.gx(msg), type);
     },
-    /* トーストを ためておく間: モーダルを開いている間・スマホで持ち場のシートや「きろく」を開いている間
-     * （シートの うしろに かくれて 見えないまま 消えないように。きろくを読んでいる間は、同じ文が きろくに出る）。
-     * ためる わけ（'modal' / 'sheet' / 'log'）を返す。ためないときは false */
+    /* トーストを ためておく間: モーダルを開いている間・スマホで持ち場のシートを開いている間
+     * （シートの うしろに かくれて 見えないまま 消えないように）。
+     * ためる わけ（'modal' / 'sheet'）を返す。ためないときは false。
+     * スマホで「きろく」を開いている間は ためない（トーストは 駐機場の上に出るので、きろくの行を かくさない） */
     holdToasts() {
       if (!this.els['screen-game'].classList.contains('active')) return false;
       if (this.modalKind) return 'modal';
       if (!this.isNarrow()) return false;
-      if (this.spotPopTask) return 'sheet';
-      return this.els['panel-status'].classList.contains('log-open') ? 'log' : false;
+      return this.spotPopTask ? 'sheet' : false;
     },
     /* ids: 「はじめられるよ！」('open') の作業の id。ためたあと出すときに、まだ はじめられるかを 確かめなおす */
     pushToast(html, type, ids) {
@@ -5753,6 +5816,7 @@
       div.innerHTML = html;
       div._html = html;
       area.appendChild(div);
+      if (gameOn) this.placeToast();
       /* スコア板の下に出すときは、入る高さまで（入らないときは 新しい1枚だけ） */
       while (area.children.length > 1 && area.scrollHeight > area.clientHeight + 1) area.firstElementChild.remove();
       arm(div);
@@ -5785,12 +5849,10 @@
       return this.ico('unlock') + ' はじめられるよ！ ' + names + more;
     },
     /* ためていたトーストを1枚だけ出す（まだ ためておく間なら 何もしない）。
-     * 「はじめられるよ！」は、ためた間に はじめた・おわった作業を のぞいて1枚にまとめなおす（のこりが なければ 出さない）。
-     * 「きろく」を開いていたせいで ためた 知らせ（注意・トラブルなど）は 出さない（同じ文が きろくに のっていて、
-     * とじたあとに出すと「のこりの作業 8件」のような数が 古いまま 出る） */
+     * 「はじめられるよ！」は、ためた間に はじめた・おわった作業を のぞいて1枚にまとめなおす（のこりが なければ 出さない） */
     flushToastQ() {
       if (this.holdToasts()) return;
-      const q0 = (this._toastQ || []).filter((x) => x.type === 'open' || x.why !== 'log');
+      const q0 = this._toastQ || [];
       this._toastQ = [];
       if (!q0.length) return;
       const ready = (id) => { const t = this.state && this.state.tasks[id]; return !!t && t.status === 'ready'; };
@@ -5872,9 +5934,10 @@
         .replace(/\u23F0\uFE0F?/g, this.ico('hourglass'))
         .replace(/\u{1F325}\uFE0F?/gu, this.ico('cloud'))
         /* ルビの語と、すぐあとの ひらがな（送りがな・助詞）・すぐ前の数字は1つのかたまりにして、そのあいだで改行しない
-         * （「時間ど／おり」「作業／が」「12／分」にしない）。となりに何もないルビは そのまま */
-        .replace(/([0-9０-９]+)?(<ruby>(?:(?!<\/ruby>)[\s\S])*<\/ruby>)([\u3041-\u3096\u30FC]{1,8})?/g,
-          (m, d, r, h) => ((d || h) ? `<span class="nb">${d || ''}${r}${h || ''}</span>` : m));
+         * （「時間ど／おり」「作業／が」「12／分」にしない）。すぐあとの 句読点・とじかっこ（。、！？」』））も 同じかたまりに入れる
+         * （nowrap の かたまりの きわでは ブラウザが改行してしまい、行のはじめに「、」「。」が来るため）。となりに何もないルビは そのまま */
+        .replace(/([0-9０-９]+)?(<ruby>(?:(?!<\/ruby>)[\s\S])*<\/ruby>)([\u3041-\u3096\u30FC]{1,8})?([。、！？」』）]{1,3})?/g,
+          (m, d, r, h, p) => ((d || h || p) ? `<span class="nb">${d || ''}${r}${h || ''}${p || ''}</span>` : m));
     },
     ico(name) { return window.Icons.svg(name); },
     taskIco(id) { return window.Icons.svg(window.Icons.task(id)); },
@@ -5910,6 +5973,9 @@
       if (!pt || !this.els['game-main']) return;
       const open = !pt.classList.contains('closed');
       const wide = !this.isNarrow();
+      /* 出発中（もう する おしごとは ない）は、広い画面では ドロワーを開かない（つまみを押しても すぐ とじる）。
+       * 開くと、カメラは誘導路の左はしで とまり、出ていく機体が ドロワーの下に入る */
+      if (open && wide && this.departing()) { pt.classList.add('closed'); return; }
       this.els['game-main'].classList.toggle('drawer-open', open && wide);
       this.els['task-list'].inert = wide && !open;
       this.placeRail();
@@ -5949,12 +6015,8 @@
     applyViewInsets() {
       /* 上の知らせの高さが かわると、スコア板の下に出せるかも かわる */
       this.placeRail();
-      /* スマホ: トーストは 駐機場の上はしの、上の知らせ（コーチ・ヒント）の すぐ下に出す（styles.css の --toast-t） */
-      const ta = this.els['toast-area'];
-      if (ta) {
-        const tt = this.isNarrow() ? (this.railInset() || 8) + 'px' : '';
-        if (ta.style.getPropertyValue('--toast-t') !== tt) { if (tt) ta.style.setProperty('--toast-t', tt); else ta.style.removeProperty('--toast-t'); }
-      }
+      /* スマホ: トーストの置き場（駐機場の上はし・上の知らせの下。placeToast） */
+      this.placeToast();
       if (!Scene.setViewInsets) return;
       const pt = this.els['panel-tasks'], aw = this.els['apron-wrap'];
       const open = !pt.classList.contains('closed');
@@ -5982,6 +6044,42 @@
         if (t > 0) ins.t = t;
       }
       Scene.setViewInsets(ins);
+    },
+    /* スマホ: トーストは 画面に固定（styles.css の position:fixed）し、その位置を スクロール・画面の大きさ・上の知らせが かわるたびに決める。
+     * ふだんは 駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）。ページを下へスクロールしても、
+     * 追従する HUD の下はし +8px より上には行かない（HUD の下に かくれない・画面の外に出ない）。
+     * 駐機場が低い（320px 未満）画面で コーチを出している間は、駐機場の下はし（ズームのボタンの上）に出す
+     * （コーチとトーストで 駐機場の上の6わりを かくして、機体と持ち場の輪が見えなくならないように） */
+    placeToast() {
+      const ta = this.els['toast-area'];
+      if (!ta) return;
+      const st = ta.style;
+      if (!this.isNarrow() || !this.els['screen-game'].classList.contains('active')) {
+        if (ta._fx) { ta._fx = ''; st.top = ''; st.bottom = ''; st.left = ''; st.right = ''; }
+        return;
+      }
+      const c = this.els['apron'].getBoundingClientRect();
+      if (c.height < 1) return;
+      const hud = this.els['hud'] || (this.els['hud'] = document.getElementById('hud'));
+      const minTop = Math.max(0, hud ? hud.getBoundingClientRect().bottom : 0) + 8;
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const coach = this.els['coach-bubble'];
+      let top = null, bottom = null;
+      if (c.height < 320 && coach && !coach.classList.contains('hidden')) {
+        const zc = this.els['zoom-ctrl'] ? this.els['zoom-ctrl'].getBoundingClientRect() : null;
+        const b = (zc && zc.height > 0 ? zc.top : c.bottom - 52) - 8;
+        if (b - (ta.offsetHeight || 52) >= minTop) bottom = vh - b;
+      }
+      if (bottom == null) top = Math.max(c.top + (this.railInset() || 8), minTop);
+      const fx = [top == null ? 'auto' : Math.round(top) + 'px', bottom == null ? 'auto' : Math.round(bottom) + 'px',
+        Math.round(c.left + 8) + 'px', Math.round(vw - c.right + 8) + 'px'].join(' ');
+      if (ta._fx === fx) return;
+      ta._fx = fx;
+      [st.top, st.bottom, st.left, st.right] = fx.split(' ');
+    },
+    departing() {
+      const s = this.state;
+      return !!(s && !s.ended && s.tasks.depart && s.tasks.depart.status === 'active');
     },
     /* 上の知らせのうち、駐機場の上半分に出ているものの下はし（キャンバスの上からの px。ないときは 0）。
      * スマホのイベント帯（画面の下に固定）・一時停止（左下）は数えない */

@@ -1289,10 +1289,17 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .start-card.sc-tight > * { flex: none; }
 .start-card.sc-tight #start-trivia { order: 1; margin: 14px 0 0; }
 .start-card.sc-tight #btn-begin { align-self: center; }
-.start-card.scroll-more {
-  -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
-  mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+/* 下に つづくときは、下はしを 白へ うすくする（mask-image で すかすと、カードの うらの スコア板の数字や駐機場の絵が 文字に かさなって見える）。
+ * カードの中の さいごの部品として、スクロールしても いつも 下はし（下の余白 22px の上）に はりつける */
+.start-card.sc-tight::after {
+  content: ''; order: 9; flex: none;
+  position: sticky; bottom: -22px;
+  height: 34px; margin: -34px -26px 0;
+  background: linear-gradient(rgba(255, 255, 255, 0), var(--paper) 85%);
+  pointer-events: none;
+  visibility: hidden;
 }
+.start-card.sc-tight.scroll-more::after { visibility: visible; }
 /* 背の低い画面で カードを幕の高さいっぱいまで使うときは、幕の下の スタッフ帯を かくす（カードが帯に かかって見えない）。
  * スマホと低い画面（幕が画面ぜんたい）では HUD・ながれリボンも（下の @media） */
 #screen-game.start-cover #panel-resources { visibility: hidden; }
@@ -2334,7 +2341,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   #btn-begin { align-self: center; }
   #screen-game.start-cover #hud,
   #screen-game.start-cover #flow-ribbon,
-  #screen-game.start-cover #btn-rib-more { visibility: hidden; }
+  #screen-game.start-cover #btn-rib-more,
+  #screen-game.start-cover #panel-status { visibility: hidden; }
 }
 /* ---------------- レスポンシブ（スマホは縦積みに戻す） ---------------- */
 @media (max-width: 700px) {
@@ -2409,13 +2417,14 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     max-width: none;
   }
   #zoom-ctrl { bottom: 8px; right: 8px; }
-  /* トーストは駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下。--toast-t は UI.applyViewInsets が決める）に出す（1枚まで）。
+  /* トーストは駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）に出す（1枚まで）。
+   * 画面に固定し、位置（top・bottom・left・right）は UI.placeToast が スクロールのたびに決める（追従する HUD の下に かくれない）。
    * 画面の下に固定しない: 駐機場の下の 作業カード・きろく・スタッフ帯の行を かくさない。
-   * 駐機場の下はしにも置かない: 区画の看板・待機中のスタッフや車を かくさない */
+   * 駐機場の下はしには ふだん置かない: 区画の看板・待機中のスタッフや車を かくさない（駐機場が低い画面で コーチを出している間だけ） */
   #toast-area {
-    position: absolute;
-    left: 8px; right: 8px; width: auto; transform: none;
-    top: var(--toast-t, 8px); bottom: auto;
+    position: fixed;
+    left: 16px; right: 16px; width: auto; transform: none;
+    top: 8px; bottom: auto;
     z-index: var(--z-msg);
   }
   /* イベントの知らせ（画面の下に固定）の ぶんだけ、ページの下に余白（さいごのカードのボタンが かくれない） */
@@ -2449,6 +2458,20 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
 @media (max-width: 380px) {
   .top-rail > .pause-chip { padding: 6px 10px; }
   .pause-chip .ico { display: none; }
+}
+/* ---------------- 幅 340px 以下（320x568 など）: 切れる・はみ出す文字を出さない ----------------
+ * ステージ名は「ステージ」を小さい見出しにして 番号の上に（時計と同じ「見出し+数字」の形。「ス…」と切らない）。
+ * HUD の右の ボタンのすき間を つめて、見出しの はばを あける。
+ * スコア板は 2×2（4つ横ならびだと「時間どおり」が となりの「まんぞく」の アイコンに かぶる）。一時停止の札は 短い文「とめているよ」 */
+@media (max-width: 340px) {
+  #hud { padding-left: 8px; padding-right: 8px; column-gap: 4px; }
+  .hud-right { gap: 2px; }
+  .btn-flow { padding: 2px 3px; }
+  #hud-stage-name { display: flex; flex-direction: column; align-items: flex-start; overflow: visible; text-overflow: clip; line-height: 1.2; }
+  #hud-stage-name .sn-k { font-size: var(--fs-min); font-weight: 500; opacity: 0.85; white-space: nowrap; }
+  #hud-stage-name .sn-n { font-size: 1.25rem; line-height: 1.1; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .pause-chip .pc-lead { display: none; }
 }
 /* ---------------- 背の低い横長の画面（スマホの横向き 701px 以上・高さ 500px 以下） ---------------- */
 @media (max-height: 500px) and (min-width: 701px) {
