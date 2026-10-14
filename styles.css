@@ -1236,6 +1236,8 @@ ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・90
 .toast-bad { background: rgba(178, 44, 44, 0.96); }
 /* 「次に進めるようになった」お知らせ（情報の紺+ひらいた鍵。光らせない） */
 .toast-open { background: rgba(30, 58, 95, 0.95); }
+/* 「はじめられるよ！」の 作業の名前は、アイコン+名前で1つのかたまり（アイコンだけが 行末に のこらない） */
+.toast-open .to-item { white-space: nowrap; }
 .toast.out { opacity: 0; transition: opacity 0.45s; }
 /* ゲーム画面の知らせ・ポップは 4px だけ動かす（下のパネルとのすき間 8px にかからない） */
 @keyframes msg-in { from { opacity: 0; transform: translateY(4px); } }

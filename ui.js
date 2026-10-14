@@ -4297,7 +4297,7 @@
         /* スマホ: きろくを開いたら、出ているトーストを片づける（同じことは きろくに のっている）。
          * 開いている間は、画面の どこに出しても 見えている きろくの行に かかるときだけ ためて（holdToasts の 'log'）、とじたら出す
          * （ゲームの知らせは きろくに のっているので すて、作業カードを押した こたえ だけ出す。flushToastQ） */
-        if (open && this.isNarrow()) this.els['toast-area'].innerHTML = '';
+        if (open && (this.isNarrow() || this.shortWide())) this.els['toast-area'].innerHTML = '';
         if (!open && this._toastQ && this._toastQ.length) this.flushToastQ();
         /* ページの長さが かわる（スクロールの位置も かわる）ので、出ているトーストの置き場を えらびなおす */
         this.placeToast();
@@ -4965,6 +4965,8 @@
         if (!opt.refresh) { this.els['toast-area'].innerHTML = ''; this.revealSpotAboveSheet(t.id); }
         return;
       }
+      /* 背の低い横長の画面も、開いたら 出ているトーストを片づける（ポップが 駐機場の ほとんどを おおう。開いている間は ためる） */
+      if (!opt.refresh && this.shortWide()) this.els['toast-area'].innerHTML = '';
       /* 持ち場が 安全な範囲の外（画面の外・ドロワーやスコア板の下）なら、カメラを持ち場へ動かしてから置く
        * （プッシュバック中に 自分でズームしたあとなど。押す車から はなれた所や ドロワーのカードの上に 出さない） */
       if (!opt.refresh) {
@@ -5811,7 +5813,13 @@
     holdToasts() {
       if (!this.els['screen-game'].classList.contains('active')) return false;
       if (this.modalKind) return 'modal';
-      if (!this.isNarrow()) return false;
+      /* 背の低い横長の画面: 持ち場のポップは 駐機場の ほとんどを おおい、きろくは 画面いっぱいの シート（トーストは その下に かくれる）。
+       * どちらも 開いている間は ためて、とじたら出す（スマホと同じ） */
+      if (!this.isNarrow()) {
+        if (!this.shortWide()) return false;
+        if (this.spotPopTask) return 'sheet';
+        return this.els['panel-status'].classList.contains('log-open') ? 'log' : false;
+      }
       if (this.spotPopTask) return 'sheet';
       if (this.els['panel-status'].classList.contains('log-open')) {
         const c = this.els['apron'].getBoundingClientRect();
@@ -5820,15 +5828,16 @@
       }
       return false;
     },
-    /* 「はじめられるよ！」だけを ためておく間: スマホで 駐機場が低い（320px 未満）画面に コーチを出している間
+    /* 「はじめられるよ！」だけを ためておく間: スマホ・背の低い横長の画面で 駐機場が低い（320px 未満）画面に コーチを出している間
      * （コーチが 同じことを言っている。コーチとトーストで 駐機場の上下を かくして、機体と持ち場の輪が見えなくならないように）。
      * コーチが消えたら、まだ はじめられる作業だけで 1枚 出す。注意・トラブルは ためない */
     holdOpenToasts() {
-      if (!this.isNarrow()) return false;
+      if (!this.isNarrow() && !this.shortWide()) return false;
       const cb = this.els['coach-bubble'];
       if (!cb || cb.classList.contains('hidden')) return false;
       if (this.els['apron'].getBoundingClientRect().height >= 320) return false;
-      /* コーチが 追従する HUD の下に かくれている・画面の外にあるときは ためない（コーチも トーストも 見えなくなるので） */
+      /* コーチが 追従する HUD の下に かくれている・画面の外にある・ドロワーを開いて ひかえているときは ためない
+       * （コーチも トーストも 見えなくなるので） */
       const r = cb.getBoundingClientRect();
       if (r.height < 1 || r.bottom <= this.hudBottom() + 20 || r.top >= window.innerHeight) return false;
       return 'coach';
@@ -5862,8 +5871,8 @@
       /* いま出ている いちばん新しい1枚と同じ文なら、ふやさずに 出している時間だけ のばす（同じ文が2枚 かさならない） */
       const lastEl = area.lastElementChild;
       if (lastEl && lastEl._html === html && lastEl.classList.contains('toast-' + type)) { arm(lastEl); return lastEl; }
-      /* 同時に出すのは 広い画面で2枚・スマホで1枚まで（古いものから消す） */
-      const max = this.isNarrow() ? 1 : 2;
+      /* 同時に出すのは 広い画面で2枚・スマホと 背の低い横長の画面で1枚まで（古いものから消す） */
+      const max = this.isNarrow() || this.shortWide() ? 1 : 2;
       while (area.children.length >= max) area.firstElementChild.remove();
       const div = document.createElement('div');
       div.className = 'toast toast-' + type;
@@ -5899,7 +5908,8 @@
       const narrow = this.isNarrow();
       const max = narrow ? 1 : 3;
       const nameOf = (id) => (narrow && this.SHORT_NAMES[id]) || window.TASK_MAP[id].name;
-      const names = ids.slice(0, max).map((id) => this.taskIco(id) + window.rubi(nameOf(id))).join('・');
+      /* アイコンと名前は1つのかたまりにして、アイコンだけが 行末に のこらないようにする（コーチの .cb-term と同じ） */
+      const names = ids.slice(0, max).map((id) => `<span class="to-item">${this.taskIco(id)}${window.rubi(nameOf(id))}</span>`).join('・');
       /* スマホは1行なので、入らないときは 名前のほうを「…」で切り、「ほか Nこ」は いつも出す（styles.css の .to-*） */
       const more = ids.length > max ? ` <span class="to-more">ほか ${ids.length - max}こ</span>` : '';
       return `<span class="to-lead">${this.ico('unlock')} はじめられるよ！</span> <span class="to-names">${names}</span>${more}`;
@@ -6021,6 +6031,8 @@
       if (el && el._raw !== html) { el._raw = html; el.innerHTML = html; }
     },
     isNarrow() { return window.matchMedia('(max-width: 700px)').matches; },
+    /* 背の低い横長の画面（スマホの横向き 701px 以上・高さ 500px 以下）。駐機場は 200px ほどしかない */
+    shortWide() { return window.matchMedia('(min-width: 701px) and (max-height: 500px)').matches; },
     motionOk() { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; },
     setLogToggle(open) {
       const b = this.els['btn-log-toggle'];
@@ -6046,6 +6058,8 @@
       if (open && this.els['drawer-nudge']) this.els['drawer-nudge'].classList.add('hidden');
       this.applyViewInsets();
       if (this.state) this.updateHint(true);
+      /* 背の低い横長の画面で ドロワーを開くと、コーチを ひかえる（CSS）。コーチの間 ためていた「はじめられるよ！」を出す */
+      if (open && this._toastQ && this._toastQ.length) Promise.resolve().then(() => this.flushToastQ());
     },
     /* 縦長のタブレット（701〜1099px）でドロワーを開いているときは、上の知らせをスコア板の下に出す（ドロワーとスコア板のあいだは せますぎる）。
      * ただし、スコア板の下に出すと 知らせが スタッフ帯まで落ちるとき（背の低い画面）は、上にもどす（スコア板は 情報だけの欄なので、そこに かぶるのはよい）。
@@ -6259,6 +6273,8 @@
       for (const el of rail.children) {
         /* 「はじめられる おしごとが Nこ」は 4秒で消える押せない札なので、カメラを動かさない */
         if (el.classList.contains('hidden') || el.id === 'drawer-nudge') continue;
+        /* 画面に固定した札（スマホのイベント帯）は 駐機場の上の知らせではない。駐機場が 画面の下へ はみ出す横向きでも 数えない */
+        if (getComputedStyle(el).position === 'fixed') continue;
         const r = el.getBoundingClientRect();
         if (r.height < 1 || r.top - c.top > c.height / 2 || r.bottom < c.top) continue;
         b = Math.max(b, r.bottom - c.top);
