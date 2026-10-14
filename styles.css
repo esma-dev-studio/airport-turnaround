@@ -57,7 +57,14 @@
   --st-paused: #4a5584;   /* まだ（#5b6b80）と見分けられる 青むらさき寄りの灰（白文字 7.2） */
   /* えらんだ人が いける持ち場（駐機場の太い実線の輪・チュートリアルの凡例）。あかむらさき。
    * かんりょうの緑・はじめられるの青緑・あつまり中のこはく・まだの灰・おやすみ・トラブルの赤と、
-   * 1型/2型/3型の見え方でも 色差(CIEDE2000) 11.8 以上はなれる。白地 4.71:1（コンクリートの上では白いふちどりをつける） */
+   * 1型/2型/3型の見え方でも 色差(CIEDE2000) 11.8 以上はなれる。白地 4.71:1（コンクリートの上では白いふちどりをつける）
+   * 決めごと（2026-10-14 に :root の全色・.fill-*・Canvas の持ち場の色・赤い枠と くらべなおした）:
+   *   指標のコスト .fill-cost #8b5cc9（2型で 2.4）・--s7 #6a4fc0（1型で 2.7）・--s1・.fill-punct（1型で 5〜6）とは 近い。
+   *   それでも この色にする。理由: (1) この色が出るのは 駐機場の「太い実線の輪」（とチュートリアルの凡例）だけで、
+   *   近い色は スコア板の横棒・ステップの番号札という べつの場所・べつの形にしか出ない。同じ画面の場所で ならぶ
+   *   持ち場の色・赤い枠とは 11.8 以上はなれている。(2) どの色とも 1型/2型で 10 以上はなれる候補は、
+   *   コンクリートの上で ほとんど見えない うすいむらさき（地面と 1.1:1）か、赤い枠・トラブルの赤と 意味が ぶつかる
+   *   えんじ色しか なかった。色を かえるときは、この くらべかたで くらべなおす */
   --st-target: #c026d3;
   --st-target-bg: #f8e5fb;
 
@@ -2326,7 +2333,8 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
   #start-trivia { order: 1; margin: 14px 0 0; }
   #btn-begin { align-self: center; }
   #screen-game.start-cover #hud,
-  #screen-game.start-cover #flow-ribbon { visibility: hidden; }
+  #screen-game.start-cover #flow-ribbon,
+  #screen-game.start-cover #btn-rib-more { visibility: hidden; }
 }
 /* ---------------- レスポンシブ（スマホは縦積みに戻す） ---------------- */
 @media (max-width: 700px) {
@@ -2401,14 +2409,15 @@ button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); 
     max-width: none;
   }
   #zoom-ctrl { bottom: 8px; right: 8px; }
-  /* トーストは画面の下に固定（1枚まで）。イベントの知らせが出ている間は、その上へ逃がす */
+  /* トーストは駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下。--toast-t は UI.applyViewInsets が決める）に出す（1枚まで）。
+   * 画面の下に固定しない: 駐機場の下の 作業カード・きろく・スタッフ帯の行を かくさない。
+   * 駐機場の下はしにも置かない: 区画の看板・待機中のスタッフや車を かくさない */
   #toast-area {
-    position: fixed;
+    position: absolute;
     left: 8px; right: 8px; width: auto; transform: none;
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    z-index: var(--z-fixed-msg);
+    top: var(--toast-t, 8px); bottom: auto;
+    z-index: var(--z-msg);
   }
-  #screen-game.has-event #toast-area { bottom: calc(80px + env(safe-area-inset-bottom)); }
   /* イベントの知らせ（画面の下に固定）の ぶんだけ、ページの下に余白（さいごのカードのボタンが かくれない） */
   #screen-game.has-event { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
   /* 「はじめられるよ！」は1行（44px）にする（カードの見出しやスタッフ帯を かくす高さを へらす） */
