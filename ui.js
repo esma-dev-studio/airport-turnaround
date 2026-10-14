@@ -5910,7 +5910,9 @@
       const max = narrow ? 1 : 3;
       const nameOf = (id) => (narrow && this.SHORT_NAMES[id]) || window.TASK_MAP[id].name;
       /* アイコンと名前は1つのかたまりにして、アイコンだけが 行末に のこらないようにする（コーチの .cb-term と同じ） */
-      const names = ids.slice(0, max).map((id) => `<span class="to-item">${this.taskIco(id)}${window.rubi(nameOf(id))}</span>`).join('・');
+      /* 区切りの「・」は前のかたまりの中に入れ、かたまりのあいだは <wbr> で折り返す（「・」だけが1行にならない） */
+      const shown = ids.slice(0, max);
+      const names = shown.map((id, i) => `<span class="to-item">${this.taskIco(id)}${window.rubi(nameOf(id))}${i < shown.length - 1 ? '・' : ''}</span>`).join('<wbr>');
       /* スマホは1行なので、入らないときは 名前のほうを「…」で切り、「ほか Nこ」は いつも出す（styles.css の .to-*） */
       const more = ids.length > max ? ` <span class="to-more">ほか ${ids.length - max}こ</span>` : '';
       return `<span class="to-lead">${this.ico('unlock')} はじめられるよ！</span> <span class="to-names">${names}</span>${more}`;
@@ -6088,8 +6090,17 @@
       if (gm.style.getPropertyValue('--rail-t') !== t) gm.style.setProperty('--rail-t', t);
       const sb = psB + 'px';
       if (gm.style.getPropertyValue('--status-b') !== sb) gm.style.setProperty('--status-b', sb);
-      const toastUnder = window.matchMedia('(min-width: 1024px)').matches && !ps.classList.contains('log-open') && !under && !this.isNarrow();
+      let toastUnder = window.matchMedia('(min-width: 1024px)').matches && !ps.classList.contains('log-open') && !under && !this.isNarrow();
       if (gm.classList.contains('toast-under') !== toastUnder) gm.classList.toggle('toast-under', toastUnder);
+      /* 背の低い画面（1366x657 など）では、スコア板の下の箱が 4行のトーストより低く、下の行が切れる。
+       * そのときは スコア板の下をやめて、ふだんの置き場（駐機場の左下・ズームの左）に出す */
+      if (toastUnder) {
+        /* max-height は calc(100% …) の式のまま返るので、いったん高くして 上限で止まった高さを測る */
+        const ta = this.els['toast-area'];
+        let mh = NaN;
+        if (ta) { const h0 = ta.style.height; ta.style.height = '9999px'; mh = ta.offsetHeight; ta.style.height = h0; }
+        if (isFinite(mh) && mh < 170) { toastUnder = false; gm.classList.remove('toast-under'); }
+      }
     },
     applyViewInsets() {
       /* 上の知らせの高さが かわると、スコア板の下に出せるかも かわる */
