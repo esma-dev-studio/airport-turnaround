@@ -3,6 +3,9 @@
  * 清潔感のある空港らしい配色。PC/タブレット横並び、スマホ縦並び。
  * ========================================================= */
 
+/* =========================================================
+ * 【共通: 土台】トークン・ルビと文字の共通ルール・画面切り替え(3パッケージ共通。土台だけが変える)
+ * ========================================================= */
 :root {
   --navy: #1e3a5f;
   --navy-2: #27496d;
@@ -18,11 +21,87 @@
   --bad: #d64545;
   --chip: #eef4f8;
   --radius: 12px;
-  --shadow: 0 2px 10px rgba(30, 58, 95, 0.10);
+  --shadow: 2px 3px 10px rgba(30, 58, 95, 0.14);  /* 光源は左上 → 影は右下に落とす */
   /* ステップ1〜7の色（涼しい色→あたたかい色で「旅の進み」を表す） */
-  --s1: #2b6cb0; --s2: #0f8fb0; --s3: #2f9e63; --s4: #7c9a2e;
-  --s5: #c9822e; --s6: #d05a5a; --s7: #6a5acd;
+  --s1: #2a5ea8; --s2: #0d7488; --s3: #3d7a24; --s4: #7a6a12;
+  --s5: #b0500e; --s6: #a03a5a; --s7: #6a4fc0;   /* 白い数字で 4.5 以上 */
+
+  /* 文字・行間・タップ（画面の文字は --fs-min=13px より小さくしない。タップは 44px 以上） */
+  --fs-min: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-body: 0.9375rem;
+  --lh-ruby: 1.9;        /* ルビつきの文章 */
+  --lh-tight: 1.35;      /* ルビのない短いラベル */
+  --tap: 44px;
+
+  /* 強い色（白地の上で文字に使える濃さ） */
+  --ok-strong: #1f7a45;
+  --bad-strong: #b83232;
+  --warn-strong: #93600f;
+  --line-strong: #8796a8;
+
+  /* 状態色（DOM と Canvas で同じ値を使う。色だけに頼らず、必ず記号もつける）
+   * はじめられる=白地+青緑わく+▶(play) / あつまり中=こはく+…(dots) / おしごと中=青緑ぬり+すすみぐあいの輪(working)
+   * かんりょう=緑+✓(check) / まだ=灰の点線+鍵(lock) / トラブル=赤ぬり+⚠(alert) / かみなりでおやすみ=灰青ぬり(storm)
+   * （歯車 gear は「せってい」だけに使う。おしごと中には使わない） */
+  --st-ready: #0b6f8a;
+  --st-ready-bg: #ffffff;
+  --st-active: #0b6f8a;
+  --st-wait: #c98a00;
+  --st-wait-bg: #fbf3e2;
+  --st-wait-ink: #6e4a00;
+  --st-done: #1f7a45;
+  --st-done-bg: #e3f5ea;
+  --st-issue: #b3261e;
+  --st-locked: #5b6b80;
+  --st-paused: #4a5584;   /* まだ（#5b6b80）と見分けられる 青むらさき寄りの灰（白文字 7.2） */
+  /* えらんだ人が いける持ち場（駐機場の太い実線の輪・チュートリアルの凡例）。あかむらさき。
+   * かんりょうの緑・はじめられるの青緑・あつまり中のこはく・まだの灰・おやすみ・トラブルの赤と、
+   * 1型/2型/3型の見え方でも 色差(CIEDE2000) 11.8 以上はなれる。白地 4.71:1（コンクリートの上では白いふちどりをつける）
+   * 決めごと（2026-10-14 に :root の全色・.fill-*・Canvas の持ち場の色・赤い枠と くらべなおした）:
+   *   指標のコスト .fill-cost #8b5cc9（2型で 2.4）・--s7 #6a4fc0（1型で 2.7）・--s1・.fill-punct（1型で 5〜6）とは 近い。
+   *   それでも この色にする。理由: (1) この色が出るのは 駐機場の「太い実線の輪」（とチュートリアルの凡例）だけで、
+   *   近い色は スコア板の横棒・ステップの番号札という べつの場所・べつの形にしか出ない。同じ画面の場所で ならぶ
+   *   持ち場の色・赤い枠とは 11.8 以上はなれている。(2) どの色とも 1型/2型で 10 以上はなれる候補は、
+   *   コンクリートの上で ほとんど見えない うすいむらさき（地面と 1.1:1）か、赤い枠・トラブルの赤と 意味が ぶつかる
+   *   えんじ色しか なかった。色を かえるときは、この くらべかたで くらべなおす */
+  --st-target: #c026d3;
+  --st-target-bg: #f8e5fb;
+
+  /* 重なり順（z-index の段） */
+  --z-fx: 1;
+  --z-panel: 5;
+  --z-drawer: 6;
+  --z-msg: 7;
+  --z-pop: 8;
+  --z-overlay: 9;
+  --z-sticky: 20;
+  --z-fixed-msg: 30;
+  --z-sheet: 35;
+  --z-fixed-overlay: 40;
+  --z-confetti: 45;
+  --z-modal: 50;
+
+  /* 角丸の段 */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* 影の段（光源は左上で、影は右下に落とす。1=チップ 2=浮いたパネル・カード 3=モーダル・ポップ） */
+  --elev-1: 1px 2px 3px rgba(16, 32, 52, 0.16);
+  --elev-2: 3px 6px 14px rgba(16, 32, 52, 0.18);
+  --elev-3: 6px 14px 34px rgba(16, 32, 52, 0.28);
+
+  /* 位置合わせ（--res-h は 1280x720 で測ったスタッフ帯 #panel-resources の高さ） */
+  --drawer-w: min(300px, 78vw);
+  --status-w: min(232px, 62vw);
+  --res-h: 49px;
   font-size: 16px;
+}
+@media (min-width: 1024px) {
+  :root { --drawer-w: 320px; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,24 +109,26 @@
 /* ふりがな（ルビ）
  * 複数行になる文章は line-height を 1.9 前後にして、ルビが上の行と重ならないようにする */
 rt {
-  font-size: 0.5em;
-  font-weight: 400;
-  opacity: 0.78;
+  font-size: max(0.5em, 7px);   /* うすくしない（opacity は使わない）。小さくても 7px は保つ */
+  font-weight: 500;
   letter-spacing: 0;
 }
-ruby { ruby-align: center; }
-.btn rt, .flow-chip rt, .req-chip rt, .res-chip rt, .zk-tab rt, .pace-btn rt, .sc-diff rt { font-size: 0.46em; }
+ruby { ruby-align: center; white-space: nowrap; }  /* ルビの語の途中で改行しない */
 html, body { height: 100%; }
 body {
   font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
   color: var(--ink);
   background: var(--sky);
-  line-height: 1.7;
+  line-height: 1.9;              /* ルビが上の行に重ならない行間 */
+  word-break: auto-phrase;       /* 文節で改行（対応しないブラウザは今までどおり） */
+  overflow-wrap: break-word;     /* anywhere は flex の中の要素が縮みすぎるので使わない */
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
-button { font-family: inherit; }
-ruby rt, .tc-ruby { font-weight: normal; }
+p, h1, h2, h3, li { text-wrap: pretty; }
+button { font-family: inherit; line-height: 1.85; touch-action: manipulation; }
+[role="button"] { touch-action: manipulation; }
+ruby rt, .tc-ruby { font-weight: 500; }  /* 読みこむ太さは 500・700・900 だけ（400 は 500 で表示される） */
 
 #app { height: 100%; }
 
@@ -56,96 +137,137 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .screen.active { display: block; }
 .hidden { display: none !important; }
 
-/* ---------------- ボタン（下フチつきの「押しごたえ」デザイン） ---------------- */
+/* ---------------- キーボード操作のわく ---------------- */
+:where(button, a, input, select, [tabindex]):focus-visible { outline: 3px solid #12324f; outline-offset: 2px; }
+#hud :focus-visible { outline-color: #ffd24a; }
+
+/* ---------------- 共通アイコン（icons.js の SVG スプライト） ----------------
+ * 塗りのアイコンは fill:currentColor、線のアイコンは fill:none + stroke:currentColor(1.75)。
+ * 形ごとの塗り・線は icons.js がスプライトの中に書いているので、ここでは大きさと色の元だけを決める。 */
+.ico { width: 1.15em; height: 1.15em; vertical-align: -0.18em; flex: none; fill: currentColor; }
+#icon-sprite .i-f { fill: currentColor; }
+#icon-sprite .i-l { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+/* =========================================================
+ * 【META】ボタン・タイトル・ステージ選択
+ * ========================================================= */
+/* ---------------- ボタン（照明モデル: 左上から光。上面のハイライト + 右下に落ちる影。押すと内側の影） ----------------
+ * border 1px のぶんは padding を 1px ずつ減らして、高さ・幅は今までと同じ（高さ 44px 以上）にしている */
 .btn {
-  border: none;
-  border-radius: 12px;
-  padding: 9px 18px 10px;
+  border: 1px solid #c3d0db;
+  border-radius: var(--r-md);
+  min-height: var(--tap);
+  padding: 4px 17px 5px;
+  text-wrap: balance;
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   color: var(--navy);
-  background: var(--chip);
-  box-shadow: 0 3px 0 #cfdbe4;
-  transition: transform 0.06s, filter 0.15s, background 0.15s, box-shadow 0.06s;
+  background: linear-gradient(180deg, #ffffff, #f1f5f8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--elev-1);
+  transition: filter 0.15s, background 0.15s, box-shadow 0.08s;
   touch-action: manipulation;
 }
+.btn .ico { width: 1.2em; height: 1.2em; vertical-align: -0.22em; }
 .btn:hover { filter: brightness(0.97); }
-.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #cfdbe4; }
-.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 3px 0 var(--accent-d); }
+.btn:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.18); transform: none; }
+/* 主ボタン: 白文字がどこでも 4.5 以上（上 #12809f=4.55 → 下 #0b6f8a=5.75） */
+.btn-primary {
+  background: linear-gradient(180deg, #12809f, #0b6f8a);
+  border-color: #0a6680;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 1px 2px 4px rgba(10, 40, 60, 0.28);
+}
 .btn-primary:hover { filter: brightness(1.06); }
-.btn-primary:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--accent-d); }
-.btn-ghost { background: transparent; border: 1.5px solid var(--line); color: var(--ink-2); box-shadow: none; }
-.btn-ghost:active { transform: scale(0.97); }
-.btn-danger { background: var(--bad); color: #fff; box-shadow: 0 3px 0 #a33333; }
-.btn-danger:active { transform: translateY(2px); box-shadow: 0 1px 0 #a33333; }
-.btn-warnghost { background: transparent; border: 1.5px solid #eecfa0; color: #a4681b; box-shadow: none; }
-.btn-warnghost:active { transform: scale(0.97); }
-.btn-big { font-size: 1.15rem; padding: 14px 34px 15px; border-radius: 15px; }
-.btn-sm { font-size: 0.82rem; padding: 5px 12px 6px; border-radius: 9px; box-shadow: 0 2px 0 #cfdbe4; }
-.btn-sm.btn-primary { box-shadow: 0 2px 0 var(--accent-d); }
-.btn-icon { padding: 8px 12px; font-size: 1rem; background: transparent; border: 1.5px solid var(--line); box-shadow: none; }
+.btn-primary:active { box-shadow: inset 1px 2px 3px rgba(0, 24, 36, 0.4); }
+.btn-danger {
+  background: linear-gradient(180deg, #c03a3a, var(--bad-strong));
+  border-color: #862222;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 1px 2px 4px rgba(80, 16, 16, 0.28);
+}
+.btn-danger:active { box-shadow: inset 1px 2px 3px rgba(60, 0, 0, 0.4); }
+.btn-big { font-size: 1.15rem; padding: 8px 33px 9px; border-radius: var(--r-md); }
+.btn-sm { font-size: 0.82rem; min-height: var(--tap); padding: 4px 13px 5px; border-radius: var(--r-sm); }
+.btn-sm.btn-primary { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 1px 2px 4px rgba(10, 40, 60, 0.28); }
+/* 枠だけのボタン（影なし。押せる形が白地で見える濃さの枠） */
+.btn-ghost { background: transparent; border: 1px solid var(--line-strong); color: var(--ink-2); box-shadow: none; }
+.btn-ghost:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.14); }
+.btn-warnghost { background: transparent; border: 1px solid #b5741f; color: var(--warn-strong); box-shadow: none; }
+.btn-warnghost:active { box-shadow: inset 1px 2px 3px rgba(80, 50, 0, 0.16); }
+/* 危ない選択（赤い文字・細い赤の枠。塗らないので、安全な主ボタンより目立たない） */
+.btn-dangerghost { background: #fff; border: 1.5px solid #e3a3a3; color: #b23a3a; box-shadow: none; }
+.btn-dangerghost:active { box-shadow: inset 1px 2px 3px rgba(120, 20, 20, 0.16); }
+.btn-icon { padding: 5px 12px; font-size: 1rem; background: transparent; border: 1.5px solid var(--line); box-shadow: none; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ---------------- タイトル画面 ---------------- */
+/* ---------------- タイトル画面 ----------------
+ * 中身が画面より高いときは上からスクロールで読める（中央寄せは .title-inner の margin:auto。あふれたら 0 になる） */
 #screen-title.active {
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: column;
   background: linear-gradient(180deg, #bfe0f5 0%, #dceef9 55%, #d3e2ec 100%);
-  padding: 24px;
-  position: relative; overflow: hidden;
+  padding: 24px 16px;
+  position: relative;
+  overflow-x: hidden; overflow-y: auto;
 }
-/* 流れる雲・太陽・小さな飛行機（かざり） */
-.title-clouds { position: absolute; inset: 0; pointer-events: none; }
-.tcl {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 999px;
-}
-.tcl::before, .tcl::after {
-  content: ''; position: absolute; background: inherit; border-radius: inherit;
-}
-.tcl-1 { width: 130px; height: 30px; top: 9%; left: -140px; animation: cloud-drift 46s linear infinite; }
-.tcl-1::before { width: 70px; height: 26px; top: -14px; left: 24px; }
-.tcl-2 { width: 90px; height: 22px; top: 24%; left: -100px; animation: cloud-drift 64s linear 9s infinite; opacity: 0.75; }
-.tcl-2::before { width: 46px; height: 18px; top: -10px; left: 18px; }
-.tcl-3 { width: 160px; height: 34px; top: 62%; left: -170px; animation: cloud-drift 78s linear 22s infinite; opacity: 0.55; }
-.tcl-3::before { width: 84px; height: 30px; top: -16px; left: 34px; }
-@keyframes cloud-drift { to { transform: translateX(calc(100vw + 340px)); } }
-.title-inner { max-width: 720px; text-align: center; position: relative; }
+.title-inner { max-width: 720px; width: 100%; margin: auto; text-align: center; position: relative; }
 .title-hero {
   width: min(560px, 92%);
   border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(30, 58, 95, 0.18);
+  box-shadow: 8px 12px 28px rgba(30, 58, 95, 0.2);   /* 光源は左上 → 影は右下 */
   margin-bottom: 18px;
   background: #fff;
+}
+.title-eyebrow {
+  font-size: var(--fs-min); font-weight: 700; letter-spacing: 0.14em;
+  color: #4a596c; line-height: 1.6; margin-bottom: 2px;
 }
 .title-logo {
   font-size: clamp(1.8rem, 5vw, 3rem);
   font-weight: 900;
   color: var(--navy);
   letter-spacing: 0.05em;
-  text-shadow: 0 3px 12px rgba(30, 58, 95, 0.18);
+  line-height: 1.9;
+  text-shadow: 2px 3px 8px rgba(30, 58, 95, 0.16);
 }
 .title-num {
-  color: var(--accent); font-size: 1.2em;
-  text-shadow: 0 3px 12px rgba(15, 143, 176, 0.25);
+  color: var(--accent-d); font-size: 1.2em;
+  text-shadow: 2px 3px 8px rgba(11, 111, 138, 0.2);
 }
-.title-sub { color: var(--ink-2); margin-top: 4px; font-size: 0.9rem; }
-.title-desc { margin: 18px 0; line-height: 1.9; }
+.title-sub { color: #4a596c; margin-top: 2px; font-size: 0.95rem; font-weight: 700; }
+.nw { white-space: nowrap; display: inline-block; }
+.title-desc { margin: 16px 0; line-height: 1.9; }
 .title-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 10px 0 16px; }
-.title-foot { color: var(--ink-2); font-size: 0.75rem; }
+#screen-title .btn-ghost {
+  color: #3c4a5c;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(30, 58, 95, 0.2);
+  box-shadow: 1px 2px 4px rgba(30, 58, 95, 0.1);
+}
+#screen-title .btn-ghost .ico { color: var(--navy-2); }
+.title-foot { color: #4a596c; font-size: var(--fs-min); line-height: 1.9; }
 
 /* ---------------- ステージ選択 ---------------- */
-#screen-select.active { display: flex; align-items: center; justify-content: center; padding: 24px; }
-.select-inner { width: min(680px, 100%); }
-.select-title { color: var(--navy); text-align: center; margin-bottom: 18px; font-size: 1.5rem; }
+#screen-select.active { display: flex; flex-direction: column; overflow-y: auto; padding: 24px 16px; }
+.select-inner { width: min(680px, 100%); margin: auto; }
+.select-title { color: var(--navy); text-align: center; margin-bottom: 8px; font-size: 1.5rem; line-height: 1.6; }
+/* ★の取り方（凡例） */
+.star-legend {
+  display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px;
+  font-size: var(--fs-sm); color: var(--ink-2); margin-bottom: 14px; line-height: 1.9;
+}
+.star-legend .sl-item { white-space: nowrap; }
+.star-legend .sl-stars { display: inline-flex; vertical-align: -0.2em; }
+.star-legend .ico { width: 16px; height: 16px; }
 .stage-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 .stage-card {
+  position: relative;
+  display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: start;
   text-align: left;
   background: var(--paper);
   border: 2px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px 18px;
+  padding: 14px 16px;
   cursor: pointer;
   box-shadow: var(--shadow);
   transition: transform 0.08s, border-color 0.15s;
@@ -153,28 +275,100 @@ ruby rt, .tc-ruby { font-weight: normal; }
   color: var(--ink);
 }
 .stage-card:hover:not(.locked) { transform: translateY(-2px); border-color: var(--accent); }
-.stage-card.locked { opacity: 0.62; cursor: default; background: #f2f5f8; }
-.sc-row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.sc-name { font-weight: 700; color: var(--navy); font-size: 1.05rem; }
+/* つぎに遊ぶカード（青緑のわくと影。脈打たせない） */
+.stage-card.next { border-color: var(--accent-d); box-shadow: 0 0 0 1px var(--accent-d), 3px 6px 14px rgba(11, 111, 138, 0.22); }
+.sc-nexttag {
+  position: absolute; top: -12px; left: 14px;
+  background: var(--accent-d); color: #fff;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.6;
+  border-radius: var(--r-pill); padding: 1px 12px;
+  box-shadow: var(--elev-1);
+}
+/* ロック中: うすくしない。地の色・点線のわく・鍵のバッジ・読める理由で「まだ」を伝える */
+.stage-card.locked { cursor: default; background: #f2f5f8; border-style: dashed; border-color: #b9c7d4; box-shadow: none; }
+.stage-card.locked .sc-name, .stage-card.locked .sc-num { color: var(--ink-2); }
+.stage-card.locked .sc-sky { filter: saturate(0.35); }
+/* 空の色の枠（天気と時間帯。左の色ボーダーにはしない） */
+.sc-sky {
+  position: relative;
+  width: 112px; height: 72px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -10px 14px rgba(20, 40, 60, 0.12), var(--elev-1);
+  color: #fff;
+  overflow: hidden;
+}
+.sc-sky::after {   /* 地平線（駐機場のコンクリート） */
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 14px;
+  background: linear-gradient(180deg, rgba(120, 132, 146, 0.55), rgba(96, 108, 122, 0.75));
+}
+.sc-sky .ico { width: 34px; height: 34px; position: relative; z-index: 1; margin-top: -10px; filter: drop-shadow(1px 2px 2px rgba(20, 40, 60, 0.35)); }
+.sky-clear { background: linear-gradient(180deg, #4f9fd8 0%, #9fd0ef 60%, #eef7fc 100%); }
+.sky-clear .ico { color: #ffd76a; }
+.sky-cloudy { background: linear-gradient(180deg, #8d9aa8 0%, #b9c4ce 60%, #e3e8ec 100%); }
+.sky-storm { background: linear-gradient(180deg, #5e9ccc 0%, #8fa3b6 55%, #6b7684 100%); }
+/* はれ → かみなり: 太陽 › かみなり雲 の2つの印 */
+.sky-storm { gap: 0; }
+.sc-sky .ico.sky-from { width: 24px; height: 24px; color: #ffd76a; }
+.sc-sky .ico.sky-arrow { width: 16px; height: 16px; color: #fff; margin-left: -1px; margin-right: -1px; }
+.sc-sky .ico.sky-to { width: 28px; height: 28px; color: #fff; }
+.sky-dusk { background: linear-gradient(180deg, #2b3b63 0%, #8a5a78 45%, #e98f4f 80%, #f6c07a 100%); }
+.sky-dusk .ico { color: #ffd9a0; }
+.sky-rain { background: linear-gradient(180deg, #4d5d70 0%, #71849a 55%, #9fb0c0 100%); }
+.sc-body { display: block; min-width: 0; }
+.sc-row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.sc-name { font-weight: 700; color: var(--navy); font-size: 1.05rem; line-height: 1.9; }
+.sc-num { margin-right: 0.6em; color: var(--accent-d); }
+.sc-title { white-space: normal; }
 .sc-diff {
   background: var(--navy-2); color: #fff; border-radius: 999px;
-  font-size: 0.72rem; padding: 3px 10px; white-space: nowrap;
+  font-size: var(--fs-min); padding: 2px 10px; white-space: nowrap; line-height: 1.6; margin-top: 3px;
 }
-.sc-sub { color: var(--ink-2); font-size: 0.85rem; margin: 6px 0; line-height: 1.85; }
-.sc-row2 { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--ink-2); flex-wrap: wrap; gap: 4px; }
-.sc-best { color: #b07d10; font-weight: 700; }
-.sc-best-none { color: var(--ink-2); font-weight: 400; }
-.sc-soon { color: var(--ink-2); }
-/* ステージの★（とった数だけ金色） */
-.sc-stars i { font-style: normal; color: #d3dce4; }
-.sc-stars i.on { color: #f5b301; text-shadow: 0 1px 2px rgba(160, 110, 0, 0.35); }
-/* むずかしさの色分け */
-.sc-diff.diff-easy { background: var(--ok); }
+.sc-lockbadge {
+  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; color: var(--st-locked); border: 1.5px dashed #b9c7d4;
+}
+.sc-lockbadge .ico { width: 18px; height: 18px; }
+.sc-sub { display: block; color: var(--ink-2); font-size: 0.85rem; margin: 4px 0 6px; line-height: 1.85; }
+.sc-row2 { display: flex; align-items: center; font-size: var(--fs-min); color: var(--ink-2); flex-wrap: wrap; gap: 4px 12px; line-height: 1.9; }
+.sc-wx { white-space: nowrap; }
+.sc-best { margin-left: auto; color: #8a6200; font-weight: 700; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; justify-content: flex-end; }
+.sc-best-none { color: var(--ink-2); font-weight: 500; }
+.sc-next { color: var(--accent-d); font-weight: 700; white-space: nowrap; }
+.sc-score { white-space: nowrap; }
+.sc-lock {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.95rem; font-weight: 700; color: var(--navy);
+  background: #fff; border: 1.5px dashed #b9c7d4; border-radius: 999px; padding: 4px 12px;
+  line-height: 1.9;
+}
+.sc-lock .ico { color: var(--st-locked); }
+/* ステージの★（取った★は金・ふちどり・右下の影 / 取っていない☆は灰の線） */
+.sc-stars { display: inline-flex; gap: 1px; line-height: 1; white-space: nowrap; }
+.sc-stars .ico { width: 20px; height: 20px; }
+/* ★は SVG（文字の★は絵文字として出る端末があるため）。取った★=金+こげ茶のふち+右下の影 / 取っていない☆=灰の線。
+ * スターの数を見せる所だけに かける（ほかの所で star のアイコンを使っても 金色にならない） */
+:is(.sc-stars, .star-legend, .sc-next, .result-stars, .title-progress, .zk-badge-sum) .ico-star {
+  color: #e0a100; stroke: #8a6200; stroke-width: 1.1px; stroke-linejoin: round; filter: drop-shadow(1px 2px 1.5px rgba(120, 80, 0, 0.35));
+}
+:is(.sc-stars, .result-stars) .ico-star-outline { color: #8796a8; }
+.sc-next .ico { width: 16px; height: 16px; vertical-align: -0.2em; }
+/* むずかしさの色分け（白文字が 4.5 以上） */
+.sc-diff.diff-easy { background: var(--ok-strong); }
 .sc-diff.diff-mid { background: var(--navy-2); }
 .sc-diff.diff-hard { background: #b0483f; }
 #btn-select-back { display: block; margin: 0 auto; }
 
+/* =========================================================
+ * 【GAME】ゲーム画面レイアウト〜下パネル(HUD・ながれリボン・作業カード・采配レバー・駐機場・上の知らせ・トースト・スタート・右上パネル・スタッフ帯)
+ * 状態の見た目は :root の --st-*（はじめられる=白地+青緑わく+▶ / あつまり中=こはく+… / おしごと中=青緑ぬり+輪 /
+ * かんりょう=緑+✓ / まだ=灰の点線+鍵 / トラブル=赤ぬり+⚠ / かみなりでおやすみ=灰青ぬり）。重なり順は --z-* だけを使う。
+ * ========================================================= */
 /* ---------------- ゲーム画面レイアウト ---------------- */
+#screen-game {
+  --status-w: min(248px, 62vw);   /* スコア板の幅（ゲーム画面の中だけで上書き。:root は土台のまま） */
+}
 #screen-game.active {
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -182,6 +376,8 @@ ruby rt, .tc-ruby { font-weight: normal; }
   gap: 8px;
   padding: 8px;
 }
+/* ボタンの中身（アイコン・ルビ・文字）は押した先にならない（押した先はいつもボタン自身） */
+#screen-game button *, #toast-global button * { pointer-events: none; }
 
 /* HUD */
 #hud {
@@ -189,131 +385,278 @@ ruby rt, .tc-ruby { font-weight: normal; }
   background: var(--navy);
   color: #fff;
   border-radius: var(--radius);
-  padding: 8px 14px;
+  padding: 6px 14px;
   box-shadow: var(--shadow);
   flex-wrap: wrap;
 }
-.hud-left { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.hud-left { display: flex; align-items: center; gap: 8px; font-weight: 700; min-width: 0; }
+#hud-stage-name { white-space: nowrap; }
 #hud-weather {
-  font-weight: 400; font-size: 0.82rem;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-weight: 500; font-size: var(--fs-min); line-height: 1.85;
   background: rgba(255, 255, 255, 0.14);
-  border-radius: 999px; padding: 3px 12px;
+  border-radius: 999px; padding: 1px 12px 1px 9px;
+  white-space: nowrap;
 }
+#hud-weather .ico { width: 17px; height: 17px; }
+/* 一時停止の札（HUD の中。背の低い横長の画面だけで出す。静か・点滅しない） */
+.hud-paused {
+  display: none; align-items: center; gap: 5px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.85; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px; padding: 1px 12px 1px 9px;
+}
+.hud-paused .ico { width: 15px; height: 15px; }
+/* かみなりで そとの おしごとが止まっている間だけ、こはく色の札にする（パネルの色は変えない） */
+#hud-weather.wx-storm { background: #f2b21b; color: #3d2c00; font-weight: 700; }
 /* 出発ボードふうの時計（黒パネル+こはく色の数字） */
 .hud-center { display: flex; gap: 8px; align-items: stretch; }
 .hud-clock-box {
-  display: flex; flex-direction: column; align-items: center; min-width: 76px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 76px;
   background: rgba(8, 16, 28, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 9px;
-  padding: 3px 12px 5px;
+  padding: 4px 10px 5px;
 }
-.hud-label { font-size: 0.62rem; opacity: 0.8; }
+.hud-label { font-size: var(--fs-min); opacity: 0.85; letter-spacing: 0.02em; line-height: 1.85; white-space: nowrap; }
+.hud-label > span { line-height: inherit; }
+.hl-short { display: none; }
 #hud-clock, #hud-std, #hud-remain {
   font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15;
   color: #ffd24a;
   letter-spacing: 0.03em;
   text-shadow: 0 0 8px rgba(255, 210, 74, 0.35);
+  white-space: nowrap;
 }
 #hud-std { color: #9fdcb3; text-shadow: 0 0 8px rgba(159, 220, 179, 0.3); }
-#hud-remain.soon { color: #ffb14a; }
-#hud-remain.late { color: #ff8d8d; animation: pulse-soft 1.2s infinite; text-shadow: 0 0 8px rgba(255, 120, 120, 0.4); }
+/* 「のこり」がいちばん大事なので、数字を大きく・太く */
+#hud-remain { font-size: 1.5rem; font-weight: 900; }
+#hud-remain .rem-u { font-size: max(13px, 0.58em); font-weight: 700; line-height: 1.9; margin-left: 2px; letter-spacing: 0; }
+#hud-remain .rem-done { font-size: 0.72em; }
+/* 遅れは赤い数字と「+N分遅れ」の文で伝える（点滅はしない） */
+#hud-remain.late { color: #ff8d8d; text-shadow: 0 0 8px rgba(255, 120, 120, 0.4); }
+/* のこり10分以下: 箱のふちの色と「のこり わずか」の文で知らせる（色だけにしない） */
+.hud-remain-box.soon { border-color: #ffb14a; box-shadow: inset 0 0 0 1px #ffb14a; }
+.hud-remain-box.soon #hud-remain { color: #ffb14a; }
 .hud-right { display: flex; align-items: center; gap: 8px; }
-.speed-ctrl { display: flex; border-radius: 10px; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.35); }
+.speed-ctrl { display: flex; border-radius: 10px; overflow: hidden; border: 1.5px solid rgba(255, 255, 255, 0.55); }
 .speed-btn {
   background: transparent; color: #fff; border: none;
-  padding: 7px 13px; font-size: 0.95rem; cursor: pointer;
+  padding: 0 8px; font-size: 1rem; cursor: pointer;
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  line-height: 1;
 }
-.speed-btn + .speed-btn { border-left: 1.5px solid rgba(255,255,255,0.35); }
-.speed-btn.active { background: var(--accent); }
-#btn-settings { color: #fff; border-color: rgba(255,255,255,0.35); }
-.btn-flow { color: #fff; border-color: rgba(255,255,255,0.35); font-size: 0.82rem; white-space: nowrap; }
+.speed-btn .ico { width: 20px; height: 20px; }
+.speed-btn + .speed-btn { border-left: 1.5px solid rgba(255, 255, 255, 0.55); }
+/* えらんでいる速さ: 色+下の線（色だけにしない）。aria-pressed でも伝える */
+.speed-btn.active, .speed-btn[aria-pressed="true"] { background: var(--accent-d); box-shadow: inset 0 -3px 0 #ffd24a; }
+.spd-txt { display: none; font-size: var(--fs-min); font-weight: 700; line-height: 1.35; }
+@media (min-width: 1100px) {
+  .speed-btn { min-width: 56px; padding: 3px 8px 5px; }
+  .speed-btn .ico { width: 18px; height: 18px; }
+  .spd-txt { display: block; }
+}
+#btn-settings { color: #fff; border-color: rgba(255, 255, 255, 0.55); min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+#btn-settings .ico { width: 20px; height: 20px; }
+.btn-flow {
+  color: #fff; border-color: rgba(255, 255, 255, 0.55); font-size: 0.82rem; white-space: nowrap; min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+}
+.btn-flow .ico { width: 20px; height: 20px; }
+/* PC・タブレット: 3列のグリッドで1段に収める（左=ステージ名と天気を縦に / 中=時計 / 右=操作） */
+@media (min-width: 701px) {
+  /* 右の列（速さ・ながれ・せってい）は中身の幅より狭くしない。せまい幅では左の列（ステージ名・天気）がちぢむ */
+  #hud { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); align-items: center; }
+  .hud-left { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.35; }
+  .hud-right { justify-self: end; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  #hud { gap: 6px; padding: 6px 10px; }
+  .hud-right { gap: 4px; }
+  .btn-flow .btn-txt { display: none; }
+  .hud-clock-box { min-width: 62px; padding: 4px 8px 5px; }
+  #hud-weather { padding: 1px 10px 1px 8px; }
+}
+/* 701〜749px: 右の列（速さ・ながれ・せってい）が半分より広いので、時計の箱を細くして まん中に近づける */
+@media (min-width: 701px) and (max-width: 749px) {
+  .hud-center { gap: 5px; }
+  .hud-clock-box { min-width: 0; padding: 4px 5px 5px; }
+}
 
 /* ---------------- ながれリボン（常時表示。12の作業を順番どおりに） ---------------- */
+.flow-ribbon-wrap { position: relative; min-width: 0; }
+/* 右に続きがあるときの「›」（スタッフ帯と同じ形） */
+.rib-more {
+  position: absolute; right: 4px; top: 50%; margin-top: -22px;
+  width: 44px; height: 44px;
+  border: 1px solid rgba(30, 58, 95, 0.25); border-radius: 10px;
+  background: #fff; color: var(--navy);
+  box-shadow: inset 0 1px 0 #fff, var(--elev-1);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.rib-more .ico { width: 22px; height: 22px; }
 .flow-ribbon {
   display: flex; align-items: center; gap: 4px;
+  justify-content: safe center;   /* 入るときはまん中、はみ出すときは左よせ */
   background: var(--paper);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 5px 8px;
+  padding: 8px 8px 4px;
   overflow-x: auto; overflow-y: hidden;
 }
+/* 右にまだ続きがあるときだけ、右はしを うすくする */
+.flow-ribbon.has-more {
+  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, #000 88%, transparent);
+}
+/* 見出し（押せない文字。ボタンには見せない） */
 .fr-lead {
-  font-size: 0.68rem; font-weight: 700; color: var(--navy);
-  white-space: nowrap; line-height: 1.25; text-align: center; flex: 0 0 auto;
+  font-size: var(--fs-min); font-weight: 700; color: var(--ink-2);
+  white-space: nowrap; line-height: 1.35; flex: 0 0 auto; padding: 0 4px 0 2px;
 }
 .fr-step {
-  display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
   border: 1.5px solid var(--line); border-radius: 999px;
-  padding: 2px 7px 2px 3px;
+  padding: 2px 8px 2px 4px;
   background: #f7fafc;
 }
-.fr-step.fr-sdone { background: #eaf7ef; border-color: #8fd0aa; }
+/* 終わったステップは「番号+✓」だけにたたむ（チップの DOM は残す） */
+.fr-step.fr-sdone { background: #f1f4f7; border-color: #d3dce5; padding-right: 4px; }
+.fr-sdone .fr-chip { display: none; }
 .fr-step.fr-snow { border-color: var(--accent); background: #eef8fc; box-shadow: 0 0 0 2px rgba(15, 143, 176, 0.15); }
 .fr-num {
-  width: 21px; height: 21px; flex: 0 0 21px;
+  /* 押せる範囲は 44x44、見た目の丸は 28px（背景の円で描く） */
+  position: relative;
+  width: 44px; height: 44px; flex: 0 0 44px;
   border: none; border-radius: 50%;
-  background: var(--sc, var(--navy-2)); color: #fff;
-  font-size: 0.72rem; font-weight: 700; line-height: 1;
+  background: radial-gradient(circle closest-side, var(--sc, var(--navy-2)) 0 13.5px, transparent 14.5px);
+  color: #fff;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
   cursor: pointer;
-  box-shadow: 0 1.5px 0 rgba(0, 0, 0, 0.18);
+  box-shadow: none;
 }
-.fr-sdone .fr-num { filter: saturate(0.45) brightness(1.08); }
-.fr-snow .fr-num { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sc, var(--accent)); }
+.fr-sdone .fr-num { background: radial-gradient(circle closest-side, #5b6b80 0 13.5px, transparent 14.5px); }
+.fr-sdone .fr-num::after {
+  content: '\2713';
+  position: absolute; top: 2px; right: 2px;
+  width: 18px; height: 18px; box-sizing: border-box;
+  border-radius: 50%; border: 1.5px solid #fff;
+  background: var(--st-done); color: #fff;
+  font-size: 13px; font-weight: 900; line-height: 15px; text-align: center;
+  pointer-events: none;
+}
+.fr-snow .fr-num { background: radial-gradient(circle closest-side, var(--sc) 0 13.5px, #fff 14px 16px, var(--sc) 16.5px 18.5px, transparent 19px); }
 .fr-chip {
   position: relative; flex: 0 0 auto;
-  width: 31px; height: 29px; padding: 0;
-  border: 1.5px solid transparent; border-radius: 8px;
-  background: #fff; cursor: pointer;
+  width: 40px; height: 40px; padding: 0;
+  border: 1.5px solid var(--line); border-radius: 8px;
+  background: #fff; color: var(--navy); cursor: pointer;
   font-size: 1rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.fr-chip > .ico { width: 22px; height: 22px; }
+/* 見た目は 40px のまま、押せる範囲をまん中から 44x44 にする（上下左右に 2px。となりとの間は 4px なので重ならない）
+ * わくの太さが端数で丸められても大きさが変わらないよう、inset ではなく中心からの 44px で決める */
+.fr-chip::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; }
 .fr-mark {
-  position: absolute; right: -4px; top: -5px;
-  font-size: 0.56rem; font-weight: 700; line-height: 1.55;
-  border-radius: 999px; padding: 0 3.5px;
+  position: absolute; right: -7px; top: -8px;
+  min-width: 18px; height: 18px; box-sizing: border-box;
+  display: none; align-items: center; justify-content: center;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
+  border-radius: 999px; padding: 0 2px;
+  border: 1.5px solid #fff; color: #fff;
 }
-.fr-chip.fr-locked { opacity: 0.36; filter: grayscale(1); }
-.fr-chip.fr-ready { border-color: var(--ok); background: #f0fbf4; animation: fr-glow 1.8s ease-in-out infinite; }
-.fr-chip.fr-ready .fr-mark { background: var(--ok); color: #fff; }
-.fr-chip.fr-gathering { border-color: var(--warn); background: #fffcf0; }
-.fr-chip.fr-active { border-color: var(--accent); background: #e7f5fb; animation: pulse-soft 1.2s infinite; }
-.fr-chip.fr-done { background: #eef8f1; }
-.fr-chip.fr-done .fr-mark { background: var(--ok); color: #fff; }
-.fr-chip.fr-flash { animation: fr-flash 0.9s 3; }
-@keyframes fr-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
-  50% { box-shadow: 0 0 0 3px rgba(47, 158, 99, 0.28); }
-}
+.fr-mark .ico { width: 11px; height: 11px; vertical-align: 0; }
+/* 状態（色だけにせず、右上の印でも見分ける） */
+.fr-chip.fr-locked { opacity: 0.6; background: #f4f7fa; border: 1.5px dashed #8796a8; color: var(--st-locked); }
+.fr-chip.fr-ready { background: var(--st-ready-bg); border: 2px solid var(--st-ready); }
+.fr-chip.fr-ready .fr-mark { display: inline-flex; background: var(--st-ready); }
+.fr-chip.fr-gathering { background: var(--st-wait-bg); border-color: var(--st-wait); color: var(--st-wait-ink); }
+.fr-chip.fr-gathering .fr-mark { display: inline-flex; background: var(--st-wait); }
+.fr-chip.fr-active { background: var(--st-active); border-color: var(--st-active); color: #fff; }
+.fr-chip.fr-active .fr-mark { display: inline-flex; background: #fff; color: var(--st-active); border-color: var(--st-active); }
+.fr-chip.fr-done { background: var(--st-done-bg); border-color: transparent; color: var(--st-done); }
+.fr-chip.fr-done .fr-mark { display: inline-flex; background: var(--st-done); }
+/* かみなりで おやすみ（カードの札と同じ 灰青ぬり+かみなりの印） */
+.fr-chip.fr-paused { background: var(--st-paused); border-color: var(--st-paused); color: #fff; }
+.fr-chip.fr-paused .fr-mark { display: inline-flex; background: #fff; color: var(--st-paused); border-color: var(--st-paused); }
+/* ロックが開いた瞬間だけ、2回光る（ふだんは静か） */
+.fr-chip.fr-flash { animation: fr-flash 0.9s 2; }
 @keyframes fr-flash {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
-  50% { box-shadow: 0 0 0 7px rgba(47, 158, 99, 0.45); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 111, 138, 0); }
+  50% { box-shadow: 0 0 0 7px rgba(11, 111, 138, 0.4); }
 }
 .fr-arrow { color: var(--ink-2); font-size: 0.9rem; flex: 0 0 auto; }
+/* せまい幅では見出し・矢印を隠して、チップの場所をあける（1024 より狭い幅は横スクロールしてよい）
+ * 中身の幅（実測）: 見出し+矢印 1058px / 矢印だけ 1015px / どちらもなし 958px。リボンの内側は 画面の幅−32px。
+ * 入る幅になったら出す（見出しは 1100px から・矢印は 1060px から。フォントの差の分 10px ほど余らせる） */
+@media (max-width: 1099px) { .fr-lead { display: none; } }
+@media (max-width: 1059px) { .fr-arrow { display: none; } }
+/* リボンを押したときの答え（押した部品の真下に出す小さな吹き出し。3.5秒で消える） */
+.fr-tip {
+  position: fixed; z-index: calc(var(--z-overlay) + 1);   /* はじめる前の案内（スタートの幕の上）にも使う */
+  max-width: min(320px, calc(100vw - 16px));
+  background: var(--navy); color: #fff;
+  border-radius: 10px; padding: 6px 12px;
+  font-size: var(--fs-sm); line-height: 1.95;
+  box-shadow: var(--elev-2);
+  pointer-events: none;
+  animation: msg-in 0.15s ease-out;
+}
+.fr-tip::before {
+  content: ''; position: absolute; top: -6px; left: var(--tip-x, 24px);
+  width: 12px; height: 12px; margin-left: -6px;
+  background: inherit; border-radius: 2px; transform: rotate(45deg);
+}
+.fr-tip .ico { width: 16px; height: 16px; }
+.fr-tip.no-tail::before { display: none; }   /* コーチの下へ ずらしたときは、チップを指さない */
+/* わかち書き（ことばの間に空白）の知らせ・ふきだし・説明の文は、ことばの切れ目（空白・「、」「。」）だけで改行する
+ * （文節の推定にまかせると「は／じめよう」と切れることがある）。1つのことばが1行に入らないときだけ、その中で折り返す。
+ * 空白のない ふつうの文（まめちしき・イベントの題名・きろく）は、ここに入れない（土台の文節の改行のまま） */
+.cb-text, .fr-tip, .toast, .hb-text, .drawer-nudge,
+.sp-info, .sp-note, .sp-next, .tc-lockmsg, .tc-short, .tc-unlocks, .pace-eff {
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+/* ルビの語+すぐあとの ひらがな（ui.js の gx が包む）。「時間／どおり」「作業／が」のように ルビのきわで切らない */
+.nb { white-space: nowrap; }
 
-/* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ */
+/* 駐機場ビューが全面。パネルは上に浮かぶオーバーレイ
+ * --rail-l / --rail-r: 上の知らせ・トーストが よける左右のはば（ドロワー・スコア板） */
 #game-main {
   position: relative;
   min-height: 0;
+  --rail-l: 56px;
+  --rail-r: calc(var(--status-w) + 20px);
+}
+#game-main.drawer-open { --rail-l: calc(var(--drawer-w) + 60px); }
+/* 縦長のタブレットでドロワーを開いているときは、知らせが細くなりすぎないよう、スコア板の下（--rail-t。JS が測る）に出して右はしまで使う */
+@media (min-width: 701px) and (max-width: 1099px) and (orientation: portrait) {
+  #game-main.drawer-open { --rail-r: 0px; }
 }
 
 /* ---------------- 作業カード（左ドロワー） ---------------- */
 #panel-tasks {
   position: absolute;
-  top: 10px; left: 10px; bottom: 96px;
-  width: min(300px, 78vw);
-  z-index: 6;
+  top: 10px; left: 10px; bottom: calc(var(--res-h) + 54px);
+  width: var(--drawer-w);
+  z-index: var(--z-drawer);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius);
-  box-shadow: 0 6px 22px rgba(30, 58, 95, 0.16);
+  box-shadow: 4px 6px 22px rgba(30, 58, 95, 0.16);
   padding: 8px;
   display: flex; flex-direction: column;
   overflow: visible;
   transition: transform 0.25s ease;
 }
 #panel-tasks.closed { transform: translateX(calc(-100% - 18px)); }
+#panel-tasks.no-anim, #panel-tasks.no-anim .drawer-tab { transition: none; }
+/* 閉じたときは、つまみを 3px 右へずらす（そのままだと #game-main の左の外にはみ出し、押せる幅が 41px になる） */
+#panel-tasks.closed .drawer-tab { right: -53px; }
 #task-list { overflow-y: auto; min-height: 0; flex: 1; }
 /* ほそいスクロールバー */
 #task-list::-webkit-scrollbar, .game-log::-webkit-scrollbar, .flow-ribbon::-webkit-scrollbar { width: 7px; height: 7px; }
@@ -323,84 +666,70 @@ ruby rt, .tc-ruby { font-weight: normal; }
 #task-list::-webkit-scrollbar-track, .game-log::-webkit-scrollbar-track, .flow-ribbon::-webkit-scrollbar-track { background: transparent; }
 .drawer-tab {
   position: absolute;
-  top: 6px; right: -40px;
-  width: 34px; padding: 9px 0;
+  top: 6px; right: -50px;
+  width: 44px; padding: 10px 0 12px;
   border: none; border-radius: 0 10px 10px 0;
   background: var(--navy); color: #fff;
   cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
   font-size: 0.9rem;
   box-shadow: var(--shadow);
+  transition: right 0.25s ease;
 }
-.drawer-tab-txt { font-size: 0.62rem; writing-mode: vertical-rl; letter-spacing: 2px; }
+.drawer-tab > .ico { width: 20px; height: 20px; }
+/* 出発中（広い画面）: ドロワーは開かないので、つまみを うすくする（押すと わけを知らせる） */
+.drawer-tab.dt-off { background: #8193a6; box-shadow: none; cursor: default; }
+.drawer-tab.dt-off .drawer-badge { display: none; }
+.drawer-tab-txt { font-size: var(--fs-min); writing-mode: vertical-rl; letter-spacing: 2px; line-height: 1.35; }
+/* はじめられる数（「▶4」。赤はトラブルだけに使うので、はじめられる色にする） */
 .drawer-badge {
   position: absolute;
-  top: -7px; right: -7px;
-  min-width: 20px; height: 20px;
+  top: -9px; right: -10px;
+  min-width: 22px; height: 22px;
   border-radius: 999px;
-  background: var(--bad);
+  background: var(--accent-d);
   color: #fff;
-  font-size: 0.7rem; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 4px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  padding: 0 6px 0 4px;
   border: 2px solid #fff;
+  white-space: nowrap;
 }
-.hint-banner {
-  position: absolute;
-  top: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 4;
-  background: rgba(255, 247, 223, 0.96);
-  border: 1.5px solid #eed48a;
-  color: #7a5b12;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  padding: 6px 16px;
-  line-height: 1.85;
-  box-shadow: var(--shadow);
-  max-width: min(560px, 74%);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  box-shadow: var(--shadow);
+.drawer-badge .ico { width: 10px; height: 10px; }
+.drawer-badge b { font-weight: 700; }
+/* 閉じている間に、はじめられる数が増えたときの札（上の知らせの置き場の さいごの行。4秒で消える。押せない） */
+.drawer-nudge {
+  width: max-content; max-width: 100%;
+  background: var(--navy); color: #fff;
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1.9;
+  border-radius: 10px; padding: 4px 12px;
+  box-shadow: var(--elev-2);
   pointer-events: none;
+  word-break: keep-all; overflow-wrap: anywhere;
+  animation: msg-in 0.25s ease-out;
 }
+.drawer-nudge .ico { width: 16px; height: 16px; }
 #task-list { display: flex; flex-direction: column; gap: 8px; }
 
 .task-card {
   position: relative;
+  order: 0;
   border: 1.5px solid var(--line);
   border-radius: 10px;
   padding: 8px 10px;
   background: #fbfdfe;
-  transition: border-color 0.2s, background 0.2s, opacity 0.2s, transform 0.12s, box-shadow 0.12s;
+  transition: border-color 0.2s, background 0.2s;
 }
-.task-card:hover { transform: translateY(-1.5px); box-shadow: 0 4px 12px rgba(30, 58, 95, 0.12); }
-.task-card.st-locked { opacity: 0.72; background: #f3f6f9; }
-/* かんりょうスタンプ（赤いはんこふう） */
-.task-card.st-done::after {
-  content: 'かんりょう!';
-  position: absolute; right: 9px; top: 26px;
-  color: #d05a5a;
-  border: 2.5px solid #d05a5a;
-  border-radius: 8px;
-  padding: 1px 8px 2px;
-  font-size: 0.68rem; font-weight: 900; letter-spacing: 0.06em;
-  transform: rotate(-9deg);
-  opacity: 0.85;
-  pointer-events: none;
-  animation: stamp-in 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
-}
-@keyframes stamp-in {
-  0% { transform: rotate(-9deg) scale(2.1); opacity: 0; }
-  100% { transform: rotate(-9deg) scale(1); opacity: 0.85; }
-}
-.task-card.st-ready { border-color: #bcd7e6; }
-.task-card.st-moving { border-color: var(--warn); background: #fffdf4; }
-.task-card.st-active { border-color: var(--accent); background: #f2fafd; }
-.task-card.st-done { border-color: #bfe0cc; background: #f4fbf6; opacity: 0.85; }
-.task-card.st-paused { border-color: #8b7cc9; background: #f5f3fb; }
-.task-card.st-paused .tc-state { color: #6553a8; font-weight: 700; }
-.task-card.st-issue { border-color: var(--bad); background: #fdf4f3; }
-.task-card.st-issue .tc-state { color: var(--bad); font-weight: 700; animation: blink 1.2s infinite; }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+/* かんりょうしたカードは最後へ送る（並びの順番そのものは変えない） */
+#task-list .task-card.st-done { order: 1; }
+.task-card.st-ready { border: 2px solid var(--st-ready); background: var(--st-ready-bg); padding: 7.5px 9.5px; }
+.task-card.st-gathering, .task-card.st-moving { border-color: var(--st-wait); background: #fffbf2; }
+.task-card.st-active { border-color: var(--st-active); background: #f2f8fa; }
+.task-card.st-done { border-color: #bfe0cc; background: #f6fbf8; }
+/* まだ: うすくしない。地の色と点線のわくで伝える */
+.task-card.st-locked { background: #f4f7fa; border-style: dashed; border-color: #8796a8; }
+.task-card.st-paused { border-color: var(--st-paused); background: #f3f5f8; }
+.task-card.st-issue { border-color: var(--st-issue); background: #fdf4f3; }
 .task-card.shake { animation: shake 0.35s; }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
@@ -408,35 +737,55 @@ ruby rt, .tc-ruby { font-weight: normal; }
   75% { transform: translateX(5px); }
 }
 
-.tc-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; row-gap: 3px; }
-.tc-icon { font-size: 1.05rem; }
-.tc-name { font-weight: 700; font-size: 0.93rem; color: var(--navy); flex: 1 1 52%; line-height: 1.6; }
-/* 見出しのルビは幅をとらないように少しつめる（1文字だけの折り返し防止） */
-.tc-name rt { font-size: 0.45em; letter-spacing: -0.03em; }
-.tc-ruby { color: var(--ink-2); font-size: 0.68rem; font-weight: 400; }
-.tc-state {
-  font-size: 0.66rem; color: var(--ink-2); white-space: nowrap;
-  margin-left: auto;
-  background: var(--chip); border-radius: 999px; padding: 1px 8px;
-  line-height: 1.7;
+.tc-head {
+  /* 2段: 1段目=ステップ番号と状態 / 2段目=アイコンと作業名（名前に幅を全部つかう） */
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  grid-template-areas: 'step step . state' 'icon name name name';
+  align-items: center; column-gap: 6px; row-gap: 2px;
 }
-.st-ready .tc-state { color: #1d6b3f; background: #e3f5ea; font-weight: 700; }
-.st-active .tc-state { color: #fff; background: var(--accent); font-weight: 700; }
-.st-done .tc-state { color: #fff; background: var(--ok); font-weight: 700; }
-.st-moving .tc-state, .st-gathering .tc-state { color: #7a5b12; background: #f6e3ac; font-weight: 700; }
+/* かみなりでおやすみの札は長いので、3段目に出す */
+.task-card.st-paused .tc-head { grid-template-areas: 'step step . .' 'icon name name name' 'state state state state'; }
+.task-card.st-paused .tc-state { justify-self: start; }
+.tc-icon { grid-area: icon; display: inline-flex; color: var(--navy); }
+.tc-icon .ico { width: 22px; height: 22px; }
+.tc-name { grid-area: name; font-weight: 700; font-size: 0.93rem; color: var(--navy); line-height: 1.9; }
+/* 見出しのルビは幅をとらないように少しつめる（1文字だけの折り返し防止） */
+.tc-name rt { letter-spacing: -0.03em; }
+.tc-ruby { color: var(--ink-2); font-size: var(--fs-min); font-weight: 500; }
+/* 状態ピル（アイコン+ことば） */
+.tc-state {
+  grid-area: state;
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); white-space: nowrap;
+  margin-left: 0;
+  background: var(--chip); border: 1px solid transparent; border-radius: 999px; padding: 0 9px 0 7px;
+  line-height: 1.85;
+}
+.tc-state .ico { width: 14px; height: 14px; }
+.st-locked .tc-state { background: #f4f7fa; color: var(--st-locked); border: 1px dashed #8796a8; }
+.st-ready .tc-state { background: var(--st-ready-bg); color: var(--st-ready); border: 1.5px solid var(--st-ready); }
+.st-gathering .tc-state, .st-moving .tc-state { background: var(--st-wait-bg); color: var(--st-wait-ink); border-color: var(--st-wait); }
+.st-active .tc-state { background: var(--st-active); color: #fff; }
+.st-done .tc-state { background: var(--st-done-bg); color: var(--st-done); }
+/* 天気で止まっている・トラブルは、上の .st-active より強い詳細度で上書きする（トラブルを優先） */
+.task-card.st-paused .tc-state { color: #fff; background: var(--st-paused); border-color: var(--st-paused); }
+.task-card.st-issue .tc-state { color: #fff; background: var(--st-issue); border-color: var(--st-issue); animation: none; }
 
 .tc-reqs { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 /* ひつような人・車のチップ（左の色ぼうをやめて、色つきの丸いピルに） */
 .req-chip {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 0.68rem;
+  font-size: var(--fs-min);
   background: var(--chip);
   border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 1px 9px;
+  padding-block: 2px 1px;
+  padding-inline: 7px 9px;
   color: var(--ink);
-  line-height: 1.5;
+  line-height: 1.85;
 }
+.req-chip > .ico { width: 16px; height: 16px; color: var(--c, var(--ink-2)); }
 @supports (color: color-mix(in srgb, red, blue)) {
   .req-chip {
     background: color-mix(in srgb, var(--c, var(--line)) 9%, white);
@@ -444,33 +793,53 @@ ruby rt, .tc-ruby { font-weight: normal; }
   }
 }
 .req-none { color: var(--ink-2); }
+/* いま空いている人・車が足りない種類（灰色の地+✕。色だけにしない） */
+.req-chip.req-short { background: #eef1f4; border-color: #c3ccd6; color: #5b6b80; }
+.req-chip.req-short > .ico { color: #7a8796; }
+.req-x { display: inline-flex; }
+.req-x .ico { width: 12px; height: 12px; }
+.tc-short {
+  display: none;
+  font-size: var(--fs-min); color: #4a5a6e; background: #eef1f4;
+  border-radius: 6px; padding: 3px 9px; margin: -2px 0 6px; line-height: 1.9;
+}
+.tc-short.show { display: block; }
+.tc-short .ico { width: 15px; height: 15px; }
 
-.tc-bar { height: 7px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
+.tc-bar, .bar { background: #dde5ec; box-shadow: inset 0 0 0 1px rgba(30, 58, 95, 0.2); border-radius: 999px; overflow: hidden; }
+.tc-bar { height: 7px; }
 .tc-fill {
   height: 100%; width: 0;
-  background: var(--accent);
+  background-color: var(--st-active);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.28), rgba(0, 0, 0, 0.1));
   border-radius: 999px;
   transition: width 0.25s linear;
 }
-.st-done .tc-fill { background: var(--ok); }
+.st-done .tc-fill { background-color: var(--ok); }
+.st-paused .tc-fill { background-color: var(--st-paused); }
 
 .tc-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  font-size: 0.7rem; color: var(--ink-2); margin-top: 5px; flex-wrap: wrap;
+  font-size: var(--fs-min); color: var(--ink-2); margin-top: 5px; flex-wrap: wrap;
+  line-height: 1.85;
 }
-.tc-extra { color: #a4681b; }
-.tc-prio { border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
-.tc-prio.prio-high { border-color: #eab6b6; color: #b34a4a; }
+.tc-time .ico { width: 15px; height: 15px; }
+.tc-extra { color: #93600f; }
+/* 「だいじ」だけ札を出す（紺のわく+紺の文字。赤はトラブルだけに使う）。「ふつう」の札は出さない */
+.tc-prio { display: inline-flex; align-items: center; gap: 3px; border: 1.5px solid var(--navy-2); color: var(--navy-2); border-radius: 999px; padding: 0 8px 0 6px; font-weight: 700; }
+.tc-prio .ico { width: 13px; height: 13px; }
 
-.tc-lockmsg { display: none; font-size: 0.78rem; color: #8a6d1d; background: #fdf6dd; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.9; }
+.tc-lockmsg { display: none; font-size: var(--fs-min); color: #4a5a6e; background: #eef1f4; border-radius: 6px; padding: 5px 9px; margin-top: 6px; line-height: 1.9; }
 .tc-lockmsg.show { display: block; }
+.tc-lockmsg .ico { width: 15px; height: 15px; }
 
 /* ステップ番号（ながれリボンと同じ番号・同じ色で順番をおぼえられるように） */
 .tc-step {
+  grid-area: step; justify-self: start;
   flex: 0 0 auto;
   background: var(--navy-2); color: #fff;
-  border-radius: 999px; padding: 1px 7px;
-  font-size: 0.6rem; font-weight: 700; white-space: nowrap;
+  border-radius: 999px; padding: 1px 8px;
+  font-size: var(--fs-min); font-weight: 700; white-space: nowrap;
 }
 [data-step="1"] { --sc: var(--s1); }
 [data-step="2"] { --sc: var(--s2); }
@@ -480,24 +849,75 @@ ruby rt, .tc-ruby { font-weight: normal; }
 [data-step="6"] { --sc: var(--s6); }
 [data-step="7"] { --sc: var(--s7); }
 .tc-step[data-step] { background: var(--sc); }
-.st-locked .tc-step { filter: grayscale(0.55); opacity: 0.75; }
+/* まだ: 番号は灰色の地（白文字が読める濃さ）。アイコンだけ灰色にする */
+.st-locked .tc-step[data-step] { background: #5b6b80; filter: none; opacity: 1; }
+.st-locked .tc-icon { filter: grayscale(1); opacity: 0.6; }
 
 /* この作業がおわると つぎに何が開くか */
 .tc-unlocks {
   display: none;
-  font-size: 0.72rem; color: #2a6b48; background: #eef8f1;
+  font-size: var(--fs-min); color: #0b5f75; background: #e8f3f6;
   border-radius: 6px; padding: 4px 8px; margin-top: 6px; line-height: 1.85;
 }
 .tc-unlocks.show { display: block; }
+.tc-unlocks .ico { width: 15px; height: 15px; }
 
-/* 開いた瞬間のカードの光り */
-.task-card.just-open { animation: card-open 0.9s 3; }
+/* 開いた瞬間のカードの光り（1回だけ） */
+.task-card.just-open { animation: card-open 0.9s 1; }
 @keyframes card-open {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 99, 0); }
-  50% { box-shadow: 0 0 0 5px rgba(47, 158, 99, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 111, 138, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(11, 111, 138, 0.35); }
 }
 
-.tc-btns { display: flex; gap: 6px; margin-top: 7px; }
+.tc-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; }
+/* ボタンの文字は とちゅうで折り返さない（入らないボタンは つぎの行へ） */
+.tc-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+.tc-btns .ico { width: 16px; height: 16px; }
+/* 主ボタン「▶ はじめる」は幅いっぱい。「くわしく」は どの状態でも右はし（同じ場所に「ストップ」が来ないように）。「ストップ」は左 */
+.tc-start { flex: 1; font-size: 1rem; }
+/* トラブルの「どうする？ えらぶ」は いちばん上の1行を ひとりじめ（はじめる・くわしく は その下の行） */
+.tc-issue { flex: 1 1 100%; order: -1; }
+.tc-info { order: 3; margin-left: auto; }
+
+/* かんりょうのカード: スタンプは出さず、見出し・時刻・くわしく だけにたたむ */
+.task-card.st-done { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+.task-card.st-done .tc-head { flex: 1 0 100%; }
+.task-card.st-done .tc-reqs, .task-card.st-done .tc-short, .task-card.st-done .tc-bar, .task-card.st-done .pace-wrap,
+.task-card.st-done .tc-unlocks, .task-card.st-done .tc-prio, .task-card.st-done .tc-extra, .task-card.st-done .tc-lockmsg,
+.task-card.st-done .tc-start, .task-card.st-done .tc-cancel { display: none; }
+.task-card.st-done .tc-foot { flex: 1; margin-top: 4px; }
+.task-card.st-done .tc-btns { margin-top: 4px; }
+/* まだのカード: 「はじめる」と進みぐあいは出さない（すすめかたと ひつような人は残す） */
+.task-card.st-locked .tc-start, .task-card.st-locked .tc-bar { display: none; }
+
+/* ---------------- 采配レバー（ていねい/ふつう/急ぐ） ---------------- */
+.pace-wrap { margin-top: 6px; }
+.pace-head { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.35; margin-bottom: 3px; }
+.pace-ctrl {
+  display: flex;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pace-btn {
+  flex: 1;
+  border: none;
+  background: #fff;
+  font-size: var(--fs-min);
+  min-height: 44px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--ink-2);
+  white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  line-height: 1.85;
+}
+.pace-btn .ico { width: 17px; height: 17px; }
+.pace-btn + .pace-btn { border-left: 1.5px solid var(--line); }
+/* えらんでいるものは、3つとも同じ紺（赤・緑はほかの意味に使うので使わない） */
+.pace-btn.on { background: var(--navy-2); color: #fff; font-weight: 700; }
+.pace-eff { display: none; font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; margin-top: 3px; }
+.pace-eff.show { display: block; }
 
 /* ---------------- 駐機場ビュー（全面） ---------------- */
 #apron-wrap {
@@ -514,7 +934,7 @@ ruby rt, .tc-ruby { font-weight: normal; }
   box-shadow: inset 0 0 64px rgba(20, 35, 50, 0.15);
   border-radius: var(--radius);
   pointer-events: none;
-  z-index: 1;
+  z-index: var(--z-fx);
 }
 #apron {
   width: 100%; height: 100%; display: block;
@@ -524,120 +944,319 @@ ruby rt, .tc-ruby { font-weight: normal; }
 }
 #apron.dragging { cursor: grabbing; }
 
-/* 一時停止中の表示 */
-.pause-chip {
+/* ---------------- 上の知らせの置き場（イベント > コーチ > ヒント、一時停止はいつも最後の行） ---------------- */
+.top-rail {
   position: absolute;
-  top: 52px; left: 50%; transform: translateX(-50%);
-  z-index: 4;
+  top: calc(var(--rail-t, 0px) + 10px);
+  left: calc(var(--rail-l, 0px) + 12px);
+  right: calc(var(--rail-r, 0px) + 12px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: var(--z-msg);
+  pointer-events: none;
+}
+.top-rail > * { position: static; transform: none; max-width: 100%; }
+
+/* イベントの知らせ（こはく色の札。出るときに1回だけ動く。脈打たない） */
+.event-banner {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  max-width: min(560px, 100%);
+  min-height: 44px;
+  padding: 8px 16px;
+  background: linear-gradient(#ffd866, #f2b630);
+  color: #3d2c00;
+  border: 1.5px solid #b8860b;
+  border-radius: 12px;
+  font: inherit; font-size: var(--fs-sm);
+  line-height: 1.9;
+  white-space: normal; text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 2px 4px 12px rgba(60, 40, 0, 0.30);
+  overflow: hidden;
+  animation: ev-in 0.3s ease-out 1;
+}
+.event-banner > .ico { width: 20px; height: 20px; }
+.ev-title {
+  min-width: 0; font-weight: 700;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.ev-cta {
+  flex: none; margin-left: auto;
+  background: #3d2c00; color: #ffe9a8;
+  border-radius: 999px; padding: 0 12px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.85;
+}
+/* 期限が「N分後」のイベントだけ、のこり時間の細いバー */
+.ev-timer { position: absolute; left: 12px; right: 12px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(61, 44, 0, 0.18); overflow: hidden; }
+.ev-timer i { display: block; height: 100%; background: #3d2c00; border-radius: 2px; }
+@keyframes ev-in { from { opacity: 0; transform: translateY(-8px); } }
+
+/* コーチのふきだし（新しい文は前の文を置きかえる。12秒で消える。×で消せる） */
+.coach-bubble {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 10px;
+  max-width: min(560px, 100%);
+  background: #fff; color: var(--ink);
+  border: 1.5px solid var(--st-active);
+  border-radius: 12px;
+  padding: 8px 46px 8px 10px;
+  font-size: var(--fs-sm); line-height: 1.95;
+  box-shadow: var(--elev-2);
+  animation: msg-in 0.25s ease-out;
+  pointer-events: auto;   /* 文の上のタップを 下の駐機場へ通さない（押すと とじる） */
+}
+/* 人のリストを開いている間は かくす（リストのうしろに 文が半分 見えないように） */
+.top-rail.pick-open > .coach-bubble { visibility: hidden; }
+/* リボンの吹き出しと重なる知らせは、吹き出しが出ている間だけ うすくする */
+.top-rail > .under-tip { opacity: 0.3; transition: opacity 0.15s; }
+.cb-avatar {
+  flex: none; width: 36px; height: 36px; margin-top: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3d6390, var(--navy));
+  box-shadow: 1px 2px 3px rgba(16, 32, 52, 0.25);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.cb-avatar .ico { width: 22px; height: 22px; }
+.cb-text { min-width: 0; }
+.cb-who { display: block; font-size: var(--fs-min); font-weight: 700; color: var(--st-active); line-height: 1.35; margin-top: 2px; }
+.cb-text .ico { width: 17px; height: 17px; color: var(--navy); }
+.cb-term { white-space: nowrap; }
+.cb-close {
+  position: absolute; top: 0; right: 0;
+  width: 46px; height: 46px;
+  border: none; background: transparent; color: var(--ink-2);
+  border-radius: 0 12px 0 12px;
+  cursor: pointer; pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+}
+.cb-close .ico { width: 18px; height: 18px; }
+
+/* ヒント（押すと、おすすめの作業を開く。黄色はイベントだけに使うので、うすい灰青にする） */
+.hint-banner {
+  display: flex; align-items: center;
+  max-width: min(560px, 100%);
+  min-height: 44px;
+  background: rgba(244, 247, 250, 0.96);
+  border: 1px solid #c3d0db;
+  color: #3d4f63;
+  border-radius: 12px;
+  font: inherit; font-size: var(--fs-min);
+  padding: 6px 14px;
+  line-height: 1.9;
+  text-align: left; white-space: normal;
+  box-shadow: var(--elev-1);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.hb-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; }
+.hint-banner .ico { width: 16px; height: 16px; color: var(--accent-d); }
+
+/* 一時停止中の表示（静か。点滅しない） */
+.pause-chip {
+  width: max-content; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: rgba(30, 58, 95, 0.92);
   color: #fff;
   border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 0.85rem;
+  padding: 6px 16px;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  box-shadow: var(--shadow);
+  line-height: 1.6;
+  box-shadow: var(--elev-2);
   pointer-events: none;
-  animation: pulse-soft 1.6s infinite;
 }
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
+.pause-chip .ico { width: 16px; height: 16px; }
 
-/* ズームボタン */
+/* ズームボタン（横ならびで、スタッフ帯のすぐ上） */
 #zoom-ctrl {
   position: absolute;
-  right: 12px; bottom: 104px;
-  display: flex; flex-direction: column; gap: 6px;
-  z-index: 5;
+  right: 12px; bottom: calc(var(--res-h) + 18px);
+  display: flex; flex-direction: row; gap: 6px;
+  z-index: var(--z-panel);
 }
 .zoom-btn {
-  width: 40px; height: 40px;
-  border: none; border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  width: 44px; height: 44px; line-height: 1;
+  border: 1px solid rgba(30, 58, 95, 0.3); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--navy);
-  font-size: 1.1rem; font-weight: 700;
   cursor: pointer;
-  box-shadow: var(--shadow);
+  box-shadow: inset 0 1px 0 #fff, var(--elev-1);
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.zoom-btn .ico { width: 22px; height: 22px; }
 .zoom-btn:active { transform: scale(0.94); }
 
-/* 作業スポットのポップオーバー */
-.spot-pop {
-  position: absolute;
-  z-index: 7;
-  width: 230px;
+/* 重なったスタッフをえらぶ小さなリスト（スマホ） */
+.staff-pick {
+  position: absolute; z-index: var(--z-pop);
+  min-width: 170px; max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain;   /* 駐機場に入りきらない人数は、リストの中をスクロール */
   background: var(--paper);
   border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(10, 25, 45, 0.35);
-  padding: 10px 12px;
-  animation: rise 0.15s ease-out;
+  box-shadow: var(--elev-3);
+  padding: 4px;
+  display: flex; flex-direction: column;
+  animation: msg-in 0.15s ease-out;
 }
-.spot-pop .sp-title { font-weight: 700; color: var(--navy); font-size: 0.9rem; margin-bottom: 4px; }
+.sk-head { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); padding: 2px 8px; line-height: 1.6; }
+.sk-row {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 12px 0 6px;
+  border: none; border-radius: 8px; background: transparent;
+  font: inherit; font-size: var(--fs-sm); font-weight: 700; color: var(--navy);
+  line-height: 1.85; text-align: left; cursor: pointer;
+}
+.sk-row:hover, .sk-row:focus-visible { background: var(--chip); }
+.sk-row .ico-vet, .sk-row .ico-rookie { width: 15px; height: 15px; }
+
+/* 作業スポットのポップオーバー（右上に×。置いた側に三角のしっぽ） */
+.spot-pop {
+  position: absolute;
+  z-index: var(--z-pop);
+  width: 260px;
+  max-height: calc(100% - 16px);
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  border-radius: 12px;
+  box-shadow: var(--elev-3);
+  animation: msg-in 0.15s ease-out;
+}
+.spot-pop::before {
+  content: ''; position: absolute; display: none;
+  width: 14px; height: 14px;
+  background: var(--paper); border-radius: 2px; transform: rotate(45deg);
+  pointer-events: none;
+}
+.spot-pop.sp-arrow-left::before { display: block; left: -6px; top: calc(var(--ay, 30px) - 7px); }
+.spot-pop.sp-arrow-right::before { display: block; right: -6px; top: calc(var(--ay, 30px) - 7px); }
+.spot-pop.sp-arrow-up::before { display: block; top: -6px; left: calc(var(--ax, 30px) - 7px); }
+.sp-body { position: relative; overflow-y: auto; min-height: 0; padding: 10px 12px 8px; border-radius: 12px 12px 0 0; }
+/* 本文が下へ続くときは、下はしを うすくする（ボタンの列は本文の外なので うすくならない） */
+.sp-body.scroll-more, .modal-body.scroll-more {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 30px), transparent);
+}
+/* 背の低い画面: すすめかたは「すすめかたを かえる」で開く */
+.sp-pace-more > summary {
+  display: flex; align-items: center; gap: 4px; min-height: 44px;
+  list-style: none;   /* 子の svg が「押せる部品」に数えられないよう cursor は変えない（ずかんの くわしく と同じ） */
+  font-size: var(--fs-sm); font-weight: 700; color: var(--accent-d); line-height: 1.6;
+}
+.sp-pace-more > summary::-webkit-details-marker { display: none; }
+.sp-pace-more > summary .ico { width: 16px; height: 16px; transition: transform 0.15s; }
+.sp-pace-more[open] > summary .ico { transform: rotate(90deg); }
+.sp-pace-now { color: var(--ink-2); font-weight: 500; }
+.sp-close {
+  position: absolute; top: 1px; right: 1px;   /* 本文より後ろに置いてあるので、z-index なしで上に出る */
+  width: 46px; height: 46px;                  /* 小数の位置でも 44px を下回らないよう 46px */
+  border: none; border-radius: 10px; background: transparent; color: var(--ink-2);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.sp-close .ico { width: 18px; height: 18px; }
+.spot-pop .sp-title {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0 5px;
+  font-weight: 700; color: var(--navy); font-size: 0.9rem; margin: 0 38px 4px 0; line-height: 1.9;
+}
+.sp-ticon { display: inline-flex; }
+.sp-ticon .ico { width: 20px; height: 20px; }
 .spot-pop .sp-step {
-  display: inline-block; margin-right: 5px;
+  display: inline-block;
   background: var(--sc, var(--navy-2)); color: #fff; border-radius: 999px;
-  font-size: 0.6rem; padding: 1px 7px; vertical-align: 2px;
+  font-size: var(--fs-min); padding: 1px 7px; line-height: 1.6;
 }
-.spot-pop .sp-info { font-size: 0.74rem; color: var(--ink-2); line-height: 1.9; margin-bottom: 6px; }
+.spot-pop .sp-info { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.9; margin-bottom: 6px; }
+.sp-info .ico { width: 16px; height: 16px; }
+.sp-note { font-size: var(--fs-min); color: #3d4f63; background: var(--chip); border-radius: 6px; padding: 3px 8px; margin-bottom: 6px; line-height: 1.9; }
+.sp-dep { display: flex; align-items: center; gap: 8px; font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; margin-bottom: 6px; }
+.sp-dep .tc-bar { flex: 1; }
 .sp-next {
   margin-top: 5px; padding: 4px 8px;
-  background: #eef8f1; color: #2a6b48; border-radius: 6px; font-size: 0.7rem; line-height: 1.85;
+  background: #e8f3f6; color: #0b5f75; border-radius: 6px; font-size: var(--fs-min); line-height: 1.9;
 }
-.spot-pop .sp-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.sp-next .ico { width: 15px; height: 15px; }
+.spot-pop .pace-wrap { margin: 2px 0 4px; }
+/* ボタンの列は本文の外。いつも ポップの下はしに見える */
+.spot-pop .sp-btns { flex: none; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0; padding: 4px 12px 12px; }
+.spot-pop .sp-btns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.spot-pop .sp-btns .ico { width: 16px; height: 16px; }
+.spot-pop .sp-btns .btn-warnghost { margin-left: auto; }
 
-.event-banner {
-  position: absolute;
-  top: 12px; left: 50%; transform: translateX(-50%);
-  background: #ffcf4d;
-  color: #5b4200;
-  border: 2px solid #e2a400;
-  border-radius: 999px;
-  padding: 9px 18px;
-  font-size: 0.88rem;
-  cursor: pointer;
-  box-shadow: 0 3px 12px rgba(90, 70, 0, 0.3);
-  animation: pulse 1.4s infinite;
-  max-width: 92%;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-@keyframes pulse {
-  0%, 100% { transform: translateX(-50%) scale(1); }
-  50% { transform: translateX(-50%) scale(1.045); }
-}
-
+/* ---------------- トースト（情報=紺 / 注意=こはく / トラブル=赤。広い画面は2枚・スマホは1枚まで） ---------------- */
 #toast-area {
   position: absolute;
   bottom: 14px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; gap: 6px; align-items: center;
   width: 94%;
+  z-index: var(--z-msg);
   pointer-events: none;
 }
+/* 701px 以上: 上の知らせと同じ左（ドロワー・つまみの右）から、右下のズーム（横ならび 44px×3 + すき間 + 右 12px = 172px）の左まで。
+ * 1100px 以上は、右もスコア板の左まで（右 10px + 幅 + すき間 12px）にして、2つのパネルのあいだに収める */
+@media (min-width: 701px) {
+  #toast-area {
+    left: calc(var(--rail-l, 0px) + 12px); right: 172px;
+    bottom: calc(var(--res-h) + 18px);
+    width: auto; transform: none;
+    align-items: flex-start;
+  }
+}
+@media (min-width: 1100px) {
+  #toast-area { right: calc(var(--status-w) + 22px); }
+}
+/* 縦長のタブレットでドロワーを開いているときは、ズームの上に上げて、右はしまで使う（細くなりすぎないように） */
+@media (min-width: 701px) and (max-width: 1099px) and (orientation: portrait) {
+  #game-main.drawer-open #toast-area { right: 12px; bottom: calc(var(--res-h) + 70px); }
+}
+/* 1024px 以上で きろくを とじているとき（JS が .toast-under を付ける）: トーストは スコア板の下（カメラが あけている右の列）に出す。
+ * 左下の「スタッフのまちあい」や車のおきばを かくさない。入る高さは ズームのボタンの上まで */
+#game-main.toast-under #toast-area {
+  left: auto; right: 10px; bottom: auto; transform: none;
+  top: calc(var(--status-b, 200px) + 8px);
+  width: var(--status-w);
+  max-height: calc(100% - var(--status-b, 200px) - var(--res-h) - 78px);
+  overflow: hidden;
+  align-items: stretch;
+}
 .toast {
-  background: rgba(30, 58, 95, 0.94);
+  background: rgba(30, 58, 95, 0.95);
   color: #fff;
   border-radius: 12px;
-  padding: 9px 16px;
+  padding: 8px 16px;
   font-size: 0.9rem;
   line-height: 1.95;
   max-width: 100%;
-  box-shadow: var(--shadow);
-  animation: rise 0.25s ease-out;
+  box-shadow: var(--elev-2);
+  animation: msg-in 0.25s ease-out;
 }
-.toast-warn { background: rgba(160, 110, 10, 0.96); }
+.toast .ico { width: 18px; height: 18px; }
+.toast-warn { background: rgba(138, 94, 6, 0.96); }
 .toast-bad { background: rgba(178, 44, 44, 0.96); }
-/* 「次に進めるようになった」お知らせ */
-.toast-open {
-  background: #eafaf0; color: #1d6b3f;
-  border: 2px solid var(--ok); font-weight: 700;
-  animation: rise 0.25s ease-out, fr-flash 0.9s 2;
-}
+/* 「次に進めるようになった」お知らせ（情報の紺+ひらいた鍵。光らせない） */
+.toast-open { background: rgba(30, 58, 95, 0.95); }
+/* 「はじめられるよ！」の 作業の名前は、アイコン+名前で1つのかたまり（アイコンだけが 行末に のこらない） */
+.toast-open .to-item { white-space: nowrap; }
 .toast.out { opacity: 0; transition: opacity 0.45s; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+/* ゲーム画面の知らせ・ポップは 4px だけ動かす（下のパネルとのすき間 8px にかからない） */
+@keyframes msg-in { from { opacity: 0; transform: translateY(4px); } }
+/* ゲーム画面の外（タイトル・ステージ選択）で出すお知らせ */
+.toast-global {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: min(94%, 520px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: var(--z-fixed-msg);
+  pointer-events: none;
+}
 
+/* ---------------- スタート案内（パネルもまとめて幕の下に入れる） ---------------- */
 .start-overlay {
   position: absolute; inset: 0;
-  background: rgba(30, 58, 95, 0.45);
+  z-index: var(--z-overlay);
+  background: rgba(20, 32, 48, 0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 16px;
 }
@@ -647,63 +1266,97 @@ ruby rt, .tc-ruby { font-weight: normal; }
   padding: 22px 26px;
   max-width: 460px;
   text-align: center;
-  box-shadow: 0 8px 30px rgba(10, 25, 45, 0.35);
+  box-shadow: var(--elev-3);
 }
 .start-card h3 { color: var(--navy); margin-bottom: 10px; }
+/* 見出しは「ステージ1」と題名の2行 */
+.start-card h3 .sh-num { display: block; font-size: var(--fs-sm); color: var(--accent-d); line-height: 1.6; }
+.start-card h3 .sh-title { display: block; }
 .start-card p { font-size: 0.9rem; line-height: 2; margin-bottom: 14px; white-space: pre-line; text-align: left; }
+#btn-begin { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+#btn-begin .ico { width: 20px; height: 20px; }
+/* スタート画面のまめ知識 */
+.start-trivia {
+  background: var(--chip);
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-size: var(--fs-min);
+  line-height: 2;
+  color: var(--ink-2);
+  text-align: left;
+  margin-bottom: 14px;
+}
+.start-trivia .ico { width: 16px; height: 16px; color: var(--accent-d); }
+.start-card p .ico { width: 17px; height: 17px; }
+/* カードが HUD・リボンと スタッフ帯の あいだに入らないとき（UI.placeStartCard）: カードの中を スクロールする。
+ * 「はじめる」を まめちしきより上にして、スクロールしなくても見えるようにする */
+.start-card.sc-tight { display: flex; flex-direction: column; overflow-y: auto; }
+.start-card.sc-tight > * { flex: none; }
+.start-card.sc-tight #start-trivia { order: 1; margin: 14px 0 0; }
+.start-card.sc-tight #btn-begin { align-self: center; }
+/* 下に つづくときは、下はしを 白へ うすくする（mask-image で すかすと、カードの うらの スコア板の数字や駐機場の絵が 文字に かさなって見える）。
+ * カードの中の さいごの部品として、スクロールしても いつも 下はし（下の余白 22px の上）に はりつける */
+.start-card.sc-tight::after {
+  content: ''; order: 9; flex: none;
+  position: sticky; bottom: -22px;
+  height: 34px; margin: -34px -26px 0;
+  background: linear-gradient(rgba(255, 255, 255, 0), var(--paper) 85%);
+  pointer-events: none;
+  visibility: hidden;
+}
+.start-card.sc-tight.scroll-more::after { visibility: visible; }
+/* 背の低い画面で カードを幕の高さいっぱいまで使うときは、幕の下の スタッフ帯を かくす（カードが帯に かかって見えない）。
+ * スマホと低い画面（幕が画面ぜんたい）では HUD・ながれリボンも（下の @media） */
+#screen-game.start-cover #panel-resources { visibility: hidden; }
 
-/* ---------------- 右上パネル（指標・コンパクト） ---------------- */
+/* ---------------- 右上パネル（スコアのもと: 2×2） ---------------- */
 #panel-status {
   position: absolute;
   top: 10px; right: 10px;
-  width: min(232px, 62vw);
-  max-height: calc(100% - 116px);
-  z-index: 5;
+  width: var(--status-w);
+  max-height: calc(100% - var(--res-h) - 74px);
+  z-index: var(--z-panel);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius);
-  box-shadow: 0 6px 22px rgba(30, 58, 95, 0.16);
+  box-shadow: 4px 6px 22px rgba(30, 58, 95, 0.16);
   padding: 10px;
   overflow-y: auto;
-  display: flex; flex-direction: column; gap: 7px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.log-toggle {
-  border: 1.5px solid var(--line);
-  background: transparent;
-  border-radius: 8px;
-  font-size: 0.78rem;
-  color: var(--ink-2);
-  padding: 6px 9px;
-  cursor: pointer;
-  text-align: left;
-}
-#panel-status:not(.log-open) #game-log { display: none; }
-/* きろくを開いたときは、しっかり高さをとって読みやすく */
-#panel-status.log-open { max-height: calc(100% - 116px); }
-#panel-status.log-open #game-log {
-  display: flex;
-  flex: 1;
-  min-height: 260px;
-}
-.panel-title { font-size: 0.82rem; color: var(--navy); }
-.panel-title-sub { font-weight: 400; color: var(--ink-2); font-size: 0.68rem; }
-.metric { margin-bottom: 2px; position: relative; }
+.panel-title { font-size: 0.9rem; color: var(--navy); line-height: 1.35; }
+.panel-title-sub { display: block; font-weight: 500; color: var(--ink-2); font-size: var(--fs-min); margin-top: 1px; }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.metric { position: relative; min-width: 0; }
 .metric-head {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 0.78rem; font-weight: 600; margin-bottom: 3px;
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--fs-min); font-weight: 700; color: var(--navy);
+  white-space: nowrap;
+  line-height: 1.9;
 }
+.metric-head .ico { width: 15px; height: 15px; color: var(--navy-2); }
+.metric-row { display: flex; align-items: center; gap: 6px; }
+.mv {
+  display: inline-flex; align-items: center; gap: 2px;
+  min-width: 2.1em;
+  font-size: 0.95rem; font-weight: 700; color: var(--navy);
+  font-variant-numeric: tabular-nums; line-height: 1.35;
+}
+/* 40 未満: 数字も赤くして、前に ⚠ を出す（色だけにしない） */
+.mv.low { color: var(--bad-strong); }
+.mv .ico { width: 14px; height: 14px; }
 /* 指標が動いたときの「−3」フロート */
 .metric-delta {
   position: absolute;
   right: 2px; top: -4px;
-  font-size: 0.78rem; font-weight: 800;
+  font-size: var(--fs-min); font-weight: 700;
   pointer-events: none;
   animation: delta-rise 1.4s ease-out forwards;
 }
-.metric-delta.minus { color: var(--bad); }
-.metric-delta.plus { color: var(--ok); }
+.metric-delta.minus { color: var(--bad-strong); }
+.metric-delta.plus { color: var(--ok-strong); }
 @keyframes delta-rise {
   0% { opacity: 0; transform: translateY(4px); }
   15% { opacity: 1; }
@@ -714,19 +1367,64 @@ ruby rt, .tc-ruby { font-weight: normal; }
   0%, 100% { filter: none; }
   40% { filter: brightness(1.6) saturate(1.6); }
 }
-.metric-head small { font-weight: 400; color: var(--ink-2); font-size: 0.85em; }
-.bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
-.fill-safety { background: #2e9e5b; }
-.fill-punct { background: #2b6cb0; }
-.fill-sat { background: #e2a400; }
-.fill-cost { background: #8b5cc9; }
-.bar-fill.low { background: var(--bad); }
-.unfinished-box {
-  background: var(--chip); border-radius: 8px; padding: 7px 10px;
-  font-size: 0.8rem; color: var(--ink-2);
+.metric-head small { font-weight: 500; color: var(--ink-2); font-size: inherit; }
+.bar { flex: 1; min-width: 24px; height: 4px; }
+.bar-fill {
+  height: 100%; border-radius: 999px; transition: width 0.3s;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(0, 0, 0, 0.14));
 }
+.fill-safety { background-color: #23804a; }
+.fill-punct { background-color: #2b6cb0; }
+.fill-sat { background-color: #e2a400; }
+.fill-cost { background-color: #8b5cc9; }
+.bar-fill.low {
+  background-color: var(--bad-strong);
+  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.45) 0 3px, transparent 3px 6px);
+}
+/* 指標の下の1行: のこりの数 と きろくのボタン */
+.status-row { display: flex; align-items: stretch; gap: 8px; }
+.unfinished-box {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: var(--chip); border-radius: 8px; padding: 2px 10px;
+  font-size: var(--fs-min); color: var(--ink-2); line-height: 1.35;
+}
+/* 「のこりの おしごと」（HUD の「のこり 45分」は時間。こちらは作業の数）。せまいときは ことばの切れ目で2行にする */
+.ub-label { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.ub-num { flex: none; white-space: nowrap; }
 .unfinished-box strong { color: var(--navy); font-size: 1rem; }
+.log-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  font-size: var(--fs-min); font-weight: 700;
+  color: var(--navy);
+  min-height: 44px;
+  padding: 0 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.log-toggle .ico { width: 16px; height: 16px; }
+.lt-caret { color: var(--ink-2); }
+#panel-status:not(.log-open) #game-log { display: none; }
+/* きろくを開いたときは、見出し・バー・のこりの数をかくして、きろくに高さを全部つかう */
+#panel-status.log-open { height: calc(100% - var(--res-h) - 74px); }
+#panel-status.log-open .panel-title,
+#panel-status.log-open .bar,
+#panel-status.log-open .unfinished-box { display: none; }
+#panel-status.log-open .status-row { justify-content: flex-end; }
+/* きろくを開いている間の指標は「アイコン ことば … 数字」の1行にちぢめる */
+#panel-status.log-open .metrics { row-gap: 0; }
+#panel-status.log-open .metric { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+#panel-status.log-open .metric-row { flex: none; }
+#panel-status.log-open .log-toggle { flex: 1; }
+#panel-status.log-open #game-log {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 260px;
+  overflow-y: auto;
+}
 .game-log {
   list-style: none;
   font-size: 0.82rem;
@@ -736,130 +1434,417 @@ ruby rt, .tc-ruby { font-weight: normal; }
   min-height: 60px;
 }
 .game-log li { padding: 5px 8px; border-radius: 6px; background: #f5f8fa; }
+.game-log .ico { width: 15px; height: 15px; }
 .game-log .lg-t { color: var(--ink-2); margin-right: 6px; font-variant-numeric: tabular-nums; }
 .game-log .lg-ok { background: #eef8f1; }
 .game-log .lg-warn { background: #fdf6dd; }
 .game-log .lg-bad { background: #fdeaea; color: #8f2f2f; }
+/* まだ1行もないとき: 「まだ きろくは ないよ」を まんなかに */
+.game-log .lg-empty { background: none; margin: auto 0; text-align: center; color: var(--ink-2); font-size: var(--fs-min); }
 
-/* ---------------- 下パネル（リソース・オーバーレイ） ---------------- */
+/* ---------------- 下パネル（スタッフ・はたらく車。表示だけ・押せない見た目） ---------------- */
 #panel-resources {
   position: absolute;
   left: 10px; right: 10px; bottom: 10px;
-  z-index: 5;
+  z-index: var(--z-panel);
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius);
-  box-shadow: 0 6px 22px rgba(30, 58, 95, 0.16);
-  padding: 7px 12px;
-  display: flex; gap: 14px; align-items: center; flex-wrap: nowrap;
-  overflow-x: auto;
+  box-shadow: 4px 6px 22px rgba(30, 58, 95, 0.16);
+  padding: 0 12px;
+  display: flex; align-items: center;
+  overflow: hidden;
 }
-#panel-resources .res-group { flex-wrap: nowrap; }
-#panel-resources .res-strip { flex-wrap: nowrap; }
-.res-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.res-group-label { font-size: 0.72rem; font-weight: 700; color: var(--navy); white-space: nowrap; }
-.res-strip { display: flex; flex-wrap: wrap; gap: 5px; }
-/* スタッフ・車両チップ（左の色ぼう→色つきピル。「(」のように見える湾曲を解消） */
+.res-scroll {
+  flex: 1; min-width: 0;
+  display: flex; gap: 14px; align-items: center; flex-wrap: nowrap;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 8px 0;
+  scrollbar-width: none;
+}
+.res-scroll::-webkit-scrollbar { display: none; }
+/* 右に続きがあるときだけ、右はしを うすくして「›」を出す */
+.res-scroll.has-more {
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, #000 86%, transparent);
+  margin-right: 48px;   /* 続きがあるときは「›」の手前で終わらせる（さいごのチップの文字が ボタンの下に かくれない） */
+}
+.res-more {
+  position: absolute; right: 4px; top: 50%; margin-top: -22px;
+  width: 44px; height: 44px;
+  border: 1px solid rgba(30, 58, 95, 0.25); border-radius: 10px;
+  background: #fff; color: var(--navy);
+  box-shadow: inset 0 1px 0 #fff, var(--elev-1);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.res-more .ico { width: 22px; height: 22px; }
+.res-group { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: none; }
+.res-group-label { font-size: var(--fs-min); font-weight: 700; color: var(--navy); white-space: nowrap; line-height: 1.85; }
+.res-strip { display: flex; flex-wrap: nowrap; gap: 5px; }
+/* スタッフ・車両チップ（表示だけ。ボタンに見せない: うすい地・わくなし・矢印カーソル） */
 .res-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.7rem;
-  line-height: 1.5;
-  background: #fff;
-  border: 1.5px solid var(--line);
+  font-size: var(--fs-min);
+  line-height: 1.85;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 2px 9px 2px 5px;
+  padding: 2px 10px 2px 4px;
   white-space: nowrap;
   flex: none;
+  cursor: default;
 }
-/* アイコンは担当色の丸バッジに */
-.res-chip .rc-ico {
+/* アイコンは担当色の丸バッジ（左上から光が当たる）。color-mix が使えないときは塗りだけ */
+.rc-ico {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--c, var(--chip));
-  font-size: 0.72rem;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--c, #8796a8);
+  color: #fff;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
   flex: none;
 }
-.res-chip .rc-name { font-weight: 700; color: var(--navy); }
-/* 状態は小さなピルで色分け（まち/いどう/おしごと） */
+@supports (color: color-mix(in srgb, red, blue)) {
+  .rc-ico { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c, #8796a8) 70%, white), var(--c, #8796a8)); }
+}
+.rc-ico .ico { width: 15px; height: 15px; }
+.res-chip .rc-name { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; color: var(--navy); }
+.rc-name .ico { width: 15px; height: 15px; }
+/* 状態のピル（まちあい中は出さない。おしごと中=青緑ぬり / いどう中=こはく / もどり中=灰） */
 .res-chip .rc-st {
-  color: var(--ink-2);
-  background: var(--chip);
+  display: none; align-items: center; gap: 3px;
   border-radius: 999px;
   padding: 0 7px;
-  font-size: 0.62rem;
-  line-height: 1.7;
+  font-size: var(--fs-min); font-weight: 700;
+  line-height: 1.85;
 }
-.res-chip.rs-working { border-color: #9ed2e4; background: #f2fafd; }
-.res-chip.rs-working .rc-st { color: #fff; background: var(--accent); font-weight: 700; }
-.res-chip.rs-moving, .res-chip.rs-returning { border-color: #ecd9a0; background: #fffdf4; }
-.res-chip.rs-moving .rc-st, .res-chip.rs-returning .rc-st { color: #7a5b12; background: #f6e3ac; font-weight: 700; }
+.rc-st .ico { width: 14px; height: 14px; }
+.res-chip.rs-working .rc-st, .res-chip.rs-moving .rc-st, .res-chip.rs-returning .rc-st, .res-chip.rs-paused .rc-st { display: inline-flex; }
+.res-chip.rs-working .rc-st { color: #fff; background: var(--st-active); }
+.res-chip.rs-moving .rc-st { color: var(--st-wait-ink); background: var(--st-wait-bg); box-shadow: inset 0 0 0 1px var(--st-wait); }
+.res-chip.rs-returning .rc-st { color: #4a5a6e; background: #eef1f4; }
+/* かみなりで止まっている外の作業の人・車（カード・リボンと同じ 灰青ぬり+かみなり） */
+.res-chip.rs-paused .rc-st { color: #fff; background: var(--st-paused); }
 
-/* ---------------- モーダル ---------------- */
+/* =========================================================
+ * 【META】モーダル〜結果タイムライン(モーダル・結果・ながれマップ・ずかん・まめ知識・タイムライン)
+ * ========================================================= */
+/* ---------------- モーダル（見出し・本文・ボタンの3段。本文だけがスクロールし、見出しとボタンはいつも見える） ---------------- */
 .modal-backdrop {
   position: fixed; inset: 0;
   background: rgba(20, 32, 48, 0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 18px;
-  z-index: 50;
+  z-index: var(--z-modal);
 }
 .modal {
   background: var(--paper);
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   width: min(520px, 100%);
   max-height: 86vh;
-  overflow-y: auto;
-  padding: 20px 22px;
-  box-shadow: 0 10px 40px rgba(10, 25, 45, 0.4);
-  animation: rise 0.2s ease-out;
+  max-height: 86dvh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  padding: 18px 22px 16px;
+  box-shadow: 6px 14px 40px rgba(10, 25, 45, 0.4);
+  animation: modal-rise 0.2s ease-out;
 }
-.modal-title { font-size: 1.1rem; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
-.modal-body { font-size: 0.9rem; line-height: 1.95; }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(8px); } }
+.modal-head { flex: none; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.modal-title { flex: 1; min-width: 0; font-size: 1.1rem; font-weight: 700; color: var(--navy); line-height: 1.9; padding-top: 3px; }
+.modal-title .ico { color: var(--navy-2); }
+.modal-x {
+  flex: none; width: 46px; height: 46px; margin: -5px -12px 0 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
+  cursor: pointer; line-height: 1;
+}
+.modal-x:hover { background: var(--chip); }
+.modal-x .ico { width: 22px; height: 22px; }
+/* 本文: キーボードのわく(3px+2px)が切れないよう、左右に 6px の余白を持たせて外へ広げる */
+.modal-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;   /* 横は出さない（行の はしの ルビの はみ出し などで 横スクロールが出ないように） */
+  font-size: 0.9rem; line-height: 1.95;
+  padding: 4px 6px 6px; margin: -4px -6px 0;
+}
 .modal-body p { margin-bottom: 8px; }
-.modal-kv { font-size: 0.84rem; }
+.modal-kv { font-size: 0.875rem; }
+/* 黄色の箱 = 注意（安全メモ・期限）／ 灰青の箱 = 情報（なぜ・コツ）。2つの意味を色で分ける */
 .modal-note {
-  background: #fdf6dd; border-radius: 8px; padding: 8px 10px;
-  font-size: 0.8rem; line-height: 1.85;
+  background: #fdf6dd; color: #5c4610; border-radius: 8px; padding: 8px 10px;
+  font-size: var(--fs-min); line-height: 1.9;
 }
-.modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.modal-note .ico { color: var(--warn-strong); }
+.modal-info {
+  background: #eef4f9; color: var(--ink); border-radius: 8px; padding: 8px 10px;
+  font-size: var(--fs-min); line-height: 1.9;
+}
+.modal-info .ico { color: var(--navy-2); }
+.modal-foot { flex: none; padding-top: 8px; }
+/* ボタンの列の左に置く文（イベントの期限）。入らないときは ボタンの上の行 */
+.modal-btns .modal-lead { flex: 1 1 14em; margin: 0 auto 0 0; align-self: center; }
+/* 本文が下へ続くときの「▼ したに つづくよ」（本文の下はしの上に出す。押せない） */
+.more-hint { position: relative; flex: none; height: 0; z-index: 1; }
+.more-hint > span {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  white-space: nowrap; pointer-events: none;
+  background: var(--navy); color: #fff; border-radius: 999px;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1.85; padding: 0 12px;
+  box-shadow: var(--elev-1);
+}
+/* ながれマップは 凡例を本文の下に張りつけているので、うすくしない・札も出さない */
+.modal[data-kind="flow"] .modal-body.scroll-more { -webkit-mask-image: none; mask-image: none; }
+.modal[data-kind="flow"] .more-hint { display: none !important; }
+/* 安全確認: 2つの選択肢は どの幅でも縦に（安全な主ボタンが上。左はしと幅をそろえる） */
+.modal[data-kind="safety"] .modal-btns { flex-direction: column; align-items: stretch; }
+.modal[data-kind="safety"] .modal-btns .btn { width: 100%; min-height: 48px; }
+.modal-btns {
+  flex: none;
+  display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.modal-btns .btn { text-wrap: balance; word-break: auto-phrase; min-height: calc(var(--tap) + 2px); }   /* 44px を小数の誤差でも下回らない */
 
-.event-choices { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+/* ---------------- イベント（4つのマスで、えらんだときの「よくなる・わるくなる」をそろえて見せる） ---------------- */
+.ev-legend {
+  display: flex; flex-wrap: wrap; gap: 2px 16px;
+  font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; margin: 2px 0 0;
+}
+.ev-legend .up, .ec-cell.up .ec-v { color: var(--ok-strong); }
+.ev-legend .down, .ec-cell.down .ec-v { color: var(--bad-strong); }
+.ev-legend b { font-weight: 900; }
+.event-choices { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 10px; }
 .event-choice {
   text-align: left;
-  border: 2px solid var(--line);
-  border-radius: 10px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-md);
   background: #fbfdfe;
   padding: 10px 12px;
   cursor: pointer;
-  display: flex; flex-direction: column; gap: 3px;
-  transition: border-color 0.15s, transform 0.06s;
-  font: inherit;
+  display: flex; flex-direction: column; gap: 5px;
+  box-shadow: var(--elev-1);
+  transition: border-color 0.15s, box-shadow 0.08s;
+  font: inherit; color: var(--ink);
 }
-.event-choice:hover { border-color: var(--accent); }
-.event-choice:active { transform: scale(0.985); }
-.ec-label { font-weight: 700; color: var(--navy); font-size: 0.9rem; line-height: 1.7; }
-.ec-hint { font-size: 0.78rem; color: var(--ink-2); line-height: 1.8; }
-.ec-tags { display: flex; gap: 5px; flex-wrap: wrap; }
-.ec-tags em {
-  font-style: normal; font-size: 0.68rem;
-  background: var(--chip); border-radius: 999px; padding: 1px 8px; color: var(--ink-2);
+.event-choice:hover { border-color: var(--accent-d); }
+.event-choice:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.14); }
+/* 札「えらばないと これ」が入らないときは つぎの行へ（カードの右から はみ出さない） */
+.ec-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 2px 8px; }
+.ec-label { flex: 1 1 10em; min-width: 0; font-weight: 700; color: var(--navy); font-size: 0.95rem; line-height: 1.9; }
+.ec-default {
+  flex: none; margin-top: 3px;
+  font-size: var(--fs-min); font-weight: 700; color: var(--navy);
+  background: #eef4f9; border: 1px solid #c3d0db; border-radius: var(--r-pill);
+  padding: 0 10px; line-height: 1.85; white-space: nowrap;
 }
+.ec-default .ico { color: var(--navy-2); }
+.ec-hint { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; }
+.ec-crit {
+  display: flex; align-items: center; gap: 6px;
+  border: 1.5px solid var(--bad-strong); border-radius: var(--r-sm);
+  background: #fff5f5; color: var(--bad-strong);
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1.9; padding: 2px 10px;
+}
+.ec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ec-cell {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0;
+  border-radius: var(--r-sm); padding: 3px 8px;
+  background: #f4f7fa;
+  font-size: var(--fs-min); line-height: 1.85;
+}
+.ec-cell > .ico { color: var(--navy-2); }
+.ec-k { color: var(--ink-2); white-space: nowrap; }
+.ec-v { margin-left: auto; font-weight: 700; text-align: right; }
+.ec-v .sym { font-weight: 900; letter-spacing: -0.05em; }
+.ec-cell.up { background: color-mix(in srgb, var(--ok-strong) 9%, #fff); }
+.ec-cell.down { background: color-mix(in srgb, var(--bad-strong) 8%, #fff); }
+.ec-cell.none .ec-v { color: var(--ink-2); font-weight: 500; }
+/* よくなる所と わるくなる所が まざる（▲は緑・▼は赤。記号でも分かる） */
+.ec-cell.mix { background: #f4f7fa; }
+.ec-cell.mix .ec-v { color: var(--ink); }
+.ec-cell.mix .sym .up { color: var(--ok-strong); }
+.ec-cell.mix .sym .down { color: var(--bad-strong); }
 
+/* ---------------- 作業のくわしく（2列の表） ---------------- */
+.td-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 6px 0 10px; font-size: var(--fs-sm); line-height: 1.9; }
+.td-kv dt { font-weight: 700; color: var(--navy); white-space: nowrap; }
+.td-kv dd { margin: 0; min-width: 0; }
+.td-kv .req-chip { margin: 0 4px 4px 0; }
+
+/* ---------------- せってい ---------------- */
 .set-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 9px 0; border-bottom: 1px solid var(--line);
+  padding: 6px 0; border-bottom: 1px solid var(--line);
   font-size: 0.9rem; gap: 10px;
+  min-height: 56px;
 }
-.set-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+.set-row .btn { min-height: calc(var(--tap) + 2px); }   /* 44px を小数の誤差でも下回らない */
+.set-row.sw-row { touch-action: manipulation; }   /* 行のどこを押してもスイッチが切りかわる（指で押す前提なので cursor は変えない） */
+/* オン/オフのスイッチ（64x32 の角丸＋つまみ＋「オン/オフ」の文字。行の高さは 44px 以上） */
+.switch {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: calc(var(--tap) + 2px); padding: 0 4px;
+  border: none; background: none; cursor: pointer;
+  font: inherit; font-size: var(--fs-sm); font-weight: 700; color: var(--ink-2); line-height: 1.35;
+}
+.sw-track {
+  position: relative; width: 64px; height: 32px; border-radius: var(--r-pill);
+  background: #c9d3dd;
+  box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.22);
+  transition: background 0.15s;
+}
+.sw-knob {
+  position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff, #eef2f5);
+  box-shadow: 1px 2px 3px rgba(16, 32, 52, 0.3);
+  transition: transform 0.15s;
+}
+.switch[aria-checked="true"] .sw-track { background: var(--accent-d); }
+.switch[aria-checked="true"] .sw-knob { transform: translateX(32px); }
+.switch[aria-checked="true"] .sw-txt { color: var(--accent-d); }
+.sw-txt { min-width: 2.4em; text-align: left; }
 
-.tut-list { padding-left: 1.2em; line-height: 2; }
-.tut-dots { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
-.tut-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
-.tut-dot.on { background: var(--accent); }
+/* ---------------- チュートリアル（板の高さを固定して、ページを変えてもボタンが動かない） ----------------
+ * ページ送りは closeModal({silent}) → openModal で、幕を消さないので 板の出てくる動きは やりなおさない。
+ * 中身が短いページは、あまった高さを 上1:下2 に分けて置く（見出しから はなれすぎない。長いページは上から読める）。
+ * 文は わかち書き（ことばの あいだに 空白）なので、keep-all で 空白と句読点のところだけで改行する（絵本と同じ）。
+ * 空白のない長い語だけ overflow-wrap:anywhere で折り返す */
+.modal.tut { height: min(560px, 86vh); height: min(560px, 86dvh); }
+.modal.tut .modal-body { display: flex; flex-direction: column; word-break: keep-all; overflow-wrap: anywhere; }
+.modal.tut .modal-body::before { content: ''; flex: 1 1 0; }
+.modal.tut .modal-body::after { content: ''; flex: 2 1 0; }
+.tut-page { flex: none; }
+.tut-foot { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.tut-dots { display: flex; gap: 6px; align-items: center; }
+.tut-dot { width: 10px; height: 10px; border-radius: 5px; background: #8796a8; transition: width 0.2s; }
+.tut-dot.on { background: var(--accent-d); width: 22px; }
+.tut-count { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.6; font-variant-numeric: tabular-nums; }
+.modal-btns .btn-skip {
+  margin-right: auto;
+  background: none; border: none; box-shadow: none;
+  color: var(--ink-2); font-weight: 500;
+  text-decoration: underline; text-underline-offset: 3px;
+  min-height: calc(var(--tap) + 2px); padding: 4px 8px 5px;   /* ほかのボタンと同じ高さ（ページで並びの高さが変わらない） */
+}
+.tut-lead { margin-bottom: 6px; }
+.tut-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.tut-list li { display: flex; align-items: baseline; gap: 8px; line-height: 1.9; }
+.tut-list.tut-marks { flex-direction: row; flex-wrap: wrap; gap: 2px 18px; }
+.tut-list.tut-marks li { gap: 4px; }
+.tut-where { flex: none; min-width: 6.2em; font-weight: 700; color: var(--navy); }
+.tut-where .ico { color: var(--navy-2); }
+/* 2ページ目: ステップ1〜7 を1行ずつ */
+.tut-steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; margin: 4px 0 8px; position: relative; }
+.tut-steps::before { content: ''; position: absolute; left: 12px; top: 14px; bottom: 14px; width: 2px; background: #c3d0db; }
+.tut-steps li { display: flex; align-items: center; gap: 8px; line-height: 1.9; position: relative; }
+.tut-num {
+  flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sc, var(--navy-2)); color: #fff;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
+}
+.tut-ico { display: inline-flex; gap: 2px; color: var(--navy-2); margin-left: auto; }
+.tut-ico .ico { width: 18px; height: 18px; }
+/* 押せない絵（実物のボタンのクラスは使わない。白地・枠・角丸の「マス」にしない＝押したくならない） */
+.tut-fig { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.tut-key {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 12px; border-radius: var(--r-sm);
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1.9;
+}
+/* HUD の絵（ゲームの上の帯の まね。紺の帯の中なので 白い枠のボタンには見えない） */
+.tut-fig.hud { background: var(--navy); border-radius: var(--r-md); padding: 6px; display: inline-flex; flex-wrap: nowrap; gap: 4px; max-width: 100%; }
+.tut-fig.hud .tut-key { color: #fff; background: rgba(255, 255, 255, 0.08); white-space: nowrap; }
+.tut-fig.hud .tut-key.on { background: var(--accent-d); }
+.tut-ex .tut-fig { margin: 2px 0 0; }
+/* スマホの はやさの見本: 本物と同じ アイコンだけの形 + その下に ことば */
+.tut-hudrow { display: flex; gap: 10px; margin-top: 2px; }
+.thk { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.thk-ico {
+  width: 44px; height: 40px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--navy); color: #fff;
+}
+.thk.on .thk-ico { background: var(--accent-d); box-shadow: inset 0 -3px 0 #ffd24a; }
+.thk-ico .ico { width: 20px; height: 20px; }
+.thk-cap { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.35; }
+/* チュートリアルの小見出し（本文より少し大きく・太く） */
+.tut-sub { font-size: 0.95rem; font-weight: 700; color: var(--navy); line-height: 1.9; margin: 6px 0 2px; }
+/* 1ページ目: とうちゃく ─(45分)→ 出発 の時間の矢印 */
+.tut-timeline {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  column-gap: 10px; margin: 6px 2px 14px;
+}
+.tl-ico { display: flex; justify-content: center; color: var(--navy-2); }
+.tl-ico .ico { width: 30px; height: 30px; }
+.tl-arr .ico { transform: rotate(90deg); }          /* おりてくる飛行機 */
+.tl-bar { position: relative; height: 3px; margin-right: 8px; background: var(--navy-2); border-radius: 2px; }
+.tl-bar::after {   /* 矢じり（時間は ひだり → みぎ） */
+  content: ''; position: absolute; right: -9px; top: 50%; transform: translateY(-50%);
+  border-left: 10px solid var(--navy-2); border-top: 6px solid transparent; border-bottom: 6px solid transparent;
+}
+.tl-lbl { text-align: center; font-size: var(--fs-sm); font-weight: 700; color: var(--navy); line-height: 1.9; white-space: nowrap; }
+.tl-len { font-size: 1rem; color: var(--accent-d); }
+/* 1ページ目: きみの なかま（スタッフと はたらく車のアイコン。押せない） */
+.tut-crew { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 22px; margin: 6px 0 4px; }
+.tc-group { display: flex; flex-direction: column; align-items: center; }
+.tc-icons { display: flex; gap: 6px; color: var(--navy-2); }
+.tc-icons .ico { width: 24px; height: 24px; }
+.tc-cap { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.9; }
+/* 5ページ目: すすめかたの ものさし（ていねい → ふつう → いそぐ。線の上に印を置く。押せるマスにはしない） */
+.tut-scale { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 6px 0 10px; }
+.tut-scale::before {
+  content: ''; position: absolute; left: 16.7%; right: 14.5%; top: 13px; height: 2px; background: #c3d0db;
+}
+.tut-scale::after {
+  content: ''; position: absolute; right: calc(14.5% - 8px); top: 14px; transform: translateY(-50%);
+  border-left: 8px solid #c3d0db; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+}
+.ts-pt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0; font-size: var(--fs-sm); font-weight: 700; color: var(--navy); line-height: 1.9; }
+.ts-pt .ico { width: 26px; height: 26px; padding: 2px; background: var(--paper); border-radius: 50%; color: var(--navy-2); }
+/* 6ページ目: イベントの知らせの見本（「れい」の札つきの 灰色の台の上。押せない） */
+.tut-ex { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; background: #eef2f5; border-radius: var(--r-md); padding: 6px 12px 10px; margin: 2px 0 10px; }
+.tut-ex-cap { font-size: var(--fs-min); font-weight: 700; color: var(--ink-2); line-height: 1.6; }
+.tut-evb {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  padding: 4px 6px 4px 12px; border-radius: 12px;
+  background: linear-gradient(#ffd866, #f2b630); color: #3d2c00; border: 1.5px solid #b8860b;
+  font-size: var(--fs-sm); font-weight: 700; line-height: 1.9;
+}
+.tut-evb > .ico { flex: none; width: 18px; height: 18px; }
+.tut-evb-t { min-width: 0; }
+.tut-evb-cta { flex: none; background: #3d2c00; color: #ffe9a8; border-radius: 999px; padding: 0 10px; font-size: var(--fs-min); line-height: 1.85; }
+/* 持ち場の色の見本（駐機場の絵と同じ色。静止画） */
+.tut-swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; margin: 2px 0 6px; }
+.tut-sw { display: flex; align-items: center; gap: 8px; font-size: var(--fs-min); line-height: 1.85; }
+.tut-sw > span:last-child { min-width: 0; }
+.tsw { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #cfd6dc; box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.18); }
+/* はじめられる: 駐機場と同じ「暗い太い輪 + 青緑の点線」と、右下の ▶ のバッジ */
+.tsw-ready { position: relative; border: 4px solid #3b4654; outline: 2px dashed var(--st-ready); outline-offset: -3px; background: #e8f4f8; }
+.tsw-badge {
+  position: absolute; right: -7px; bottom: -7px;
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--st-ready); color: #fff; border: 1.5px solid #fff;
+}
+.tsw-badge .ico { width: 9px; height: 9px; }
+.tsw-wait { border: 3px solid var(--st-wait); background: var(--st-wait-bg); }
+.tsw-target { border: 4px solid var(--st-target); background: var(--st-target-bg); }
+.tsw-soon { border: 2px dotted var(--st-locked); background: #f4f7fa; }
+.tut-mark { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; vertical-align: -0.35em; }
+.tut-mark.ready { border: 2px solid var(--st-ready); color: var(--st-ready); background: #fff; }
+.tut-mark.done { background: var(--st-done-bg); color: var(--st-done); }
+.tut-mark .ico { width: 15px; height: 15px; }
 
-/* ---------------- 結果画面 ---------------- */
-#screen-result.active { display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+/* ---------------- 結果画面 ----------------
+ * 上からスクロールで読める（.result-inner の margin:auto。あふれたら 0 になる）。
+ * 1024px 未満は1列（.result-left は display:contents で、order で並べる）。1024px 以上は「左: 見出し〜ボタン（sticky）/ 右: くわしく」の2列 */
+#screen-result.active { display: flex; flex-direction: column; align-items: center; padding: 20px; overflow-y: auto; }
 .result-inner {
   background: var(--paper);
   border-radius: 18px;
@@ -867,27 +1852,60 @@ ruby rt, .tc-ruby { font-weight: normal; }
   width: min(560px, 100%);
   padding: 26px 28px;
   text-align: center;
+  margin: auto;
+  display: flex; flex-direction: column;
 }
-.result-flag { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; line-height: 1.6; }
-.result-flag.great { color: var(--ok); }
-.result-flag.ok { color: var(--accent-d); }
-.result-flag.bad { color: var(--bad); }
-.result-score-row { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 14px; }
+.result-left { display: contents; }
+.result-flag { order: 10; margin-bottom: 10px; }
+.result-howto { order: 20; }
+.result-score-row { order: 30; }
+.result-stars { order: 40; }
+.result-goal { order: 50; }
+.result-badges { order: 60; }
+.result-detail { order: 80; text-align: center; }
+.result-btns { order: 90; }
+/* 失格のときは「クリアするには」のすぐ下にボタン（1024px 以上の左の列。1024px 未満は下に張りつくので、いつでも押せる） */
+.result-inner.is-fail .result-stars { display: none; }
+/* 見出し（2段: いちばん伝えたいことを大きく） */
+.result-head { font-size: 1.6rem; font-weight: 900; line-height: 1.9; text-wrap: balance; color: var(--navy); }
+.result-flag.great .result-head, .result-flag.ok .result-head { color: var(--ok-strong); }
+.result-flag.bad .result-head { color: var(--navy); }
+.result-sub { font-size: 0.95rem; font-weight: 700; color: var(--ink); line-height: 1.9; text-wrap: balance; word-break: normal; }
+.result-sub .ico { color: var(--navy-2); }
+/* クリアするには（失格・時間切れのとき） */
+.result-howto {
+  background: #fff; border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 8px 14px 10px; margin-bottom: 12px;
+  font-size: 1rem; font-weight: 700; color: var(--ink); line-height: 1.9; text-align: left; word-break: normal;
+}
+.result-howto .rh-label { display: block; font-size: var(--fs-min); color: var(--navy); line-height: 1.6; }
+.result-score-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 12px; padding-top: 10px; }  /* ランクの輪(8px)が上の部品に重ならない */
+/* 文節のまとまり（ui.js の phraseBreaks）。まとまりの中では改行しない。
+ * inline-block にする（nowrap の span だと、Chrome が 入るはずの文節まで次の行へ送ることがある）。
+ * 文節が欄より長いときだけ、その中で折り返す（max-width:100% で はみ出さない） */
+.phr { display: inline-block; max-width: 100%; }
+.result-score-box { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.result-score-line { white-space: nowrap; }
 .result-rank {
   width: 84px; height: 84px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 2.6rem; font-weight: 900; color: #fff;
+  font-size: 2.6rem; font-weight: 900; color: #fff; line-height: 1;
   background: var(--accent);
-  box-shadow: 0 0 0 5px #fff, 0 0 0 8px currentColor, 0 6px 18px rgba(30, 58, 95, 0.25);
+  box-shadow: 0 0 0 5px #fff, 0 0 0 8px currentColor, 4px 6px 18px rgba(30, 58, 95, 0.25);
   animation: rank-pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 0.15s backwards;
 }
 @keyframes rank-pop {
   0% { transform: scale(0.6); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
-.result-rank.rank-S { box-shadow: 0 0 0 5px #fff, 0 0 0 8px #ffd24a, 0 0 26px 8px rgba(255, 200, 60, 0.55); }
+@keyframes fade-in { from { opacity: 0; } }
+.result-rank.rank-S {
+  background: linear-gradient(160deg, #f3c84b, #c99412); color: #2b1f00;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.55), 0 0 0 5px #fff, 0 0 0 8px #ffd24a, 0 0 26px 8px rgba(255, 200, 60, 0.55);
+}
+.result-rank.rank-X { box-shadow: 0 0 0 5px #fff, 0 0 0 8px #c3ccd6, 4px 6px 14px rgba(30, 58, 95, 0.18); animation: fade-in 0.5s ease-out 0.15s backwards; }
 /* 紙ふぶき（クリア時にJSがまく） */
-.confetti-box { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.confetti-box { position: fixed; inset: 0; pointer-events: none; z-index: var(--z-confetti); overflow: hidden; }
 .confetti-box i {
   position: absolute; top: -4%;
   width: 9px; height: 13px;
@@ -902,236 +1920,659 @@ ruby rt, .tc-ruby { font-weight: normal; }
 .rank-S { background: #d9a013; }
 .rank-A { background: #2e9e5b; }
 .rank-B { background: #2b6cb0; }
-.rank-C { background: #7b8a9c; }
+.rank-C { background: linear-gradient(160deg, #a8693a, #7a4620); color: #fff; }   /* 銅（灰は 失格の × だけ） */
 .rank-D { background: #9c7b7b; }
-.rank-X { background: var(--bad); }
-.result-score { font-size: 3rem; font-weight: 800; color: var(--navy); }
-.result-score-max { color: var(--ink-2); }
-/* ★の獲得表示（1つずつポンッと出る） */
+.rank-X { background: #7b8a9c; }
+.result-score { font-size: 3rem; font-weight: 700; color: var(--navy); line-height: 1; font-variant-numeric: tabular-nums; }
+.result-score-max { color: var(--ink-2); margin-left: 4px; }
+.result-newbest {
+  font-size: 0.9rem; font-weight: 700; color: #8a6d1d;
+  background: #fff8e2; border: 1.5px solid #eed48a; border-radius: var(--r-pill);
+  padding: 0 12px; line-height: 1.85; white-space: nowrap;
+}
+.result-prevbest { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; white-space: nowrap; }
+/* ★の獲得表示（取った★は金・ふちどり。取っていない☆は灰の線。1つずつポンッと出るのは取った★だけ） */
 .result-stars { font-size: 2rem; line-height: 1.2; margin-bottom: 10px; letter-spacing: 0.12em; }
-.result-stars i { font-style: normal; color: #dbe3ea; }
+.result-stars i { font-style: normal; color: #8796a8; display: inline-block; }
 .result-stars i.on {
-  color: #f5b301;
-  text-shadow: 0 2px 6px rgba(190, 130, 0, 0.4);
-  display: inline-block;
+  color: #e0a100;
+  -webkit-text-stroke: 1px #8a6200;
+  text-shadow: 1px 2px 2px rgba(120, 80, 0, 0.35);
   animation: star-pop 0.4s ease-out backwards;
 }
 @keyframes star-pop {
   0% { transform: scale(0.4); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
+/* つぎの目標（白地 + 青緑のわく。すぐ下のバッジの黄色い箱と見分ける） */
+.result-goal {
+  background: #fff; border: 1.5px solid var(--accent); border-radius: 12px;
+  padding: 6px 14px 8px; margin: 0 0 12px;
+  font-size: 1rem; font-weight: 700; color: var(--navy); line-height: 1.9; text-align: left; word-break: normal;
+}
+.result-goal .rg-label { display: block; font-size: var(--fs-min); color: var(--accent-d); line-height: 1.9; }
+.result-goal .rg-note { display: block; font-size: var(--fs-sm); font-weight: 500; color: var(--ink-2); }
 /* あたらしいバッジ */
 .result-badges {
   display: flex; align-items: center; justify-content: center; gap: 7px; flex-wrap: wrap;
   background: #fff8e2; border: 1.5px solid #eed48a; border-radius: 10px;
-  padding: 7px 12px; margin-bottom: 10px; font-size: 0.8rem;
+  padding: 7px 12px; margin-bottom: 10px; font-size: var(--fs-min);
 }
-.result-badges .rb-title { font-weight: 900; color: #8a6d1d; }
+.result-badges .rb-title { font-weight: 900; color: #8a6d1d; display: inline-flex; align-items: center; gap: 4px; }
+.result-badges .rb-title .ico { color: #b07d10; width: 18px; height: 18px; }
 .badge-chip {
   background: #fff; border: 1.5px solid #eabf4d; border-radius: 999px;
-  padding: 2px 11px; font-weight: 700; color: #7a5b12;
-  animation: stamp-in 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+  padding: 2px 11px 1px; font-weight: 700; color: #7a5b12; line-height: 1.85;
+  animation: badge-stamp 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
 }
-/* つぎの目標 */
-.result-goal {
-  font-size: 0.85rem; font-weight: 700; color: var(--accent-d);
-  background: #ecf7fb; border-radius: 999px; padding: 5px 16px;
-  display: inline-block; margin: 0 auto 12px; line-height: 1.8;
-}
+@keyframes badge-stamp { 0% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+/* クリアできなかった回のバッジ: 祝わない（しずかな色・フェードだけ） */
+.result-badges.quiet { background: #f6f8fa; border-color: var(--line); }
+.result-badges.quiet .rb-title { color: var(--navy); font-weight: 700; }
+.result-badges.quiet .badge-chip { border-color: var(--line-strong); color: var(--navy); animation: fade-in 0.2s ease-out backwards; }
 /* タイトルの進捗（スター・バッジ数） */
 .title-progress {
   margin: 2px 0 12px;
   font-size: 0.85rem; font-weight: 700; color: #8a6d1d;
   background: rgba(255, 248, 226, 0.9); border: 1.5px solid #eed48a;
-  border-radius: 999px; padding: 4px 16px; display: inline-block;
+  border-radius: 999px; padding: 4px 16px; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
 }
-/* ずかんのバッジ一覧 */
-.zk-badge-sum { font-weight: 900; color: #8a6d1d; background: #fff8e2; border-radius: 8px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.85rem; }
+.title-progress .ico { color: #b07d10; }
+.title-progress .tp-gap { width: 10px; }
+/* ずかんのバッジ一覧（メダルは CSS で描く。光源は左上） */
+.zk-badge-sum {
+  display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center;
+  font-weight: 700; color: #8a6d1d; background: #fff8e2; border-radius: 8px;
+  padding: 6px 12px; margin-bottom: 8px; font-size: 0.875rem; line-height: 1.85;
+}
+.zk-badge-sum .ico { color: #b07d10; }
+.badge-item { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; }
+.badge-item .zk-head { flex-wrap: wrap; row-gap: 0; }
 .badge-item.bd-got { border-color: #eabf4d; background: #fffdf4; }
-.badge-item.bd-notyet { opacity: 0.62; filter: grayscale(0.4); }
-.bd-mark {
-  font-size: 0.6rem; font-weight: 900; color: #fff;
-  background: #f5a301; border-radius: 999px; padding: 1px 7px; vertical-align: 2px;
+.medal {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; line-height: 1;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #e2b23a 45%, #a8761a);
+  box-shadow: inset -2px -3px 4px rgba(0, 0, 0, 0.18), 2px 3px 4px rgba(60, 40, 0, 0.25);
 }
+.medal.off { background: radial-gradient(circle at 35% 30%, #f4f7fa, #c9d3dd 45%, #8f9cab); color: var(--st-locked); box-shadow: inset -2px -3px 4px rgba(0, 0, 0, 0.12), 2px 3px 4px rgba(16, 32, 52, 0.18); }
+.medal.off .ico { width: 20px; height: 20px; }
+.bd-mark {
+  font-size: var(--fs-min); font-weight: 700; color: #3d2c00;
+  background: #f5a301; border-radius: 999px; padding: 0 9px; line-height: 1.85; white-space: nowrap;
+}
+.bd-how { color: var(--navy); font-weight: 700; }
+/* 点数の内訳 */
 .result-breakdown { list-style: none; margin-bottom: 12px; display: flex; flex-direction: column; gap: 7px; }
-.result-breakdown li { display: grid; grid-template-columns: 11em 1fr auto; align-items: center; gap: 8px; font-size: 0.82rem; line-height: 1.8; }
+.result-breakdown li { display: grid; grid-template-columns: 11em 1fr auto; align-items: center; gap: 8px; font-size: 0.82rem; line-height: 1.9; }
 .rb-label { text-align: left; }
 .rb-bar { height: 9px; background: #e4ebf1; border-radius: 999px; overflow: hidden; }
 .rb-fill { display: block; height: 100%; border-radius: 999px; }
-.rb-num { font-variant-numeric: tabular-nums; color: var(--ink-2); }
-.result-times { font-size: 0.85rem; color: var(--ink-2); margin-bottom: 14px; }
+.rb-fill.low { background: repeating-linear-gradient(135deg, var(--bad-strong) 0 5px, #cf5050 5px 9px); }
+.rb-num { font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+.rb-num .ico { color: var(--bad-strong); margin-right: 2px; }
+.result-times { font-size: 0.85rem; color: var(--ink-2); margin-bottom: 14px; line-height: 1.9; text-wrap: balance; word-break: normal; }
+/* ふりかえり（「つぎに 気をつけること」と「よかったこと」に分ける） */
 .result-advice-box {
   background: var(--chip); border-radius: 12px; padding: 12px 16px;
-  text-align: left; margin-bottom: 18px;
+  text-align: left; margin-bottom: 16px;
 }
-.result-advice-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 6px; }
-.result-advice-box p { font-size: 0.86rem; line-height: 2; }
-.result-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.result-advice-box h3 { font-size: 1rem; font-weight: 900; color: var(--navy); margin-bottom: 4px; line-height: 1.9; }
+.result-advice-box p { font-size: 0.86rem; line-height: 2; word-break: normal; }
+.adv-group + .adv-group { margin-top: 8px; }
+.adv-group h4 { font-size: 0.9rem; font-weight: 700; color: var(--navy); line-height: 1.9; display: flex; align-items: center; gap: 6px; }
+.adv-group.adv-fix h4 .ico { color: var(--warn-strong); }
+.adv-list { list-style: none; padding: 0; }
+.adv-list li { position: relative; padding-left: 16px; font-size: 0.86rem; line-height: 2; word-break: normal; }
+.adv-list li::before { content: ''; position: absolute; left: 3px; top: 0.95em; width: 6px; height: 6px; border-radius: 50%; background: var(--navy-2); }
+/* ボタン（主ボタンを1行目の全幅に。1024px 未満は下に張りつく） */
+.result-btns {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  position: sticky; bottom: 0; z-index: 2;
+  margin: 4px -6px 0; padding: 16px 6px 8px;
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff 16px);
+}
+.result-btns .btn { min-height: 48px; width: 100%; }
+.result-btns .btn-primary { grid-column: 1 / -1; }
+/* つぎのステージがないときは「ステージえらびへ」も全幅に */
+.result-btns #btn-next-stage.hidden ~ #btn-result-select { grid-column: 1 / -1; }
 
 /* ---------------- ながれマップ ---------------- */
-.flow-map { display: flex; flex-direction: column; gap: 4px; }
-.flow-note { font-size: 0.74rem; color: var(--ink-2); line-height: 1.75; flex: 1; }
-.flow-row { display: flex; flex-wrap: wrap; gap: 6px; margin-left: 28px; }
+.flow-map { display: flex; flex-direction: column; }
+.flow-block { position: relative; padding-bottom: 4px; }
+/* ステップの丸番号どうしを縦の線でつなぐ */
+.flow-block:not(.fb-last)::before { content: ''; position: absolute; left: 12px; top: 30px; bottom: -10px; width: 2px; background: #c3d0db; }
+.flow-note { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; flex: 1 1 10em; min-width: 0; }
+.flow-note .ico { color: var(--navy-2); }
+.flow-row { display: flex; flex-wrap: wrap; gap: 6px; margin-left: 34px; margin-top: 2px; }
 /* ステップ見出し（番号・条件・いまここ） */
-.flow-step { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.flow-step { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; margin-top: 8px; }
 .flow-stepnum {
-  width: 22px; height: 22px; flex: 0 0 22px;
+  position: relative; z-index: 1;
+  width: 26px; height: 26px; flex: 0 0 26px;
   border-radius: 50%; background: var(--sc, var(--navy-2)); color: #fff;
-  font-size: 0.72rem; font-weight: 700;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
   display: flex; align-items: center; justify-content: center;
 }
-.flow-step.fs-done .flow-stepnum { filter: saturate(0.45) brightness(1.08); }
-.flow-step.fs-now .flow-stepnum { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sc, var(--accent)); }
-.flow-here {
-  background: var(--accent); color: #fff; border-radius: 999px;
-  font-size: 0.66rem; font-weight: 700; padding: 2px 9px; white-space: nowrap;
-}
+.flow-step.fs-done .flow-stepnum { background: #5b6b80; }
+.flow-step.fs-now .flow-stepnum { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sc, var(--accent-d)); }
+.flow-tag { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-min); font-weight: 700; line-height: 1.85; white-space: nowrap; }
+.flow-here { background: var(--accent-d); color: #fff; border-radius: 999px; padding: 1px 10px; }
+.flow-tag.ft-ready { color: var(--st-ready); }
+.flow-tag.ft-working { color: var(--st-active); font-weight: 500; }
 .flow-chip {
-  font-size: 0.78rem;
-  background: var(--chip);
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 11px;
-  color: var(--navy);
-  font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: inherit; font-size: 0.875rem; font-weight: 500;
+  border: 1.5px solid transparent; border-radius: 999px;
+  padding: 2px 11px 1px; line-height: 1.9;
+  color: var(--navy); background: var(--chip);
 }
-.flow-chip.fc-done { background: #e6f6ec; border-color: #7cc99a; color: #22703f; }
-.flow-chip.fc-active { background: #e1f2f8; border-color: var(--accent); color: var(--accent-d); animation: pulse-soft 1.4s infinite; }
-.flow-chip.fc-ready { background: #fff; border-color: var(--accent); }
-.flow-chip.fc-locked { opacity: 0.5; }
-.flow-legend { display: flex; gap: 7px; margin-top: 12px; font-size: 0.68rem; flex-wrap: wrap; color: var(--ink-2); }
-.flow-legend span { border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px; }
-.flow-legend .fc-done { background: #e6f6ec; }
-.flow-legend .fc-active { background: #e1f2f8; }
-.flow-legend .fc-ready { border-color: var(--accent); }
-.flow-legend .fc-locked { opacity: 0.55; }
+.flow-chip .ico { width: 1.1em; height: 1.1em; }
+.flow-chip.flat { border: none; }
+button.flow-chip { min-height: calc(var(--tap) + 2px); padding: 4px 12px; cursor: pointer; background: #fff; border-color: var(--line-strong); box-shadow: var(--elev-1); }
+button.flow-chip:active { box-shadow: inset 1px 2px 3px rgba(16, 32, 52, 0.16); }
+.flow-chip .fc-st { margin-left: 2px; }
+.flow-chip.fc-done { background: var(--st-done-bg); border-color: #7cc99a; color: var(--st-done); }
+.flow-chip.fc-active { background: var(--st-active); border-color: var(--st-active); color: #fff; }
+.flow-chip.fc-ready { background: #fff; border: 2px solid var(--st-ready); color: var(--navy); }
+.flow-chip.fc-ready .fc-st { color: var(--st-ready); }
+.flow-chip.fc-wait { background: var(--st-wait-bg); border-color: var(--st-wait); color: var(--st-wait-ink); }
+.flow-chip.fc-locked { background: #f4f7fa; border-style: dashed; border-color: #8796a8; color: #5b6b80; opacity: 1; }
+/* 凡例（いつも見えるよう、本文の下に張りつける） */
+.flow-legend {
+  position: sticky; bottom: -6px; z-index: 1;
+  box-shadow: 0 8px 0 #fff;   /* 下のすき間からうしろの文字が見えないように */
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 10px; padding: 8px 0;
+  background: #fff; border-top: 1px solid var(--line);
+  font-size: var(--fs-min); color: var(--ink-2);
+}
+.flow-legend > span { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px 1px; line-height: 1.85; }
+.flow-legend .fc-done { background: var(--st-done-bg); border-color: #7cc99a; color: var(--st-done); }
+.flow-legend .fc-active { background: var(--st-active); border-color: var(--st-active); color: #fff; }
+.flow-legend .fc-ready { background: #fff; border: 2px solid var(--st-ready); color: var(--navy); }
+.flow-legend .fc-wait { background: var(--st-wait-bg); border-color: var(--st-wait); color: var(--st-wait-ink); }
+.flow-legend .fc-locked { background: #f4f7fa; border-style: dashed; border-color: #8796a8; color: #5b6b80; }
 
 /* ---------------- ずかん ---------------- */
+.modal.wide { width: min(780px, 100%); }
 .zk-step {
   display: inline-block; margin-right: 6px;
   background: var(--sc, var(--navy-2)); color: #fff; border-radius: 999px;
-  font-size: 0.62rem; font-weight: 700; padding: 1px 8px; vertical-align: 2px;
+  font-size: var(--fs-min); font-weight: 700; padding: 1px 8px; vertical-align: 2px;
 }
-.zk-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+/* タブはスクロールしても上に残る */
+.zk-tabs {
+  position: sticky; top: -4px; z-index: 2;
+  display: flex; gap: 6px;
+  background: #fff; padding: 4px 0 8px; margin-bottom: 4px;
+}
 .zk-tab {
   flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1.5px solid var(--line);
   background: #fff;
   border-radius: 8px;
-  padding: 7px 4px;
-  font-size: 0.8rem;
+  min-height: 44px;
+  padding: 4px 6px;
+  font-family: inherit; font-size: var(--fs-sm); line-height: 1.35;
+  white-space: nowrap;
   cursor: pointer;
   color: var(--ink-2);
 }
+.zk-tab .ico { width: 18px; height: 18px; }
 .zk-tab.on { background: var(--navy-2); border-color: var(--navy-2); color: #fff; font-weight: 700; }
 .zk-list { display: flex; flex-direction: column; gap: 8px; }
-.zk-cat { font-size: 0.82rem; color: var(--navy); margin-top: 4px; }
-.zk-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; }
-.zk-item p { font-size: 0.78rem; margin: 3px 0; line-height: 1.85; }
-.zk-head { font-weight: 700; color: var(--navy); font-size: 0.86rem; }
-.zk-head small { color: var(--ink-2); font-weight: 400; font-size: 0.72rem; }
-.zk-why { color: #7a5b12; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: 0.76rem; line-height: 1.85; }
-.zk-note { color: var(--ink-2); font-size: 0.72rem; }
-
-/* ---------------- コーチのふきだし ---------------- */
-.toast-coach {
-  background: #ffffff;
-  color: var(--ink);
-  border: 2px solid var(--accent);
-  font-weight: 600;
-  line-height: 1.7;
+.zk-cat { font-size: 0.95rem; color: var(--navy); margin-top: 6px; line-height: 1.9; }
+.zk-stephead { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; color: var(--navy); margin-top: 8px; line-height: 1.9; }
+.zk-stephead:first-child { margin-top: 0; }
+.zk-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; background: #fff; }
+.zk-item p { font-size: 0.875rem; margin: 3px 0; line-height: 1.9; }
+.zk-head { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--navy); font-size: 0.9rem; line-height: 1.9; }
+.zk-head .ico { color: var(--navy-2); width: 20px; height: 20px; }
+.zk-more > summary {
+  display: flex; align-items: center; gap: 4px; min-height: 44px; margin: -4px 0 -6px;
+  list-style: none;   /* 子の svg が「押せる部品」に数えられないよう cursor は変えない */
+  font-size: var(--fs-sm); font-weight: 700; color: var(--accent-d); line-height: 1.6;
 }
+.zk-more > summary::-webkit-details-marker { display: none; }
+.zk-more > summary .ico { transition: transform 0.15s; }
+.zk-more[open] > summary .ico { transform: rotate(90deg); }
+.zk-more[open] > summary { margin-bottom: 0; }
+.zk-why { color: var(--ink); background: #eef4f9; border-radius: 6px; padding: 4px 8px; font-size: var(--fs-min); line-height: 1.9; }
+.zk-why .ico { color: var(--navy-2); }
+.zk-note { color: #5c4610; background: #fdf6dd; border-radius: 6px; padding: 4px 8px; font-size: var(--fs-min); line-height: 1.9; }
+.zk-note .ico { color: var(--warn-strong); }
+/* なかまたち: 駐機場と同じ絵（72x72）を左に */
+.zk-item.crew { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: center; }
+.zk-art {
+  width: 72px; height: 72px; border-radius: 10px; display: block;
+  background: linear-gradient(160deg, #e3e8ec, #c9d1d8);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.6), inset -2px -3px 6px rgba(30, 40, 54, 0.12);
+}
+.zk-look { font-size: var(--fs-min); font-weight: 700; color: var(--navy-2); line-height: 1.9; }
 
-/* ---------------- スタート画面・結果画面のまめ知識 ---------------- */
-.start-trivia, .result-trivia {
+/* ---------------- 結果画面のまめ知識 ---------------- */
+.result-trivia {
   background: var(--chip);
   border-radius: 10px;
   padding: 9px 13px;
-  font-size: 0.78rem;
+  font-size: var(--fs-min);
   line-height: 2;
   color: var(--ink-2);
   text-align: left;
   margin-bottom: 14px;
 }
 .result-trivia { margin: 0 0 16px; }
+.result-trivia .ico { color: var(--navy-2); }
 
-/* ---------------- 結果画面の作業タイムライン ---------------- */
-.result-gantt-box { margin-bottom: 16px; text-align: left; }
-.result-gantt-box h3 { font-size: 0.85rem; color: var(--navy); margin-bottom: 8px; }
-.rg-sub { font-weight: 400; color: var(--ink-2); font-size: 0.72rem; }
+/* ---------------- 結果画面の作業タイムライン（最初はたたんでおく） ---------------- */
+.result-more {
+  margin-bottom: 16px; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px;
+}
+.result-more > summary {
+  display: flex; align-items: center; gap: 6px; min-height: 48px;
+  list-style: none;
+  font-size: 0.9rem; font-weight: 700; color: var(--navy); line-height: 1.9;
+}
+.result-more > summary::-webkit-details-marker { display: none; }
+.result-more > summary .rm-chev { margin-left: auto; color: var(--ink-2); transition: transform 0.15s; }
+.result-more[open] > summary .rm-chev { transform: rotate(90deg); }
+.result-more[open] { padding-bottom: 10px; }
+.rg-sub { font-weight: 500; color: var(--ink-2); font-size: var(--fs-min); line-height: 1.9; margin-bottom: 6px; }
 .result-gantt { display: flex; flex-direction: column; gap: 3px; }
-.gr { display: grid; grid-template-columns: 7.6em 1fr; align-items: center; gap: 8px; }
+/* 名前の列 8.5em: 短い名前の表（いちばん長いのは「プッシュバック」）+ ステップの丸 + アイコンが入る幅。正式な名前は title にある */
+.gr { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); align-items: center; gap: 8px; }
 .gr-label {
-  font-size: 0.68rem; color: var(--ink);
+  display: flex; align-items: center; gap: 3px;
+  font-size: var(--fs-min); color: var(--ink); line-height: 1.9;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gr-label .ico { width: 16px; height: 16px; color: var(--navy-2); }
+.gr-step {
+  flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sc, var(--navy-2)); color: #fff;
+  font-size: var(--fs-min); font-weight: 700; line-height: 1;
 }
 .gr-track {
   position: relative;
-  height: 12px;
+  height: 16px;
   background: #edf2f6;
   border-radius: 4px;
   overflow: hidden;
 }
-.gr-gather { position: absolute; top: 0; bottom: 0; background: #f0cf8e; border-radius: 3px; }
+.gr-gather { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, #a86f0c 0 3px, #f0cf8e 3px 6px); border-radius: 3px; }
 .gr-work { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
-.gr-none { font-size: 0.66rem; color: var(--ink-2); padding-left: 4px; }
-.gr-stdline { position: absolute; top: -1px; bottom: -1px; width: 2px; background: rgba(214, 69, 69, 0.75); }
-.gr-axis { display: grid; grid-template-columns: 7.6em 1fr; gap: 8px; margin-top: 2px; }
-.gr-axis-track { position: relative; height: 14px; font-size: 0.62rem; color: var(--ink-2); }
+.gr-none { font-size: var(--fs-min); color: var(--ink-2); line-height: 1.6; overflow: visible; }
+.gr-stdline { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--bad-strong); }
+/* ほんとうの出発（プッシュバックを はじめた時刻）: こい色の てんせん（色の意味が かぶらないよう、形で分ける） */
+.gr-offline { position: absolute; top: -1px; bottom: -1px; width: 0; border-left: 2px dashed var(--ink); }
+.gr-axis { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 8px; margin-top: 2px; }
+.gr-axis-track { position: relative; height: 26px; font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; }
 .gr-axis-track span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-.gr-axis-track .ax-std { color: #b34a4a; font-weight: 700; }
+.gr-axis-track .ax-std { color: var(--bad-strong); font-weight: 700; }
+.gr-axis-track .ax-right { transform: translateX(-100%); }
+.gr-axis-track .ax-left { transform: none; }
+.gr-legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: var(--fs-min); color: var(--ink-2); line-height: 1.9; margin-top: 6px; }
+.gr-legend .lg { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.lg-sw { display: inline-block; width: 16px; height: 10px; border-radius: 2px; }
+.lg-steps { background: linear-gradient(90deg, var(--s1), var(--s2), var(--s3), var(--s4), var(--s5), var(--s6), var(--s7)); }
+.lg-gather { background: repeating-linear-gradient(45deg, #a86f0c 0 3px, #f0cf8e 3px 6px); }
+.lg-std { width: 3px; height: 14px; border-radius: 0; background: var(--bad-strong); }
+.lg-off { width: 0; height: 14px; border-radius: 0; border-left: 2px dashed var(--ink); }
 
-/* ---------------- 采配レバー（ていねい/ふつう/急ぐ） ---------------- */
-.pace-ctrl {
-  display: flex;
-  border: 1.5px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 6px;
+/* ---------------- 【META】画面の大きさごと ---------------- */
+@media (min-width: 520px) {
+  .zk-list.badges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 }
-.pace-btn {
-  flex: 1;
-  border: none;
-  background: #fff;
-  font-size: 0.68rem;
-  padding: 5px 2px;
-  cursor: pointer;
-  color: var(--ink-2);
-  white-space: nowrap;
+@media (min-width: 768px) {
+  .modal.wide .zk-list.zk-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .modal.wide .zk-list.zk-cards > .zk-stephead, .modal.wide .zk-list.zk-cards > .zk-cat { grid-column: 1 / -1; }
+  /* 作業が1つだけのステップは 1行ぜんぶ（右を空けない） */
+  .modal.wide .zk-list.zk-cards > .zk-solo { grid-column: 1 / -1; }
 }
-.pace-btn + .pace-btn { border-left: 1.5px solid var(--line); }
-.pace-btn.on { background: var(--navy-2); color: #fff; font-weight: 700; }
-.pace-btn.on.pace-rush { background: #b8434e; }
-.pace-btn.on.pace-careful { background: #2e9e5b; }
+/* 1024px 以上の結果画面: 左に見出し〜ボタン（sticky）、右にくわしく */
+@media (min-width: 1024px) {
+  .result-inner {
+    width: min(980px, 100%);
+    display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 28px;
+    align-items: start; text-align: left;
+  }
+  .result-left { display: flex; flex-direction: column; position: sticky; top: 20px; text-align: center; }
+  .result-detail { text-align: left; }
+  .result-btns { position: static; margin: 0; padding: 6px 0 0; background: none; }
+  /* 失格のときは「クリアするには」→ ランクと点数 → ボタン（点数をボタンの下へ押し出さない） */
+  .result-inner.is-fail .result-btns { order: 35; margin-bottom: 8px; }
+}
+@media (max-width: 700px) {
+  .modal-backdrop { padding: 10px; }
+  .modal { padding: 16px 14px 14px; max-height: 92vh; max-height: calc(100dvh - 20px); }
+  .modal-x { margin-right: -8px; }
+  .zk-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  /* チュートリアル: 画面の高さいっぱいまで使う（ボタンは どのページも 板の下はし） */
+  .modal.tut { height: min(560px, calc(100dvh - 20px)); }
+  .stage-card { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .sc-sky { width: 84px; height: 72px; }
+  .sc-row1 { flex-wrap: wrap; align-items: center; row-gap: 0; }
+  .sc-name { display: contents; }
+  .sc-num { order: 1; }
+  .sc-diff, .sc-lockbadge { order: 2; margin-left: auto; margin-top: 0; }
+  .sc-title { order: 3; display: block; flex: 1 1 100%; font-weight: 700; color: var(--navy); font-size: 1.05rem; line-height: 1.9; }
+  .stage-card.locked .sc-title { color: var(--ink-2); }
+  .sc-lock { font-size: var(--fs-sm); }
+  #screen-result.active { padding: 8px; }
+  .result-inner { padding: 18px 14px; }
+  .result-breakdown li { grid-template-columns: 9.5em 1fr auto; }
+  /* タイムライン: 名前をバーの上に */
+  .gr { grid-template-columns: 1fr; row-gap: 0; }
+  .gr-label { white-space: normal; }
+  .gr-axis { grid-template-columns: 1fr; }
+  .gr-axis > span:first-child { display: none; }
+}
+/* 420px 以下: ボタンは1列。下に張りつくのは主ボタンだけ（3つ全部だと画面の下がふさがる） */
+@media (max-width: 420px) {
+  .result-btns { display: contents; }
+  .result-btns .btn { order: 85; margin-top: 8px; }
+  /* 下はしに ぴったり張りつけ、まわりを白でうめる（ボタンの上下から 切れた文字が のぞかないように） */
+  .result-btns .btn-primary {
+    order: 90; position: sticky; bottom: 0; z-index: 2;
+    box-shadow: 0 0 0 10px #fff, 0 -12px 12px 6px #fff, 0 24px 0 16px #fff,
+      inset 0 1px 0 rgba(255, 255, 255, 0.28), 1px 2px 4px rgba(10, 40, 60, 0.28);
+  }
+}
+/* 高さ 600px 前後のノートPC: 絵を ちぢめて「はじめる」まで 画面に入れる */
+@media (max-height: 700px) and (min-height: 521px) and (min-width: 900px) {
+  .title-hero { display: block; width: auto; max-width: min(560px, 92%); max-height: min(38vh, 261px); margin-inline: auto; }
+}
+/* 背の低い画面（横向きのスマホなど）: タイトルを2列にする */
+@media (max-height: 520px) {
+  .title-inner {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center; gap: 20px; max-width: 960px;
+  }
+  .title-hero { width: 100%; margin: 0; }
+  /* 右の列を低くする（「ずかん」「せってい」まで 画面に入るように） */
+  .title-eyebrow, .title-sub { display: none; }
+  .title-logo { font-size: clamp(1.4rem, 3.75vw, 2.25rem); }
+  .title-desc { margin: 6px 0; }
+  .title-btns { margin: 6px 0 10px; }
+  /* 結果のボタンは 下に張りつけない（背の低い画面の3わりを ふさがない）。本文のさいごに ならぶ */
+  .result-btns { position: static; background: none; padding-top: 8px; }
+  /* イベントとチュートリアルは 横に広く使う。イベントの選択肢は横に ならべて くらべられるように */
+  .modal[data-kind="event"], .modal.tut { width: min(780px, calc(100vw - 20px)); }
+  .modal[data-kind="event"] .event-choices { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; }
+  /* モーダルは画面の高さいっぱいまで（横向きのスマホで 本文の場所を ふやす） */
+  .modal-backdrop { padding: 10px; }
+  .modal { max-height: calc(100dvh - 20px); }
+  .modal.tut { height: calc(100dvh - 20px); }
+}
+/* 背の低い画面（320x568・360x640 など）: チュートリアルの まわりの余白を へらして、本文の場所を ふやす */
+@media (max-height: 700px) {
+  .modal.tut { padding-top: 12px; padding-bottom: 10px; }
+  .modal.tut .modal-head { margin-bottom: 0; }
+  .modal.tut .modal-foot { padding-top: 4px; }
+  .modal.tut .modal-btns { margin-top: 6px; padding-top: 8px; }
+  .modal.tut .tut-lead, .modal.tut .modal-body p { margin-bottom: 4px; }
+  .modal.tut .tut-list { margin-bottom: 6px; gap: 0; }
+  .modal.tut .tut-fig, .modal.tut .tut-scale, .modal.tut .tut-ex { margin-bottom: 6px; }
+  .modal.tut .tut-timeline { margin: 0 2px 6px; }
+}
+/* せまい画面（360px 以下）: チュートリアルの「とばす・まえへ・つぎへ」を1行に。HUD の絵も1行に */
+@media (max-width: 360px) {
+  .modal.tut .modal-btns { gap: 6px; }
+  .modal.tut .modal-btns .btn { padding-left: 11px; padding-right: 11px; }
+  .modal.tut .modal-btns .btn-skip { padding-left: 4px; padding-right: 4px; }
+  .tut-fig.hud .tut-key { padding: 3px 7px; gap: 3px; }
+  .tut-where { min-width: 5em; }
+}
 
-/* 集合中（メンバーが持ち場へ移動・集合している状態）
- * ※状態ピルの色は上の .st-gathering .tc-state（カード欄）で定義 */
-.task-card.st-gathering { border-color: var(--warn); background: #fffdf4; }
-
+/* =========================================================
+ * 【GAME】スマホ(700px以下)・低い画面
+ * ========================================================= */
+/* スタート案内: スマホと低い画面では、画面ぜんたいの幕にする（駐機場の中に閉じこめない） */
+@media (max-width: 700px), (max-height: 500px) {
+  .start-overlay {
+    position: fixed; inset: 0;
+    z-index: var(--z-fixed-overlay);
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .start-card { margin: auto; max-width: 100%; display: flex; flex-direction: column; }
+  #start-trivia { order: 1; margin: 14px 0 0; }
+  #btn-begin { align-self: center; }
+  #screen-game.start-cover #hud,
+  #screen-game.start-cover #flow-ribbon,
+  #screen-game.start-cover #btn-rib-more,
+  #screen-game.start-cover #panel-status { visibility: hidden; }
+}
 /* ---------------- レスポンシブ（スマホは縦積みに戻す） ---------------- */
 @media (max-width: 700px) {
-  :root { font-size: 15px; }
+  /* overflow-y を付けない（ページごとスクロールさせて、HUD の sticky を効かせる） */
   #screen-game.active {
     display: flex; flex-direction: column;
     height: auto; min-height: 100%;
-    overflow-y: auto;
+    padding-top: 0;
   }
-  #hud { position: sticky; top: 0; z-index: 20; border-radius: 0 0 var(--radius) var(--radius); }
-  .hud-center { order: 3; width: 100%; justify-content: space-around; }
+  /* HUD: 1段目 = ステージ名+天気 | 速さ・ながれ・せってい / 2段目 = 時計3つ */
+  #hud {
+    position: sticky; top: 0; z-index: var(--z-sticky);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'left right' 'center center';
+    gap: 4px 8px;
+    padding: max(5px, env(safe-area-inset-top)) 10px 5px;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .hud-left { grid-area: left; gap: 6px; }
+  #hud-stage-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #hud-weather { padding: 1px 7px; flex: none; }
+  #hud-weather .wx-label { display: none; }
+  .hud-right { grid-area: right; gap: 4px; }
+  /* 「ながれ」は アイコンの下に ことばを出す（HUD の高さは かえない） */
+  .btn-flow { flex-direction: column; gap: 0; padding: 2px 6px; }
+  .btn-flow .ico { width: 18px; height: 18px; }
+  .btn-flow .btn-txt { display: block; font-size: var(--fs-min); line-height: 1.2; }
+  .hud-center { grid-area: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .hud-clock-box { min-width: 0; padding: 0 6px 1px; }
+  /* 時計のラベルは、かなだけの短いことばにする（ルビの行の高さをとらない） */
+  .hl-long { display: none; }
+  .hl-short { display: inline; }
+  .hud-label { line-height: 1.35; }
+  .flow-ribbon { padding: 4px 6px 2px; }
+  #hud-clock, #hud-std { font-size: 1.1rem; }
+  #hud-remain { font-size: 1.3rem; }
   #game-main { display: flex; flex-direction: column; gap: 8px; min-height: unset; }
-  #apron-wrap { position: relative; inset: auto; order: 1; height: 58vw; min-height: 240px; }
-  #panel-status { position: static; width: auto; max-height: none; order: 2; }
-  #panel-status.log-open { max-height: none; }
-  #panel-status.log-open #game-log { min-height: 0; max-height: 260px; }
-  #panel-tasks { position: static; width: auto; transform: none !important; order: 3; overflow: visible; bottom: auto; }
-  #panel-tasks .drawer-tab { display: none; }
+  /* 並び: 駐機場 → スコアのもと → スタッフ帯 → 作業カード */
+  #apron-wrap { position: relative; inset: auto; order: 1; height: 58vw; min-height: 280px; height: clamp(280px, 40svh, 400px); }
+  #panel-status { position: static; width: auto; max-height: none; order: 2; padding: 8px 10px; gap: 6px; }
+  #panel-status.log-open { height: auto; max-height: none; }
+  #panel-status.log-open #game-log { flex: none; min-height: 260px; max-height: min(50svh, 360px); }
+  /* きろくを開いている間の指標は2列（1マス =「アイコン ことば … 数字」の1行）。4列のままだと数字が となりのマスに はみ出す */
+  #panel-status.log-open .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .panel-title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; }
+  .panel-title-sub { display: inline; }
+  .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 6px; }
+  .metric-head { gap: 3px; }
+  .metric-head .ico { width: 13px; height: 13px; }
+  .metric-row { gap: 4px; }
+  .mv { min-width: 1.9em; }
+  #panel-resources { position: static; order: 3; padding: 0 10px; }
+  #panel-tasks { position: static; width: auto; transform: none !important; order: 4; overflow: visible; bottom: auto; }
+  #panel-tasks .drawer-tab, .drawer-nudge { display: none !important; }
   #task-list { overflow-y: visible; }
-  #panel-resources { position: static; order: 4; flex-wrap: wrap; overflow-x: visible; }
-  #panel-resources .res-group, #panel-resources .res-strip { flex-wrap: wrap; }
-  #zoom-ctrl { bottom: 12px; }
-  .hint-banner { max-width: 88%; }
-  .game-log { max-height: 120px; }
-  .btn, .speed-btn { min-height: 40px; }
+  /* 上の知らせは駐機場の左右 8px まで。一時停止は短い文だけ */
+  .top-rail { left: 8px; right: 8px; top: 8px; bottom: 8px; }
+  .pause-chip .pc-more { display: none; }
+  /* 一時停止は駐機場の左下（ズームのボタンと同じ高さ）に出して、上の知らせと積み重ねない（機体が上の知らせの下にかくれないように） */
+  .top-rail > .pause-chip { margin-top: auto; align-self: flex-start; max-width: calc(100% - 152px); padding: 6px 12px; }
+  /* コーチのふきだしは、顔の丸をはぶき「コーチ」を文の前に置いて、行の数をへらす */
+  .coach-bubble { padding: 6px 46px 6px 12px; }
+  .cb-avatar { display: none; }
+  .cb-who { display: inline; margin: 0 6px 0 0; }
+  /* イベントの知らせは画面の下に固定（どこまでスクロールしても見える） */
+  .top-rail > .event-banner {
+    position: fixed;
+    left: 8px; right: 8px; top: auto;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: calc(var(--z-fixed-msg) + 1);   /* トーストより上・シートより下 */
+    max-width: none;
+  }
+  #zoom-ctrl { bottom: 8px; right: 8px; }
+  /* トーストは駐機場の上はし（上の知らせ＝コーチ・ヒントが出ていれば その下）に出す（1枚まで）。
+   * 画面に固定し、位置（top・bottom・left・right）は UI.placeToast が スクロールのたびに決める（追従する HUD の下に かくれない）。
+   * 画面の下に固定しない: 駐機場の下の 作業カード・きろく・スタッフ帯の行を かくさない。
+   * 駐機場の下はしには ふだん置かない: 区画の看板・待機中のスタッフや車を かくさない（駐機場が低い画面で コーチを出している間だけ）。
+   * そこに置くと コーチ・ズームのボタン・きろくの行などに かかる・画面の外に出るときは、UI.toastSpot が ほかの場所を さがす */
+  #toast-area {
+    position: fixed;
+    left: 16px; right: 16px; width: auto; transform: none;
+    top: 8px; bottom: auto;
+    z-index: var(--z-msg);
+  }
+  /* イベントの知らせ（画面の下に固定）の ぶんだけ、ページの下に余白（さいごのカードのボタンが かくれない） */
+  #screen-game.has-event { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  /* 「はじめられるよ！」は1行（44px）にする（カードの見出しやスタッフ帯を かくす高さを へらす）。
+   * 入らないときは 作業の名前のほうを「…」で切り、「はじめられるよ！」と「ほか Nこ」（あと いくつ あるか）は いつも出す */
+  .toast-open { display: flex; align-items: center; column-gap: 0.4em; white-space: nowrap; overflow: hidden; height: calc(1.95em + 16px); }
+  .toast-open > .to-lead, .toast-open > .to-more { flex: none; }
+  .toast-open > .to-names { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* 持ち場ポップは下からのシート */
+  .spot-pop {
+    position: fixed;
+    left: 8px; right: 8px; top: auto;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: 60vh; max-height: 60svh;
+    z-index: var(--z-sheet);
+  }
+  .spot-pop::before { display: none !important; }
+  /* イベントの知らせが出ている間は、シートを その上へ（知らせが シートの下に かくれない） */
+  #screen-game.has-event .spot-pop { bottom: calc(63px + env(safe-area-inset-bottom)); max-height: calc(60svh - 55px); }
+  .btn, .speed-btn { min-height: 44px; }
   .fr-lead { display: none; }
-  .fr-chip { width: 34px; height: 32px; }  /* 指で押しやすく */
+}
+
+/* ---------------- 幅 400px 以下: 天気の札を時計の行へ（ステージ名を「ス…」と切らない） ---------------- */
+@media (max-width: 400px) {
+  #hud { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'name name right' 'wx center center'; }
+  .hud-left { display: contents; }
+  #hud-stage-name { grid-area: name; align-self: center; }
+  #hud-weather { grid-area: wx; align-self: center; justify-self: start; }
+}
+/* ---------------- 幅 380px 以下: 一時停止の札は アイコンを はぶいて 文を ぜんぶ出す ---------------- */
+@media (max-width: 380px) {
+  .top-rail > .pause-chip { padding: 6px 10px; }
+  .pause-chip .ico { display: none; }
+}
+/* ---------------- 幅 374px 以下（320x568・344x882・360x640 など）: 切れる・はみ出す文字を出さない ----------------
+ * ステージ名は「ステージ」を小さい見出しにして 番号の上に（時計と同じ「見出し+数字」の形。「ス…」と切らない）。
+ * HUD の右の ボタンのすき間を つめて、見出しの はばを あける。
+ * スコア板は 2×2（4つ横ならびだと「時間どおり」が となりの「まんぞく」の アイコンに かぶる）。一時停止の札は 短い文「とめているよ」 */
+@media (max-width: 374px) {
+  #hud { padding-left: 8px; padding-right: 8px; column-gap: 4px; }
+  .hud-right { gap: 2px; }
+  .btn-flow { padding: 2px 3px; }
+  #hud-stage-name { display: flex; flex-direction: column; align-items: flex-start; overflow: visible; text-overflow: clip; line-height: 1.2; }
+  #hud-stage-name .sn-k { font-size: var(--fs-min); font-weight: 500; opacity: 0.85; white-space: nowrap; }
+  #hud-stage-name .sn-n { font-size: 1.25rem; line-height: 1.1; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .pause-chip .pc-lead { display: none; }
+  /* 「はじめられるよ！ 機内食 ほか 1こ」が 1行に入るように、よこの余白を つめる */
+  .toast-open { padding-left: 10px; padding-right: 10px; column-gap: 0.3em; }
+}
+/* ---------------- 背の低い横長の画面（スマホの横向き 701px 以上・高さ 500px 以下） ---------------- */
+@media (max-height: 500px) and (min-width: 701px) {
+  /* 作業カードのドロワーは上から下まで。開いている間は、スタッフ帯をドロワーの右へずらす（かくさない） */
+  #panel-tasks { bottom: 10px; }
+  #game-main.drawer-open #panel-resources { left: calc(var(--drawer-w) + 20px); }
+  /* カードは「はじめる」を見出しのすぐ下に（低い画面でも1枚目のボタンが見える） */
+  #task-list .task-card:not(.st-done) { display: flex; flex-direction: column; }
+  #task-list .task-card:not(.st-done) > .tc-head { order: -2; }
+  #task-list .task-card:not(.st-done) > .tc-btns { order: -1; margin: 6px 0 2px; }
+  /* スコア板は「アイコン+数字」4つと きろくのボタンの1行（見出し・バー・のこりの数は はぶく） */
+  #screen-game { --status-w: 340px; }
+  #panel-status:not(.log-open) { width: auto; max-height: none; flex-direction: row; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; }
+  #panel-status:not(.log-open) .panel-title,
+  #panel-status:not(.log-open) .bar,
+  #panel-status:not(.log-open) .mh-name,
+  #panel-status:not(.log-open) .unfinished-box { display: none; }
+  #panel-status:not(.log-open) .metrics { display: flex; gap: 10px; }
+  #panel-status:not(.log-open) .metric { display: flex; align-items: center; gap: 3px; }
+  #panel-status:not(.log-open) .metric-head .ico { width: 16px; height: 16px; }
+  #panel-status:not(.log-open) .mv { min-width: 1.9em; }
+  /* きろくを開いたら、下からの全幅のシート（きろくは 260px 以上） */
+  #panel-status.log-open {
+    position: fixed; left: 8px; right: 8px; bottom: 8px; top: auto;
+    width: auto; height: min(370px, calc(100dvh - 16px)); max-height: none;
+    z-index: var(--z-sheet);
+  }
+  #panel-status.log-open .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 18px; }
+  /* きろくのリストは シートの のこりの高さに おさめて、シートの中で スクロールする
+   * （高さ 360px ほどの画面では 260px を とれないので、シートを画面の高さいっぱいにして その中で読む） */
+  #panel-status.log-open #game-log { flex: 1 1 0; min-height: 0; }
+  /* 一時停止は 上の知らせに積まない（持ち場・スタッフ帯・ズームに かぶらない）。HUD の「とめているよ」で知らせる
+   * （ステージ名の下、天気の となり。とめている間は 天気を アイコンだけにして、時計の箱に かからない） */
+  .top-rail > .pause-chip { display: none; }
+  .hud-left { display: grid; grid-template-columns: auto auto; grid-template-areas: 'name name' 'wx paused'; column-gap: 6px; align-items: center; justify-content: start; }
+  #hud-stage-name { grid-area: name; }
+  #hud-weather { grid-area: wx; justify-self: start; }
+  #hud-paused:not(.hidden) { display: inline-flex; grid-area: paused; }
+  #hud.is-paused #hud-weather .wx-label { display: none; }
+  #hud.is-paused #hud-weather { padding: 1px 8px; }
+  /* ドロワーを開いている間は、上の知らせを右はしまで使う（スコア板は 情報だけの欄なので、かぶってもよい）。
+   * コーチは スマホと同じく 顔の丸を はぶいて、行の数を へらす（ズームのボタンに かからない） */
+  #game-main.drawer-open { --rail-r: 0px; }
+  /* ドロワーを開いている間は、コーチを ひかえる（駐機場の高さが 200px ほどしかなく、ズームのボタンや スタッフ帯に かかるため。
+   * カードに 同じことが 出ている。ドロワーを とじたら、のこりの時間 また出る） */
+  #game-main.drawer-open .top-rail > .coach-bubble { display: none; }
+  .coach-bubble { padding: 6px 46px 6px 12px; }
+  .cb-avatar { display: none; }
+  .cb-who { display: inline; margin: 0 6px 0 0; }
+}
+/* 701px 以上: 「のこり」の箱の幅を「しゅっぱつ！」が入る幅で そろえる（文がかわっても 時計の組が 左右に動かない）。
+ * 幅は 箱の余白が かわる区切りごとに測った値（901px〜 132px / 750〜900px 128px / 701〜749px 122px） */
+@media (min-width: 701px) {
+  .hud-remain-box { min-width: 8.25em; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .hud-remain-box { min-width: 8em; }
+}
+@media (min-width: 701px) and (max-width: 749px) {
+  .hud-remain-box { min-width: 7.625em; }
+}
+/* 横向きのスマホ（幅 720px 以下・高さ 520px 以下）のタイトル: 「ずかん」「せってい」を 絵の下に置く（右の列に 入りきらないため） */
+@media (max-height: 520px) and (max-width: 720px) {
+  .title-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-areas: 'hero hero logo' 'hero hero desc' 'hero hero start' 'zukan set howto' '. . prog' '. . foot';
+    column-gap: 12px; row-gap: 8px; align-items: center;
+  }
+  .title-body, .title-btns { display: contents; }
+  .title-hero { grid-area: hero; }
+  .title-logo { grid-area: logo; }
+  .title-desc { grid-area: desc; margin: 0; }
+  #btn-title-start { grid-area: start; justify-self: center; }
+  #btn-title-howto { grid-area: howto; justify-self: center; }
+  #btn-title-zukan { grid-area: zukan; }
+  #btn-title-settings { grid-area: set; }
+  #btn-title-zukan, #btn-title-settings { padding-left: 8px; padding-right: 8px; }
+  .title-progress { grid-area: prog; justify-self: center; }
+  .title-foot { grid-area: foot; }
+}
+
+/* =========================================================
+ * 【共通: 土台】動きをへらす設定の人には、アニメーションを止める
+ * ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+  .title-clouds, .confetti-box { display: none; }
 }

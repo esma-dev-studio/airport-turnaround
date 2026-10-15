@@ -17,25 +17,25 @@
 
   <!-- ============ タイトル画面 ============ -->
   <section id="screen-title" class="screen active">
-    <div class="title-clouds" aria-hidden="true">
-      <span class="tcl tcl-1"></span><span class="tcl tcl-2"></span><span class="tcl tcl-3"></span>
-    </div>
     <div class="title-inner">
       <img class="title-hero" src="assets/title-hero.svg" alt="そらみなと国際空港に駐機するあおぞら航空の飛行機">
+      <div class="title-body">
+      <p class="title-eyebrow" lang="en">AIRPORT TURNAROUND</p>
       <h1 class="title-logo"><ruby>出発準備<rt>しゅっぱつじゅんび</rt></ruby><span class="title-num">45</span><ruby>分<rt>ふん</rt></ruby>！</h1>
-      <p class="title-sub">Airport Turnaround（ターンアラウンド ＝ とうちゃくから しゅっぱつまでの じゅんび）</p>
+      <p class="title-sub"><span class="nw">とうちゃくから</span> <span class="nw">しゅっぱつまでの</span> <span class="nw">じゅんび</span></p>
       <p class="title-desc">
         きみは<ruby>空港<rt>くうこう</rt></ruby>の<ruby>地上作業<rt>ちじょうさぎょう</rt></ruby>リーダー。<br>
         スタッフと はたらく<ruby>車<rt>くるま</rt></ruby>をうまくうごかして、<ruby>飛行機<rt>ひこうき</rt></ruby>を<strong><ruby>安全<rt>あんぜん</rt></ruby>に・<ruby>時間<rt>じかん</rt></ruby>どおり</strong>に<ruby>出発<rt>しゅっぱつ</rt></ruby>させよう！
       </p>
       <div class="title-btns">
-        <button id="btn-title-start" class="btn btn-primary btn-big">▶ はじめる</button>
-        <button id="btn-title-howto" class="btn btn-ghost">🎮 あそびかた</button>
-        <button id="btn-title-zukan" class="btn btn-ghost">📖 ずかん</button>
-        <button id="btn-title-settings" class="btn btn-ghost">⚙ せってい</button>
+        <button id="btn-title-start" class="btn btn-primary btn-big"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> はじめる</button>
+        <button id="btn-title-howto" class="btn btn-ghost"><svg class="ico ico-help" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-help"></use></svg> あそびかた</button>
+        <button id="btn-title-zukan" class="btn btn-ghost"><svg class="ico ico-book" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-book"></use></svg> ずかん</button>
+        <button id="btn-title-settings" class="btn btn-ghost"><svg class="ico ico-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-gear"></use></svg> せってい</button>
       </div>
       <p id="title-progress" class="title-progress hidden"></p>
-      <p class="title-foot">この<ruby>空港<rt>くうこう</rt></ruby>と「あおぞら<ruby>航空<rt>こうくう</rt></ruby>」は、ゲームのための<ruby>空想<rt>くうそう</rt></ruby>の<ruby>会社<rt>かいしゃ</rt></ruby>です。</p>
+      <p class="title-foot">この <ruby>空港<rt>くうこう</rt></ruby>と『あおぞら<ruby>航空<rt>こうくう</rt></ruby>』は、ゲームの ために つくった もので、ほんものでは ないよ。</p>
+      </div>
     </div>
   </section>
 
@@ -43,6 +43,7 @@
   <section id="screen-select" class="screen">
     <div class="select-inner">
       <h2 class="select-title">ステージをえらぶ</h2>
+      <p class="star-legend"><span class="sl-item"><span class="sl-stars" role="img" aria-label="スター1つ"><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg></span> クリア</span><span class="sl-item"><span class="sl-stars" role="img" aria-label="スター2つ"><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg></span> 80<ruby>点<rt>てん</rt></ruby></span><span class="sl-item"><span class="sl-stars" role="img" aria-label="スター3つ"><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg><svg class="ico ico-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-star"></use></svg></span> 95<ruby>点<rt>てん</rt></ruby></span></p>
       <div id="stage-list" class="stage-list"><!-- ui.jsが生成 --></div>
       <button id="btn-select-back" class="btn btn-ghost">← タイトルへもどる</button>
     </div>
@@ -53,144 +54,174 @@
     <header id="hud">
       <div class="hud-left">
         <span id="hud-stage-name">ステージ1</span>
-        <span id="hud-weather" title="天気">☀ 晴れ</span>
+        <span id="hud-weather"><svg class="ico ico-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-sun"></use></svg><span class="wx-label">はれ</span></span>
+        <!-- 背の低い横長の画面だけ: 一時停止を上の知らせの札のかわりに HUD で知らせる -->
+        <span id="hud-paused" class="hud-paused hidden" role="status"><svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg>とめているよ</span>
       </div>
       <div class="hud-center">
         <div class="hud-clock-box">
-          <span class="hud-label">いまの時こく</span>
+          <span class="hud-label"><span class="hl-long">いまの<ruby>時刻<rt>じこく</rt></ruby></span><span class="hl-short">いま</span></span>
           <span id="hud-clock">10:00</span>
         </div>
         <div class="hud-clock-box">
-          <span class="hud-label">しゅっぱつよてい</span>
+          <span class="hud-label"><span class="hl-long"><ruby>出発予定<rt>しゅっぱつよてい</rt></ruby></span><span class="hl-short">しゅっぱつ</span></span>
           <span id="hud-std">10:45</span>
         </div>
-        <div class="hud-clock-box">
-          <span class="hud-label">のこり</span>
-          <span id="hud-remain">45分</span>
+        <div id="hud-remain-box" class="hud-clock-box hud-remain-box">
+          <span id="hud-remain-label" class="hud-label">のこり</span>
+          <span id="hud-remain"><span class="rem-v">45</span><span class="rem-u">分</span></span>
         </div>
       </div>
       <div class="hud-right">
-        <div class="speed-ctrl" role="group" aria-label="ゲーム速度">
-          <button class="speed-btn" data-speed="0" title="一時停止（スペースキー）">⏸</button>
-          <button class="speed-btn" data-speed="1" title="通常速度">▶</button>
-          <button class="speed-btn" data-speed="2" title="2倍速">⏩</button>
+        <div class="speed-ctrl" role="group" aria-label="はやさ">
+          <button class="speed-btn" data-speed="0" aria-label="とめる" aria-pressed="true" title="とめる（スペースキー）"><svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg><span class="spd-txt">とめる</span></button>
+          <button class="speed-btn" data-speed="1" aria-label="ふつう" aria-pressed="false" title="ふつう"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg><span class="spd-txt">ふつう</span></button>
+          <button class="speed-btn" data-speed="2" aria-label="はやい" aria-pressed="false" title="はやい"><svg class="ico ico-fast" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-fast"></use></svg><span class="spd-txt">はやい</span></button>
         </div>
-        <button id="btn-flowmap" class="btn btn-icon btn-flow" title="出発準備のながれを見る">🗺 ながれ</button>
-        <button id="btn-settings" class="btn btn-icon" title="設定">⚙</button>
+        <button id="btn-flowmap" class="btn btn-icon btn-flow" title="ながれを みる" aria-label="ながれを見る"><svg class="ico ico-flow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-flow"></use></svg><span class="btn-txt">ながれ</span></button>
+        <button id="btn-settings" class="btn btn-icon" title="せってい" aria-label="せってい"><svg class="ico ico-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-gear"></use></svg></button>
       </div>
     </header>
 
     <!-- ながれリボン：12の作業を「ステップ1〜7」の順に常時表示（ui.jsが中身を生成） -->
-    <div id="flow-ribbon" class="flow-ribbon" aria-label="出発準備のながれ"></div>
+    <div class="flow-ribbon-wrap">
+      <div id="flow-ribbon" class="flow-ribbon" aria-label="ながれ"></div>
+      <!-- 右に続きがあるときだけ出す（スタッフ帯の「›」と同じ） -->
+      <button id="btn-rib-more" class="rib-more hidden" type="button" aria-label="つづきを みる" title="つづきを みる"><svg class="ico ico-chevron-right" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-chevron-right"></use></svg></button>
+    </div>
 
     <div id="game-main">
       <!-- 駐機場ビュー（全画面） -->
       <section id="apron-wrap">
-        <canvas id="apron" aria-label="駐機場の様子"></canvas>
-        <button id="event-banner" class="event-banner hidden"></button>
-        <div id="hint-banner" class="hint-banner hidden"></div>
-        <div id="toast-area"></div>
-        <div id="zoom-ctrl">
-          <button id="btn-zoom-in" class="zoom-btn" title="ズームイン">＋</button>
-          <button id="btn-zoom-out" class="zoom-btn" title="ズームアウト">−</button>
-          <button id="btn-zoom-reset" class="zoom-btn" title="ぜんたいを見る">⛶</button>
+        <canvas id="apron" aria-label="ちゅうきじょうの ようす"></canvas>
+        <!-- 上の知らせの置き場（上から イベント・コーチ・ヒント・一時停止） -->
+        <div id="top-rail" class="top-rail">
+          <button id="event-banner" class="event-banner hidden" type="button"></button>
+          <div id="coach-bubble" class="coach-bubble hidden" role="status"></div>
+          <button id="hint-banner" class="hint-banner hidden" type="button"></button>
+          <div id="pause-chip" class="pause-chip hidden"><svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg> <span class="pc-lead">じかんを </span>とめているよ<span class="pc-more"> ─ <svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>で つづき</span></div>
+          <!-- ドロワーを とじている間に、はじめられる おしごとが ふえたとき（4秒で消える。押せない） -->
+          <div id="drawer-nudge" class="drawer-nudge hidden" role="status"></div>
         </div>
+        <div id="toast-area" aria-live="polite"></div>
+        <div id="zoom-ctrl">
+          <button id="btn-zoom-in" class="zoom-btn" title="おおきく みる" aria-label="おおきく みる"><svg class="ico ico-zoom-in" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-zoom-in"></use></svg></button>
+          <button id="btn-zoom-out" class="zoom-btn" title="ちいさく みる" aria-label="ちいさく みる"><svg class="ico ico-zoom-out" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-zoom-out"></use></svg></button>
+          <button id="btn-zoom-reset" class="zoom-btn" title="ぜんたいを みる" aria-label="ぜんたいを見る"><svg class="ico ico-zoom-fit" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-zoom-fit"></use></svg></button>
+        </div>
+        <div id="staff-pick" class="staff-pick hidden" role="menu"></div>
         <div id="spot-pop" class="spot-pop hidden"></div>
-        <div id="pause-chip" class="pause-chip hidden">⏸ ストップ中 — ▶でうごきだすよ（さくせんタイム！）</div>
         <div id="start-overlay" class="start-overlay">
           <div class="start-card">
             <h3 id="start-overlay-title">ステージ1</h3>
             <p id="start-overlay-text"></p>
             <p id="start-trivia" class="start-trivia"></p>
-            <button id="btn-begin" class="btn btn-primary btn-big">▶ スタート</button>
+            <button id="btn-begin" class="btn btn-primary btn-big"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> はじめる</button>
           </div>
         </div>
       </section>
 
       <!-- 左ドロワー：作業カード -->
       <aside id="panel-tasks">
-        <button id="btn-drawer-tasks" class="drawer-tab" title="作業カードをひらく/とじる">📋<span class="drawer-tab-txt">作業</span><span id="drawer-badge" class="drawer-badge hidden">0</span></button>
+        <button id="btn-drawer-tasks" class="drawer-tab" title="おしごとカードを ひらく / とじる" aria-label="おしごとカード"><svg class="ico ico-list" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg><span class="drawer-tab-txt">おしごと</span><span id="drawer-badge" class="drawer-badge hidden"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg><b>0</b></span></button>
         <div id="task-list"></div>
       </aside>
 
-      <!-- 右上：管理指標（コンパクト） -->
+      <!-- 右上：スコアのもと（2×2） -->
       <aside id="panel-status">
-        <h3 class="panel-title">スコアのもと<span class="panel-title-sub">（だいじな4つ）</span></h3>
-        <div class="metric">
-          <div class="metric-head"><span>🛡 <ruby>安全<rt>あんぜん</rt></ruby></span><span id="val-safety">100</span></div>
-          <div class="bar"><div id="bar-safety" class="bar-fill fill-safety" style="width:100%"></div></div>
+        <h3 class="panel-title">スコアのもと<span class="panel-title-sub">（100が いちばん よい）</span></h3>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-head"><svg class="ico ico-shield" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-shield"></use></svg><span class="mh-name"><ruby>安全<rt>あんぜん</rt></ruby></span></div>
+            <div class="metric-row"><span id="val-safety" class="mv">100</span><div class="bar"><div id="bar-safety" class="bar-fill fill-safety" style="width:100%"></div></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-head"><svg class="ico ico-clock" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-clock"></use></svg><span class="mh-name"><ruby>時間<rt>じかん</rt></ruby>どおり</span></div>
+            <div class="metric-row"><span id="val-punct" class="mv">100</span><div class="bar"><div id="bar-punct" class="bar-fill fill-punct" style="width:100%"></div></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-head"><svg class="ico ico-smile" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-smile"></use></svg><span class="mh-name">まんぞく</span></div>
+            <div class="metric-row"><span id="val-sat" class="mv">100</span><div class="bar"><div id="bar-sat" class="bar-fill fill-sat" style="width:100%"></div></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-head"><svg class="ico ico-coin" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-coin"></use></svg><span class="mh-name">コスト</span></div>
+            <div class="metric-row"><span id="val-cost" class="mv">100</span><div class="bar"><div id="bar-cost" class="bar-fill fill-cost" style="width:100%"></div></div></div>
+          </div>
         </div>
-        <div class="metric">
-          <div class="metric-head"><span>⏱ <ruby>時間<rt>じかん</rt></ruby>どおり</span><span id="val-punct">100</span></div>
-          <div class="bar"><div id="bar-punct" class="bar-fill fill-punct" style="width:100%"></div></div>
+        <div class="status-row">
+          <div class="unfinished-box"><span class="ub-label">のこりの おしごと</span><span class="ub-num"><strong id="unfinished-count">12</strong> こ</span></div>
+          <button id="btn-log-toggle" class="log-toggle" aria-expanded="false"><svg class="ico ico-log" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-log"></use></svg><span class="lt-txt">きろく</span><span class="lt-caret" aria-hidden="true">▾</span></button>
         </div>
-        <div class="metric">
-          <div class="metric-head"><span>😊 お<ruby>客<rt>きゃく</rt></ruby>さんのまんぞく</span><span id="val-sat">100</span></div>
-          <div class="bar"><div id="bar-sat" class="bar-fill fill-sat" style="width:100%"></div></div>
-        </div>
-        <div class="metric">
-          <div class="metric-head"><span>💰 コスト（おかね）</span><span id="val-cost">100</span></div>
-          <div class="bar"><div id="bar-cost" class="bar-fill fill-cost" style="width:100%"></div></div>
-        </div>
-        <div class="unfinished-box">のこりのおしごと <strong id="unfinished-count">12</strong> こ</div>
-        <button id="btn-log-toggle" class="log-toggle">📜 記録を見る ▾</button>
         <ul id="game-log" class="game-log"></ul>
       </aside>
 
       <!-- 下：スタッフ・車両 -->
       <footer id="panel-resources">
-        <div class="res-group">
-          <span class="res-group-label">スタッフ</span>
-          <div id="staff-strip" class="res-strip"></div>
+        <div id="res-scroll" class="res-scroll">
+          <div class="res-group">
+            <span class="res-group-label">スタッフ</span>
+            <div id="staff-strip" class="res-strip"></div>
+          </div>
+          <div class="res-group">
+            <span class="res-group-label">はたらく<ruby>車<rt>くるま</rt></ruby></span>
+            <div id="vehicle-strip" class="res-strip"></div>
+          </div>
         </div>
-        <div class="res-group">
-          <span class="res-group-label">はたらく<ruby>車<rt>くるま</rt></ruby></span>
-          <div id="vehicle-strip" class="res-strip"></div>
-        </div>
+        <button id="btn-res-more" class="res-more hidden" type="button" aria-label="つづきを みる" title="つづきを みる"><svg class="ico ico-chevron-right" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-chevron-right"></use></svg></button>
       </footer>
     </div>
   </section>
+  <div id="toast-global" class="toast-global" aria-live="polite"></div>
 
   <!-- ============ 結果画面 ============ -->
   <section id="screen-result" class="screen">
     <div class="result-inner">
-      <div id="result-flag" class="result-flag">✈ 出発しました！</div>
-      <div class="result-score-row">
-        <div id="result-rank" class="result-rank">A</div>
-        <div class="result-score-box">
-          <span id="result-score" class="result-score">88</span>
-          <span class="result-score-max">/ 100点</span>
+      <!-- 1024px 未満は1列（.result-left は display:contents）。1024px 以上は左の列（見出し〜ボタン） -->
+      <div class="result-left">
+        <div id="result-flag" class="result-flag"><h2 class="result-head">クリア！</h2><p class="result-sub"></p></div>
+        <div id="result-howto" class="result-howto hidden"></div>
+        <div class="result-score-row">
+          <div id="result-rank" class="result-rank">A</div>
+          <div class="result-score-box">
+            <span class="result-score-line"><span id="result-score" class="result-score">88</span><span class="result-score-max">/ 100<ruby>点<rt>てん</rt></ruby></span></span>
+            <span id="result-newbest" class="result-newbest hidden">じこベスト こうしん！</span>
+            <span id="result-prevbest" class="result-prevbest hidden"></span>
+          </div>
+        </div>
+        <div id="result-stars" class="result-stars"></div>
+        <p id="result-goal" class="result-goal hidden"></p>
+        <div id="result-badges" class="result-badges hidden"></div>
+        <div class="result-btns">
+          <button id="btn-next-stage" class="btn btn-primary hidden"><svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> つぎのステージへ</button>
+          <button id="btn-retry" class="btn btn-primary">もういちど あそぶ</button>
+          <button id="btn-result-select" class="btn btn-ghost">ステージえらびへ</button>
         </div>
       </div>
-      <div id="result-stars" class="result-stars"></div>
-      <div id="result-badges" class="result-badges hidden"></div>
-      <p id="result-goal" class="result-goal hidden"></p>
-      <ul id="result-breakdown" class="result-breakdown"></ul>
-      <p id="result-times" class="result-times"></p>
-      <div class="result-advice-box">
-        <h3>ふりかえり</h3>
-        <p id="result-advice"></p>
-      </div>
-      <div class="result-gantt-box">
-        <h3>⏱ おしごとタイムライン<span class="rg-sub">（よこにならんでいるほど、<ruby>同時<rt>どうじ</rt></ruby>にできたしるし）</span></h3>
-        <div id="result-gantt" class="result-gantt"></div>
-      </div>
-      <p id="result-trivia" class="result-trivia"></p>
-      <div class="result-btns">
-        <button id="btn-next-stage" class="btn btn-primary hidden">▶ つぎのステージへ</button>
-        <button id="btn-retry" class="btn btn-primary">もういちど あそぶ</button>
-        <button id="btn-result-select" class="btn btn-ghost">ステージえらびへ</button>
+      <div class="result-detail">
+        <ul id="result-breakdown" class="result-breakdown"></ul>
+        <p id="result-times" class="result-times"></p>
+        <div class="result-advice-box">
+          <h3>ふりかえり</h3>
+          <div id="result-advice"></div>
+        </div>
+        <details id="result-more" class="result-more result-gantt-box">
+          <summary><svg class="ico ico-clock" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-clock"></use></svg> おしごとタイムライン<svg class="ico ico-chevron-right rm-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-chevron-right"></use></svg></summary>
+          <p class="rg-sub">たてに かさなって いる（おなじ じかんに ある）バーが おおいほど、<ruby>同時<rt>どうじ</rt></ruby>に できた しるし</p>
+          <div id="result-gantt" class="result-gantt"></div>
+        </details>
+        <p id="result-trivia" class="result-trivia"></p>
       </div>
     </div>
   </section>
 
   <!-- ============ モーダル共通 ============ -->
   <div id="modal-backdrop" class="modal-backdrop hidden">
-    <div id="modal" class="modal" role="dialog" aria-modal="true"></div>
+    <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"></div>
   </div>
 
 </div>
 
+<script src="icons.js"></script>
 <script src="tasks.js"></script>
 <script src="events.js"></script>
 <script src="stages.js"></script>

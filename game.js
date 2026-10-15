@@ -374,22 +374,22 @@
     /* ============ 1人（1台）ずつの割り当て（タップ配置） ============ */
     assignEntity(entityId, taskId) {
       const s = this.state;
-      if (!s || s.ended) return { ok: false, reason: 'ステージは終了しています。' };
+      if (!s || s.ended) return { ok: false, reason: 'ステージは もう おわったよ' };
       const t = s.tasks[taskId];
       const e = this.entityById(entityId);
-      if (!t || !e) return { ok: false, reason: '対象が見つかりません。' };
-      if (t.status === 'done' || t.status === 'active') return { ok: false, reason: 'この作業には今は追加できません。' };
+      if (!t || !e) return { ok: false, reason: 'その おしごとは みつからないよ' };
+      if (t.status === 'done' || t.status === 'active') return { ok: false, reason: 'いまは この おしごとに なかまを ふやせないよ' };
       const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
       if (unmet.length) {
         const names = unmet.map((d) => `「${s.tasks[d].def.name}」`).join('と');
-        return { ok: false, reason: `まだ開始できません。${names}の完了待ちです。` };
+        return { ok: false, reason: `まだ はじめられないよ。さきに${names}を おわらせよう` };
       }
       if (t.def.outdoor && this.outdoorPaused()) {
         const rest = Math.max(1, Math.ceil(s.outdoorPauseUntil - s.clock));
-        return { ok: false, reason: `⛈ 天候回復（あと約${rest}分）までお待ちください。` };
+        return { ok: false, reason: `⛈ そとの おしごとは あと約${rest}分 おやすみ` };
       }
       if (!this.canAccept(taskId, entityId)) {
-        return { ok: false, reason: `${e.label}はこの作業には入れません（種類が違うか、もう足りています）。` };
+        return { ok: false, reason: `${e.label}は この おしごとには はいれないよ（しゅるいが ちがうか、もう たりているよ）` };
       }
       e.taskId = t.id;
       e.status = 'moving';
@@ -414,7 +414,7 @@
       if (!t || t.status === 'done' || !window.PACE_ALLOWED.has(taskId)) return { ok: false };
       if (t.pace === pace) return { ok: true };
       t.pace = pace;
-      if (pace === 'rush') this.log(`「${t.def.name}」を急がせる（速いが満足度${window.SAFETY_SENSITIVE.has(t.id) ? '・安全性' : ''}に注意）`, 'warn');
+      if (pace === 'rush') this.log(`「${t.def.name}」を「いそぐ」にした（速いが満足度${window.SAFETY_SENSITIVE.has(t.id) ? '・安全性' : ''}に注意）`, 'warn');
       else if (pace === 'careful') this.log(`「${t.def.name}」をていねいに進める`, 'info');
       this.emit('task', { id: t.id });
       return { ok: true };
@@ -424,28 +424,28 @@
     /* 戻り値 {ok, reason?} */
     startTask(taskId) {
       const s = this.state;
-      if (!s || s.ended) return { ok: false, reason: 'ステージは終了しています。' };
+      if (!s || s.ended) return { ok: false, reason: 'ステージは もう おわったよ' };
       const t = s.tasks[taskId];
-      if (!t) return { ok: false, reason: '不明な作業です。' };
-      if (t.status === 'done') return { ok: false, reason: 'この作業はすでに完了しています。' };
+      if (!t) return { ok: false, reason: 'その おしごとは みつからないよ' };
+      if (t.status === 'done') return { ok: false, reason: 'この おしごとは もう おわったよ' };
       if (t.status === 'active') {
-        return { ok: false, reason: 'この作業はすでに進行中です。' };
+        return { ok: false, reason: 'この おしごとは もう すすんでいるよ' };
       }
       if (t.status === 'gathering' && this.reqsFilled(t)) {
-        return { ok: false, reason: 'メンバーはそろっています。到着を待ちましょう。' };
+        return { ok: false, reason: 'メンバーは そろったよ。つくのを まってね' };
       }
 
       /* 開始条件（依存関係） */
       const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
       if (unmet.length) {
         const names = unmet.map((d) => `「${s.tasks[d].def.name}」`).join('と');
-        return { ok: false, reason: `まだ開始できません。${names}が完了していないためです。※${t.def.depNote}` };
+        return { ok: false, reason: `まだ はじめられないよ。さきに${names}を おわらせよう` };
       }
 
       /* 天候による屋外作業停止中は屋外作業を始められない */
       if (t.def.outdoor && this.outdoorPaused()) {
         const rest = Math.max(1, Math.ceil(s.outdoorPauseUntil - s.clock));
-        return { ok: false, reason: `⛈ かみなりのため屋外作業は一時停止中です（再開まで約${rest}分）。屋内の作業を進めましょう。` };
+        return { ok: false, reason: `⛈ そとの おしごとは あと約${rest}分 おやすみ。なかの おしごとを すすめよう` };
       }
 
       /* すでに割り当て済みの数を差し引いて、足りない分だけ選ぶ */
@@ -464,7 +464,10 @@
           e.kind === kind && e.type === type && e.taskId === null &&
           (e.status === 'idle' || e.status === 'returning'));
         if (free.length < need) {
-          missing.push(`${meta.label}があと${need - free.length}${kind === 'staff' ? '人' : '台'}`);
+          /* 数はかなで書く（人は ひとり・ふたり、車は Nだい） */
+          const n = need - free.length;
+          const cnt = kind === 'staff' ? (n === 1 ? ' ひとり' : n === 2 ? ' ふたり' : `${n}にん`) : `${n}だい`;
+          missing.push(`${meta.label}が たりないよ（あと${cnt}）`);
         } else {
           /* 待機中を優先して選ぶ */
           free.sort((a, b) => (a.status === 'idle' ? 0 : 1) - (b.status === 'idle' ? 0 : 1));
@@ -474,7 +477,9 @@
       Object.entries(t.def.staff || {}).forEach(([type, n]) => pickFrom('staff', type, n));
       Object.entries(t.def.vehicles || {}).forEach(([type, n]) => pickFrom('vehicle', type, n));
       if (missing.length) {
-        return { ok: false, reason: `リソースが足りません（${missing.join('、')}必要）。他の作業が終わるのを待つか、作業を中断して呼び戻しましょう。` };
+        /* 自動では はじまらないので、もう一度 押せばよいと分かる言い方にする（あつまり中は「のこりを よぶ」） */
+        const again = t.status === 'gathering' ? '「▶ のこりを よぶ」' : '「▶ はじめる」';
+        return { ok: false, reason: `${missing.join('。')}。ほかの おしごとが おわったら、もういちど ${again}を おしてね` };
       }
 
       /* 割当実行 */
@@ -506,12 +511,13 @@
       const t = s.tasks[taskId];
       if (!t || (t.status !== 'gathering' && t.status !== 'active')) return { ok: false };
       if (t.id === 'pushback' || t.id === 'depart') {
-        return { ok: false, reason: '安全のため、この作業は途中でやめられません。' };
+        return { ok: false, reason: '安全のため、この おしごとは とちゅうで やめられないよ' };
       }
       this._releaseEntities(t);
       t.status = 'ready';
       t.activeAt = null;
-      this.log(`「${t.def.name}」を中断しました（進み具合は保存されます）`, 'info');
+      this.log(`「${t.def.name}」を ストップしたよ。すすんだ ぶんは のこるよ`, 'info');
+      this.emit('toast', { msg: `「${t.def.name}」を ストップしたよ。すすんだ ぶんは のこるよ`, type: 'info' });
       this.emit('task', { id: t.id });
       this.emit('resources');
       return { ok: true };
@@ -579,7 +585,7 @@
       } else if (t.id === 'depart') {
         this.log('✈ 出発！滑走路へ向かいます', 'ok');
       } else {
-        this.log(`「${t.def.name}」を開始`, 'info');
+        this.log(`「${t.def.name}」を はじめた`, 'info');
       }
       this.emit('task', { id: t.id });
       this.emit('resources');
@@ -593,19 +599,20 @@
       this._releaseEntities(t);
       if (t.id !== 'depart') this.log(`「${t.def.name}」が完了`, 'ok');
 
-      /* 采配レバーの効果（完了時に一度だけ） */
+      /* 采配レバーの効果（完了時に一度だけ。数は paceEffect にまとめてあり、カードの説明の文も同じ数を使う） */
       if (window.PACE_ALLOWED.has(t.id)) {
+        const eff = this.paceEffect(t.pace, t.id);
         if (t.pace === 'rush') {
           s.stats.rushCount++;
-          s.metrics.sat = clamp(s.metrics.sat - 3, 0, 100);
-          if (window.SAFETY_SENSITIVE.has(t.id)) {
-            s.metrics.safety = clamp(s.metrics.safety - 5, 0, 100);
-            this.log(`急いだぶん「${t.def.name}」の確認が少し甘くなった…（安全性−5）`, 'warn');
+          s.metrics.sat = clamp(s.metrics.sat + eff.sat, 0, 100);
+          if (eff.safety) {
+            s.metrics.safety = clamp(s.metrics.safety + eff.safety, 0, 100);
+            this.log(`急いだぶん「${t.def.name}」の確認が少し甘くなった…（安全性−${Math.abs(eff.safety)}）`, 'warn');
           }
           this.emit('metrics');
         } else if (t.pace === 'careful') {
           s.stats.carefulCount++;
-          s.metrics.sat = clamp(s.metrics.sat + 2, 0, 100);
+          s.metrics.sat = clamp(s.metrics.sat + eff.sat, 0, 100);
           this.emit('metrics');
         }
       }
@@ -628,7 +635,8 @@
 
       this.emit('task', { id: t.id });
       this.emit('resources');
-      this.emit('sfx', t.id === 'depart' ? 'clear' : 'done');
+      /* 出発のときの音は _endStage の「クリア / しっぱい」の1つだけにする（失格の回に クリアの音を鳴らさない） */
+      if (t.id !== 'depart') this.emit('sfx', 'done');
 
       if (t.id === 'pushback') {
         this.startTask('depart');
@@ -740,6 +748,10 @@
         arrival: s.stage.arrival,
         delay: s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null,
         advice: this._buildAdvice(departed),
+        /* 表示用: ふりかえりを種類つき(bad/tip/good)で。advice の文字列と同じ内容 */
+        adviceParts: this._adviceParts || [],
+        /* 表示用: 安全確認をとばしたか（結果画面の「クリアするには」の文を分ける。判定・点数には使わない） */
+        safetySkipped: !!s.flags.safetySkipped,
         stageId: s.stage.id,
         /* バッジ判定用のプレイ内容 */
         extra: {
@@ -763,22 +775,28 @@
     _buildAdvice(departed) {
       const s = this.state;
       const out = [];
+      /* 表示用に種類もためる（bad=だめだったこと / tip=つぎのコツ / good=よかったこと）。文と判定は変えない */
+      const parts = [];
+      const add = (kind, text) => { out.push(text); parts.push({ kind, text }); };
       const fs = s.stats.firstStarts;
       const t = s.tasks;
       const delay = s.stats.blockOff ? Math.max(0, s.stats.blockOff - s.stage.std) : null;
 
       if (s.flags.safetySkipped) {
-        out.push('安全確認を省略したため、安全性が大きく減点され、クリアになりませんでした。プッシュバック前の周辺確認は、どんなに急いでいても必ず行いましょう。');
+        add('bad', '安全確認を省略したため、安全性が大きく減点され、クリアになりませんでした。プッシュバック前の周辺確認は、どんなに急いでいても必ず行いましょう。');
       } else if (s.flags.critical) {
-        out.push('安全にかかわる確認を省略する選択をしたため、クリアになりませんでした。安全はすべてに優先します。');
+        add('bad', '安全にかかわる確認を省略する選択をしたため、クリアになりませんでした。安全はすべてに優先します。');
+      } else if (departed) {
+        add('good', '安全な運航を実現しました。');
       } else {
-        out.push('安全な運航を実現しました。');
+        /* 出発できなかった回は「運航を実現」とは言わない（安全のルールを守れたことだけをほめる） */
+        add('good', 'あんぜんの ルールは まもれたね。');
       }
 
       if (!departed) {
-        out.push(`時間内に出発できませんでした。到着直後から「降機」「取り降ろし」「給油」「点検」の4つを並行で始めるのがコツです。`);
+        add('bad', `時間内に出発できませんでした。到着直後から「降機」「取り降ろし」「給油」「点検」の4つを並行で始めるのがコツです。`);
       } else if (delay !== null && delay > 0.5) {
-        out.push(`一方で、出発が${Math.ceil(delay)}分遅れました。`);
+        add('bad', `一方で、出発が${Math.ceil(delay)}分遅れました。`);
         /* いちばん大きな「待ち時間」を探して助言する */
         const gaps = [];
         const gap = (name, val, msg) => { if (val != null && val > 2) gaps.push({ val, msg }); };
@@ -793,14 +811,15 @@
         gap('load', fs.load != null && t.unload.doneAt != null ? fs.load - t.unload.doneAt : null,
           '取り降ろしが終わったらすぐ「積み込み」を始めると改善できます。');
         gaps.sort((a, b) => b.val - a.val);
-        if (gaps.length) out.push(gaps[0].msg);
+        if (gaps.length) add('tip', gaps[0].msg);
         else if ((fs.refuel != null && fs.refuel - s.stage.arrival > 12) || (fs.inspect != null && fs.inspect - s.stage.arrival > 15)) {
-          out.push('給油や機体点検は到着直後から始められます。早めに始めると余裕が生まれます。');
+          add('tip', '給油や機体点検は到着直後から始められます。早めに始めると余裕が生まれます。');
         } else {
-          out.push('作業どうしのすき間を小さくして、並行作業を増やすとさらに良くなります。');
+          add('tip', '作業どうしのすき間を小さくして、並行作業を増やすとさらに良くなります。');
         }
-      } else if (departed) {
-        out.push('定刻どおりの出発、みごとな段取りです！');
+      } else if (departed && !s.flags.critical) {
+        /* 失格の回には、出発をほめる文を出さない */
+        add('good', '定刻どおりの出発、みごとな段取りです！');
       }
 
       /* イベント対応へのひとこと（プレイヤーが自分で選んだものだけ・最大2件） */
@@ -816,40 +835,45 @@
         'lost_bag:1': '手荷物を次の便で送る判断は出発を守りましたが、持ち主の満足度は下がります。',
         'weather:0': '雷のときに屋外作業を止めるのは正しい判断です。安全はすべてに優先します。',
       };
+      /* よい面とわるい面の両方があるもの（つぎのコツとして出す） */
+      const EV_TIP = new Set(['late_pax:2', 'cleaning_delay:2', 'lost_bag:1']);
       s.resolvedEvents.filter((e) => !e.auto).slice(0, 2).forEach((e) => {
         const a = evAdvice[`${e.id}:${e.choiceIdx}`];
-        if (a) out.push(a);
+        if (a) add(EV_TIP.has(`${e.id}:${e.choiceIdx}`) ? 'tip' : 'good', a);
       });
       if (s.stats.rushCount >= 4 && s.metrics.sat < 78) {
-        out.push('「急がせる」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
+        add('tip', '「いそぐ」の使いすぎで満足度が下がりました。ここぞという作業だけに使うのがコツです。');
       } else if (s.metrics.sat < 80 && !s.stats.satNotes.includes('advised')) {
-        out.push('乗客の待ち時間をへらすと満足度が上がります。');
+        add('tip', '乗客の待ち時間をへらすと満足度が上がります。');
       }
+      this._adviceParts = parts;
       return out.join(' ');
     },
 
-    /* ============ ヒント（初級のみ） ============ */
+    /* ============ ヒント（初級のみ） ============
+     * 表示の文だけを作る（ルールは変えない）。おすすめの1件は _hintPick() で決める（getHintTarget と同じ） */
     getHint() {
       const s = this.state;
       if (!s || !s.stage.hints || s.ended) return null;
       /* 中級: ヒントは序盤(8分)のみ */
       if (s.stage.hints === 'limited' && s.clock - s.stage.arrival > 8) return null;
-      const ready = s.taskList.filter((t) => t.status === 'ready');
-      if (!ready.length) {
-        const running = s.taskList.filter((t) => t.status === 'moving' || t.status === 'active');
-        return running.length ? '進行中の作業の完了を待ちましょう。次の作業の準備はOK？' : null;
+      if (this.outdoorPaused()) {
+        const rest = Math.max(1, Math.ceil(s.outdoorPauseUntil - s.clock));
+        return `そとの おしごとは あと約${rest}分 おやすみ。なかの おしごとを すすめよう`;
       }
-      const prio = { high: 0, mid: 1 };
-      ready.sort((a, b) => (prio[a.def.priority] - prio[b.def.priority]) || (a.def.order - b.def.order));
-      const names = ready.slice(0, 2).map((t) => `${t.def.icon}${t.def.name}`).join('、');
-      return `次のおすすめ: ${names}`;
+      const pick = this._hintPick();
+      if (pick && pick.kind === 'ready') return `つぎは「${pick.t.def.name}」を はじめよう`;
+      if (pick && pick.kind === 'soon') return `つぎは「${pick.t.def.name}」（あと約${pick.min}分で はじめられる）`;
+      const running = s.taskList.filter((t) => t.status === 'gathering' || t.status === 'moving' || t.status === 'active');
+      return running.length ? 'いま すすんでいる おしごとが おわるのを まとう' : null;
     },
 
     /* ============ ロック理由（UI表示用） ============
      * 「いつになったら次に進めるのか」を、状況別の具体的なことばで返す。
-     *   前提作業がまだ始まっていない → さきにそれを始めよう（＝プレイヤーの次の一手）
-     *   前提作業が進行中             → あと約N分でおわったら はじめられるよ（＝待つ時間）
-     *   集合中・移動中               → じゅんびちゅう
+     *   はじめられる前提の作業がある  → さきにそれを はじめよう（＝プレイヤーの次の一手）
+     *   まだロック中の前提の作業がある → ステップNの あとで（いちばん先のステップの1件だけ）
+     *   前提作業がぜんぶ進行中        → あと約N分で おわったら はじめられるよ（＝待つ時間）
+     *   集合中                        → じゅんびちゅう
      */
     lockReason(taskId) {
       const s = this.state;
@@ -858,15 +882,20 @@
       const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
       if (!unmet.length) return '';
       const nm = (ids) => ids.map((d) => `「${s.tasks[d].def.name}」`).join('と');
-      const notStarted = unmet.filter((d) => s.tasks[d].status === 'locked' || s.tasks[d].status === 'ready');
-      if (notStarted.length) return `さきに${nm(notStarted)}をはじめよう`;
+      const readyDeps = unmet.filter((d) => s.tasks[d].status === 'ready');
+      if (readyDeps.length) return `さきに${nm(readyDeps)}を はじめよう`;
+      const locked = unmet.filter((d) => s.tasks[d].status === 'locked');
+      if (locked.length) {
+        const far = locked.reduce((a, b) => ((s.tasks[b].def.step || 0) > (s.tasks[a].def.step || 0) ? b : a));
+        return `ステップ${s.tasks[far].def.step}の あとで はじめられるよ`;
+      }
       const active = unmet.filter((d) => s.tasks[d].status === 'active');
       if (active.length === unmet.length) {
         const rest = Math.max(1, Math.max.apply(null,
           active.map((d) => Math.ceil(this.effDur(s.tasks[d]) - s.tasks[d].progress))));
-        return `${nm(unmet)}があと約${rest}分でおわったら はじめられるよ`;
+        return `${nm(unmet)}が あと約${rest}分で おわったら はじめられるよ`;
       }
-      return `${nm(unmet)}のじゅんびちゅう。おわったら はじめられるよ`;
+      return `${nm(unmet)}の じゅんびちゅう。おわったら はじめられるよ`;
     },
 
     /* 前提作業がぜんぶ進行中で「もうすぐ開く」作業か。あと何分かを返す（そうでなければ null） */
@@ -883,6 +912,79 @@
     /* この作業が終わると開く作業（＝つぎにつながる作業）。順番の理解を助ける表示用 */
     nextOpens(taskId) {
       return (window.TASK_UNLOCKS[taskId] || []).map((id) => window.TASK_MAP[id]).filter(Boolean);
+    },
+
+    /* 采配レバーの効果の数（完了したときに一度だけ足す）。_completeTask と、カードの説明の文の両方がここを使う */
+    paceEffect(pace, taskId) {
+      if (pace === 'rush') return { sat: -3, safety: window.SAFETY_SENSITIVE.has(taskId) ? -5 : 0 };
+      if (pace === 'careful') return { sat: 2, safety: 0 };
+      return { sat: 0, safety: 0 };
+    },
+
+    /* ---- 表示用の読み取り専用の関数（state を書きかえない） ---- */
+    /* ヒントのおすすめ1件: はじめられる作業（かみなりの間は外の作業を除く）→ なければ いちばん早く開く作業 */
+    _hintPick() {
+      const s = this.state;
+      if (!s) return null;
+      const paused = this.outdoorPaused();
+      const prio = { high: 0, mid: 1 };
+      const ready = s.taskList.filter((t) => t.status === 'ready' && !(paused && t.def.outdoor));
+      if (ready.length) {
+        ready.sort((a, b) => (prio[a.def.priority] - prio[b.def.priority]) || (a.def.order - b.def.order));
+        return { kind: 'ready', t: ready[0] };
+      }
+      let best = null;
+      s.taskList.forEach((t) => {
+        if (t.def.auto) return;
+        const m = this.opensInMinutes(t.id);
+        if (m != null && (!best || m < best.min)) best = { kind: 'soon', t, min: m };
+      });
+      return best;
+    },
+    /* ヒントを押したときに開く作業の id（getHint と同じ並び順の1件目） */
+    getHintTarget() {
+      const p = this._hintPick();
+      return p ? p.t.id : null;
+    },
+    /* lockReason が指している前提の作業の id（はじめられる → まだ → 進行中 → 集合中 の順） */
+    lockDep(taskId) {
+      const s = this.state;
+      const t = s && s.tasks[taskId];
+      if (!t) return null;
+      const unmet = (t.def.deps || []).filter((d) => s.tasks[d].status !== 'done');
+      if (!unmet.length) return null;
+      const ready = unmet.find((d) => s.tasks[d].status === 'ready');
+      if (ready) return ready;
+      const locked = unmet.filter((d) => s.tasks[d].status === 'locked');
+      if (locked.length) return locked.reduce((a, b) => ((s.tasks[b].def.step || 0) > (s.tasks[a].def.step || 0) ? b : a));
+      const left = (d) => this.effDur(s.tasks[d]) - s.tasks[d].progress;
+      const active = unmet.filter((d) => s.tasks[d].status === 'active');
+      if (active.length) return active.reduce((a, b) => (left(b) > left(a) ? b : a));
+      return unmet[0];
+    },
+    /* まだ割り当てていない人・車の種類ごとに、ひつような数(need)と いま空いている数(have)。
+     * 空きの数え方は startTask の pickFrom と同じ（taskId が null で、まちあい中かもどり中） */
+    availableFor(taskId) {
+      const s = this.state;
+      const t = s && s.tasks[taskId];
+      if (!t) return [];
+      const assigned = {};
+      t.assigned.forEach((id) => {
+        const e = this.entityById(id);
+        if (e) assigned[e.kind + ':' + e.type] = (assigned[e.kind + ':' + e.type] || 0) + 1;
+      });
+      const out = [];
+      const add = (kind, type, total) => {
+        const need = total - (assigned[kind + ':' + type] || 0);
+        if (need <= 0) return;
+        const have = s.entities.filter((e) =>
+          e.kind === kind && e.type === type && e.taskId === null &&
+          (e.status === 'idle' || e.status === 'returning')).length;
+        out.push({ kind, type, need, have });
+      };
+      Object.entries(t.def.staff || {}).forEach(([type, n]) => add('staff', type, n));
+      Object.entries(t.def.vehicles || {}).forEach(([type, n]) => add('vehicle', type, n));
+      return out;
     },
 
     log(msg, cls) {
